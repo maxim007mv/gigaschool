@@ -1,0 +1,94 @@
+# Шаблон ДОП — дополнительной общеразвивающей программы.
+# Структура восстановлена по приказу Минпросвещения России от 27.07.2022 № 629
+# и чек-листу ТК-1 (Д4 §5.12, Д5 §6.2). Профстандарты для ДОП запрещены (V-TPL-02).
+# filled_by — проверки заполненности, реализованные в validators/template.py.
+kind: dop
+title: "ДОП — дополнительная общеразвивающая программа (приказ № 629, ТК-1)"
+document: "определяется организацией"
+normative_basis: "Приказ Минпросвещения России от 27.07.2022 № 629"
+sections:
+  - code: "title"
+    title: "Титульный лист (наименование организации, название программы, возраст обучающихся, год)"
+    required: true
+    source: "program (название), organization; без профстандартов"
+    filled_by: ["program_header"]
+  - code: "1.1"
+    title: "Пояснительная записка: направленность, актуальность и краткое описание программы"
+    required: true
+    source: "content_block(annotation)"
+    filled_by: ["annotation"]
+  - code: "1.2"
+    title: "Цель и задачи программы"
+    required: true
+    source: "framework.goal, framework.tasks"
+    filled_by: ["goal", "tasks"]
+  - code: "1.3"
+    title: "Планируемые результаты (знания, умения, практический опыт)"
+    required: true
+    source: "competency, learning_outcome"
+    filled_by: ["outcomes"]
+  - code: "1.4"
+    title: "Требования к слушателям (возраст, входной уровень)"
+    required: true
+    source: "profile (аудитория, входной уровень)"
+    filled_by: ["entry_requirements"]
+  - code: "1.5"
+    title: "Форма обучения и режим занятий (недель, дней, часов в день)"
+    required: true
+    source: "program.form, calendar"
+    filled_by: ["program_header", "calendar"]
+  - code: "1.6"
+    title: "Объём и сроки освоения программы"
+    required: true
+    source: "v_program_hours, calendar"
+    filled_by: ["hours", "calendar"]
+  - code: "2.1"
+    title: "Учебный план"
+    required: true
+    source: "v_module_hours"
+    filled_by: ["modules", "hours"]
+  - code: "2.2"
+    title: "Учебно-тематический план"
+    required: true
+    source: "v_topic_hours"
+    filled_by: ["modules", "hours"]
+  - code: "2.3"
+    title: "Календарный учебный график"
+    required: true
+    source: "calendar_session"
+    filled_by: ["calendar"]
+  - code: "2.4"
+    title: "Рабочие программы (содержание тем по модулям)"
+    required: true
+    source: "content_block(module_program) на каждый модуль"
+    filled_by: ["module_programs"]
+  - code: "3.1"
+    title: "Оценочные материалы (текущий контроль и итоговая аттестация)"
+    required: true
+    source: "assessment_item, rubric"
+    filled_by: ["assessments"]
+  - code: "3.2"
+    title: "Методические материалы"
+    required: true
+    source: "source (дополнительная литература), content_block(template_section)"
+    filled_by: ["methodical_materials"]
+  - code: "3.3"
+    title: "Материально-техническое обеспечение"
+    required: true
+    source: "content_block(template_section)"
+    filled_by: ["template_section:3.3"]
+  - code: "3.4"
+    title: "Список литературы и интернет-ресурсов"
+    required: true
+    source: "source (main, additional)"
+    filled_by: ["literature"]
+  - code: "p1"
+    title: "Приложение. Итоговая аттестация (итоговое занятие, защита проекта) с критериями"
+    required: true
+    source: "assessment_item (final_project, exam_task, portfolio_item) с rubric"
+    filled_by: ["assessments:final"]
+  - code: "document"
+    title: "Выдаваемый документ (если предусмотрен организацией)"
+    required: false
+    source: "program.document"
+    filled_by: ["document"]

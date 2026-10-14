@@ -1,0 +1,44 @@
+# Caddy 2: TLS, сжатие, статика SPA, прокси /api и SSE (Д1 §5, §10).
+{
+    email admin@example.com
+}
+
+karkas.example.com {
+    encode zstd gzip
+
+    # Статика SPA (собирается в web/dist и кладётся в volume web_dist)
+    root * /srv
+    try_files {path} /index.html
+
+    # REST API
+    handle /api/* {
+        reverse_proxy api:8000
+        request_body {
+            max_size 50MB
+        }
+    }
+
+    # SSE: без буферизации
+    handle /api/v1/programs/*/events {
+        reverse_proxy api:8000 {
+            flush_interval -1
+        }
+    }
+
+    # Служебные эндпоинты
+    handle /healthz {
+        reverse_proxy api:8000
+    }
+    handle /readyz {
+        reverse_proxy api:8000
+    }
+    handle /metrics {
+        reverse_proxy api:8000
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}

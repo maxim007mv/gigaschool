@@ -1,0 +1,29 @@
+{
+  "title": "S04 reference_analysis",
+  "description": "Структура образцов и найденные ошибки (Д4 §5.6, V-SMP-01).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "references": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["name", "text"],
+          "properties": {"name": {"type": "string"}, "text": {"type": "string"}}
+        }
+      },
+      "old_program_text": {"type": ["string", "null"]},
+      "profile": {"type": "object"}
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "sections": {"type": "array", "items": {"type": "object"}},
+      "sample_errors": {"type": "array", "items": {"type": "object"}},
+      "topic_candidates": {"type": "array", "items": {"type": "string"}},
+      "findings": {"type": "array", "items": {"type": "string"}},
+      "notes": {"type": "string"}
+    }
+  }
+}

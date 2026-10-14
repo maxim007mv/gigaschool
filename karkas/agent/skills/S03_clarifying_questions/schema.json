@@ -1,0 +1,35 @@
+{
+  "title": "S03 clarifying_questions",
+  "description": "Уточняющие вопросы по незаполненным слотам (Д4 §5.2).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "missing_slots": {"type": "array", "items": {"type": "string"}},
+      "S01": {"type": "object"},
+      "S02": {"type": "object"},
+      "profile": {"type": "object"}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["questions"],
+    "properties": {
+      "questions": {
+        "type": "array",
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "required": ["slot", "question"],
+          "properties": {
+            "slot": {"type": "string"},
+            "question": {"type": "string"},
+            "why": {"type": "string"},
+            "options": {"type": "array", "items": {"type": "string"}, "maxItems": 6},
+            "required": {"type": "boolean"}
+          }
+        }
+      },
+      "assumptions": {"type": "array", "items": {"type": "object"}}
+    }
+  }
+}

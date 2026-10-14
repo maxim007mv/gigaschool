@@ -1,0 +1,46 @@
+{
+  "title": "S18 source_verification",
+  "description": "Детерминированная верификация источников (Д4 §5.7).",
+  "input": {
+    "type": "object",
+    "required": ["sources"],
+    "properties": {
+      "sources": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["ref", "section", "citation"],
+          "properties": {
+            "ref": {"type": "string"},
+            "section": {"enum": ["normative", "main", "additional", "internet", "software"]},
+            "citation": {"type": "string"},
+            "url": {"type": ["string", "null"]},
+            "isbn": {"type": ["string", "null"]},
+            "normative_act_ref": {"type": ["string", "null"]}
+          }
+        }
+      },
+      "registries": {"type": ["object", "null"]},
+      "today": {"type": ["string", "null"]}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["sources", "summary"],
+    "properties": {
+      "sources": {"type": "array", "items": {"type": "object"}},
+      "summary": {
+        "type": "object",
+        "properties": {
+          "verified": {"type": "integer"},
+          "unverified": {"type": "integer"},
+          "not_found": {"type": "integer"},
+          "outdated": {"type": "integer"}
+        }
+      },
+      "unconfirmed": {"type": "array", "items": {"type": "string"}},
+      "checked_at": {"type": "string"}
+    }
+  }
+}

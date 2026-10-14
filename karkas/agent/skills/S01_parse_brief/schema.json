@@ -1,0 +1,48 @@
+{
+  "title": "S01 parse_brief",
+  "description": "Разбор брифа в JSON-профиль программы (Д4 §5.1).",
+  "input": {
+    "type": "object",
+    "required": ["brief"],
+    "properties": {
+      "brief": {"type": "string", "maxLength": 20000},
+      "files_text": {"type": ["string", "null"]},
+      "answers": {"type": "object"}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["profile"],
+    "properties": {
+      "profile": {
+        "type": "object",
+        "properties": {
+          "audience": {"type": ["string", "null"]},
+          "entry_level": {"type": ["string", "null"]},
+          "schedule": {"type": ["string", "null"]},
+          "duration_hint": {"type": ["string", "null"]},
+          "notes": {"type": ["string", "null"]},
+          "glossary": {"type": "object", "additionalProperties": {"type": "string"}},
+          "constraints": {
+            "type": "object",
+            "properties": {
+              "min_practice_share_pct": {"type": "number", "minimum": 0, "maximum": 100},
+              "self_study_only": {"type": "boolean"},
+              "unit_hours": {"type": "integer", "minimum": 1, "maximum": 8},
+              "max_hours_per_day": {"type": "integer", "minimum": 1, "maximum": 12},
+              "days_per_week": {"type": "integer", "minimum": 1, "maximum": 7},
+              "distance_share_pct": {"type": "number", "minimum": 0, "maximum": 100},
+              "self_study_share_pct": {"type": "number", "minimum": 0, "maximum": 100}
+            }
+          }
+        }
+      },
+      "goal": {"type": "string"},
+      "requested": {"type": "array", "items": {"type": "string"}},
+      "missing_slots": {"type": "array", "items": {"type": "string"}},
+      "assumptions": {"type": "array", "items": {"type": "object"}},
+      "gaps": {"type": "array", "items": {"type": "string"}},
+      "template_signs": {"type": "array", "items": {"type": "string"}}
+    }
+  }
+}

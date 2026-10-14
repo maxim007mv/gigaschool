@@ -1,0 +1,18 @@
+# Зависимости Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Прочее
+.DS_Store
+scratch/
+var/
+.env
+*.log

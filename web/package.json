@@ -1,0 +1,39 @@
+{
+  "name": "karkas-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "КАРКАС — SPA методиста (Д3: Веб-интерфейс)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-tabs": "^1.1.1",
+    "@tanstack/react-query": "^5.59.16",
+    "@tanstack/react-router": "^1.79.0",
+    "@tanstack/react-table": "^8.20.5",
+    "@tanstack/react-virtual": "^3.10.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

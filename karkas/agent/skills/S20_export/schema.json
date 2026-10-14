@@ -1,0 +1,22 @@
+{
+  "title": "S20 export",
+  "description": "Выгрузки комплекта: docx, pptx, GIFT, Moodle XML, CSV, JSON, отчёт (Д4 §5.12).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "kit": {"type": ["object", "null"]},
+      "formats": {
+        "type": "array",
+        "items": {"enum": ["docx", "pptx", "gift", "moodle_xml", "csv", "json", "report"]}
+      },
+      "module_refs": {"type": ["array", "null"], "items": {"type": "string"}},
+      "report": {"type": ["object", "null"]},
+      "S19": {"type": "object"}
+    }
+  },
+  "output": {
+    "type": "object",
+    "additionalProperties": {"type": ["string", "object"]},
+    "description": "kind → bytes (.docx/.pptx) или str (GIFT/XML/CSV/JSON)"
+  }
+}

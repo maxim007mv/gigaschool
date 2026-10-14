@@ -1,0 +1,25 @@
+# Зависимости
+node_modules/
+
+# Сборка
+dist/
+dist-ssr/
+*.local
+
+# Отчёты инструментов
+coverage/
+playwright-report/
+test-results/
+.vite/
+
+# Редакторы и ОС
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Логи и окружение
+*.log
+.env
+.env.*
+!.env.example

@@ -1,0 +1,24 @@
+{
+  "title": "S02 template_choice",
+  "description": "Выбор вида программы: детерминированные правила + LLM-арбитр (Д4 §5.1).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "brief": {"type": "string"},
+      "profile": {"type": "object"},
+      "S01": {"type": "object", "description": "выход S01: profile, template_signs"},
+      "attached_templates": {"type": "array", "items": {"type": "string"}}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["kind", "confidence", "source"],
+    "properties": {
+      "kind": {"enum": ["dpp_pk", "dop", null]},
+      "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+      "source": {"enum": ["rules", "llm", "question"]},
+      "reasons": {"type": "array", "items": {"type": "string"}},
+      "question": {"type": ["string", "null"]}
+    }
+  }
+}

@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Дизайн-токены КАРКАС (Д3 §7). Tailwind-конфиг ссылается на те же значения.
+   --------------------------------------------------------------------------- */
+:root {
+  /* Цвета */
+  --color-primary: #0f766e; /* основные действия, активный шаг, «утверждено» */
+  --color-primary-dark: #0b5d57;
+  --color-primary-bg: #e6f4f2;
+  --color-ink: #1f3a5f; /* заголовки, навигация */
+  --color-ink-muted: #4b5f7a;
+  --color-danger: #b91c1c; /* ошибки, несходящиеся суммы (контраст 6,5:1) */
+  --color-danger-bg: #fef2f2;
+  --color-warning: #92400e;
+  --color-warning-bg: #fef3c7;
+  --color-success: #166534;
+  --color-success-bg: #dcfce7;
+  --color-line: #d7dfe9;
+  --color-surface: #ffffff;
+  --color-canvas: #f6f8fa;
+
+  /* Шрифт: кириллица, хорошая читаемость таблиц */
+  --font-family: "PT Sans", Arial, sans-serif;
+  --font-size-caption: 12.5px;
+  --font-size-base: 14px;
+  --font-size-subtitle: 16px;
+  --font-size-title: 22px;
+
+  /* Сетка отступов: 4 / 8 / 12 / 16 / 24 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  /* Радиусы */
+  --radius-btn: 8px;
+  --radius-card: 12px;
+
+  /* Фокус клавиатуры: 2 px #0F766E + 2 px offset */
+  --focus-ring: 2px solid var(--color-primary);
+  --focus-ring-offset: 2px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    color: #23324a;
+    background: var(--color-canvas);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    color: var(--color-ink);
+  }
+
+  /* Видимый фокус клавиатуры на всех интерактивных элементах (WCAG 2.4.7) */
+  :focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+@layer components {
+  /* Ровные столбцы часов */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Фокус внутри редактируемой ячейки таблицы часов */
+  .hours-cell input:focus-visible {
+    outline-offset: 0;
+  }
+}
+
+/* Уважаем системную настройку «меньше движения» (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

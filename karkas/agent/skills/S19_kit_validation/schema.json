@@ -1,0 +1,41 @@
+{
+  "title": "S19 kit_validation",
+  "description": "Полная самопроверка комплекта KitV1 (Д4 §5.8).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "kit": {"type": ["object", "null"]},
+      "registries": {"type": ["object", "null"]},
+      "reference_texts": {"type": "array", "items": {"type": "string"}},
+      "declared_totals": {"type": ["object", "null"]},
+      "today": {"type": ["string", "null"]},
+      "S13": {"type": "object"},
+      "S14": {"type": "object"},
+      "S15": {"type": "object"},
+      "S16": {"type": "object"},
+      "S18": {"type": "object"}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["report", "passed"],
+    "properties": {
+      "report": {
+        "type": "object",
+        "required": ["passed", "issues"],
+        "properties": {
+          "passed": {"type": "boolean"},
+          "version": {"type": ["integer", "null"]},
+          "duration_ms": {"type": "integer"},
+          "summary": {"type": "object"},
+          "issues": {"type": "array", "items": {"type": "object"}},
+          "gaps": {"type": "array", "items": {"type": "string"}},
+          "sample_findings": {"type": "array", "items": {"type": "string"}},
+          "assumptions": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "passed": {"type": "boolean"},
+      "error_count": {"type": "integer", "minimum": 0}
+    }
+  }
+}

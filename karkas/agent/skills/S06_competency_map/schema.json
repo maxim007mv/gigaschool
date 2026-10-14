@@ -1,0 +1,48 @@
+{
+  "title": "S06 competency_map",
+  "description": "Компетенции и результаты обучения З/У/Н (Д4 §4, V-COV-03).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "kind": {"enum": ["dpp_pk", "dop"]},
+      "profile": {"type": "object"},
+      "S05": {"type": "object", "description": "labor_functions[] из реестра"},
+      "labor_functions": {"type": "array", "items": {"type": "object"}},
+      "total_hours": {"type": ["integer", "string"]},
+      "knowledge": {"type": "string"}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["competencies"],
+    "properties": {
+      "competencies": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["ref", "title", "outcomes"],
+          "properties": {
+            "ref": {"type": "string", "pattern": "^C\\d{1,2}$"},
+            "title": {"type": "string"},
+            "activity_kind": {"type": ["string", "null"]},
+            "labor_function_codes": {"type": "array", "items": {"type": "string"}},
+            "outcomes": {
+              "type": "array",
+              "minItems": 3,
+              "items": {
+                "type": "object",
+                "required": ["ref", "type", "text"],
+                "properties": {
+                  "ref": {"type": "string", "pattern": "^LO\\d{1,2}\\.\\d{1,2}$"},
+                  "type": {"enum": ["knowledge", "skill", "experience"]},
+                  "text": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      },
+      "gaps": {"type": "array", "items": {"type": "string"}}
+    }
+  }
+}

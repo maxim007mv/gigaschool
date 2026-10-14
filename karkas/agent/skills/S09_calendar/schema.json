@@ -1,0 +1,42 @@
+{
+  "title": "S09 calendar",
+  "description": "Календарный учебный график: недели, дни, занятия (Д4 §5.5).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "S08": {"type": "object", "description": "rows, distance, module_of"},
+      "rows": {"type": "object"},
+      "distance": {"type": "object"},
+      "module_of": {"type": "object"},
+      "constraints": {"type": "object"},
+      "max_hours_per_day": {"type": "integer", "minimum": 1, "maximum": 12},
+      "days_per_week": {"type": "integer", "minimum": 1, "maximum": 7}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["sessions"],
+    "properties": {
+      "weeks": {"type": "integer", "minimum": 0},
+      "days": {"type": "integer", "minimum": 0},
+      "days_per_week": {"type": "integer"},
+      "max_hours_per_day": {"type": "integer"},
+      "sessions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["seq", "week", "day", "hours"],
+          "properties": {
+            "seq": {"type": "integer", "minimum": 1},
+            "week": {"type": "integer", "minimum": 1},
+            "day": {"type": "integer", "minimum": 1},
+            "topic_ref": {"type": ["string", "null"]},
+            "activity": {"type": "string"},
+            "mode": {"enum": ["in_person", "distance"]},
+            "hours": {"type": "integer", "minimum": 1, "maximum": 12}
+          }
+        }
+      }
+    }
+  }
+}
