@@ -28,7 +28,6 @@
             "properties": {
               "min_practice_share_pct": {"type": "number", "minimum": 0, "maximum": 100},
               "self_study_only": {"type": "boolean"},
-              "unit_hours": {"type": "integer", "minimum": 1, "maximum": 8},
               "max_hours_per_day": {"type": "integer", "minimum": 1, "maximum": 12},
               "days_per_week": {"type": "integer", "minimum": 1, "maximum": 7},
               "distance_share_pct": {"type": "number", "minimum": 0, "maximum": 100},

@@ -24,7 +24,6 @@ REQUIRED_SLOTS: tuple[str, ...] = (
 class ConstraintsOut(BaseModel):
     min_practice_share_pct: float = 0.0
     self_study_only: bool = False
-    unit_hours: int = 1
     max_hours_per_day: int = 8
     days_per_week: int = 5
     distance_share_pct: float = 0.0
@@ -62,7 +61,6 @@ def normalize(payload: ParseBriefOut) -> dict[str, Any]:
     """Приведение к канону: диапазоны ограничений, чистка строк, известные слоты."""
     profile = payload.profile
     constraints = profile.constraints
-    constraints.unit_hours = int(clamp(constraints.unit_hours, 1, 8))
     constraints.max_hours_per_day = int(clamp(constraints.max_hours_per_day, 1, 12))
     constraints.days_per_week = int(clamp(constraints.days_per_week, 1, 7))
     constraints.min_practice_share_pct = float(clamp(constraints.min_practice_share_pct, 0, 100))

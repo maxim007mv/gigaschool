@@ -206,6 +206,7 @@ class LlmGateway:
         semaphore: asyncio.Semaphore | None = None,
     ) -> None:
         self._settings = settings if settings is not None else get_settings()
+        self._extra_body: dict[str, Any] = json.loads(self._settings.llm_extra_body_json or "{}")
         self._client = client if client is not None else _build_default_client(self._settings)
         self._cache: CacheProtocol = cache if cache is not None else InMemoryCache()
         self._meter: MeterProtocol = meter if meter is not None else NullMeter()
@@ -294,19 +295,21 @@ class LlmGateway:
         temperature: float,
         model_class: str,
     ) -> str:
-        payload = json.dumps(
-            {
-                "model": model,
-                "schema": schema.__name__,
-                "messages": messages,
-                "temperature": temperature,
-                "model_class": model_class,
-                "response_format": {"type": "json_object"},
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-            default=str,
-        )
+        key_parts: dict[str, Any] = {
+            "model": model,
+            "schema": schema.__name__,
+            "messages": messages,
+            "temperature": temperature,
+            "model_class": model_class,
+            "response_format": {"type": "json_object"},
+        }
+        # Опции режима влияют на ответ: без них кэш отдал бы ответ прежнего режима.
+        # Ключ меняется только когда опции заданы, чтобы не инвалидировать прежний кэш.
+        if self._extra_body:
+            key_parts["extra_body"] = self._extra_body
+        if self._settings.llm_max_output_tokens:
+            key_parts["max_tokens"] = self._settings.llm_max_output_tokens
+        payload = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, default=str)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _assert_allowed(self, model: str) -> None:
@@ -428,6 +431,10 @@ class LlmGateway:
             }
             if use_json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
+            if self._settings.llm_max_output_tokens:
+                kwargs["max_tokens"] = self._settings.llm_max_output_tokens
+            if self._extra_body:
+                kwargs["extra_body"] = self._extra_body
             started = self._clock()
             try:
                 async with self._limiter():

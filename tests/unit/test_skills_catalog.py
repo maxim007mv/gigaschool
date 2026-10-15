@@ -692,7 +692,7 @@ FRAMEWORK_STUB_PAYLOADS: dict[str, dict[str, Any]] = {
                     {
                         "ref": "T1.1",
                         "title": "Введение",
-                        "outcome_refs": ["LO1.1"],
+                        "outcome_refs": ["LO1.1", "LO1.2", "LO1.3"],
                         "complexity": 1,
                         "practicality": 0.6,
                         "weight": 1.0,

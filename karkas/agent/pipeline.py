@@ -248,6 +248,17 @@ async def _seeded_context(
     return ctx
 
 
+def _topic_outcomes(outcomes_json: list[dict[str, Any]], outcome_refs: list[str]) -> list[dict[str, Any]]:
+    """РО, относящиеся к теме, — их одних передаём в промпт (экономия токенов).
+
+    Полный список повторялся бы в каждом вызове S12/S13/S14/S15. Если у темы нет
+    привязки к РО — отдаём полный список (безопасный откат).
+    """
+    refs = set(outcome_refs)
+    selected = [outcome for outcome in outcomes_json if outcome.get("ref") in refs]
+    return selected or list(outcomes_json)
+
+
 def _progress_adapter(on_progress: ProgressFn | None) -> ProgressCallback:
     if on_progress is None:
         return None
@@ -452,9 +463,10 @@ def _constraints_dict(program: dict[str, Any], answers: dict[str, str]) -> dict[
     total = program.get("total_hours") or _parse_hours(answers.get("total_hours"))
     if not total:
         raise ValueError("CLARIFICATION_REQUIRED: не задан объём программы в часах")
+    final_att = int(program.get("final_att_hours") or 2)
     return {
         "total": int(total),
-        "final_att": int(program.get("final_att_hours") or 2),
+        "final_att": final_att,
         "unit": int(constraints.get("unit_hours") or 1),
         "self_study_only": bool(constraints.get("self_study_only", False)),
         "min_practice_share_pct": float(constraints.get("min_practice_share_pct") or 0),
@@ -537,7 +549,9 @@ async def intake_core(
 
     fields: dict[str, Any] = {"profile": profile_json}
     # Ограничения из S01 объединяем с уже сохранёнными (не затираем допущения).
-    merged_constraints = {**dict(program.get("constraints") or {}), **constraints}
+    # unit_hours задаёт только методист (API/UI): S01 его не выводит и не перезаписывает.
+    s01_constraints = {k: v for k, v in constraints.items() if k != "unit_hours"}
+    merged_constraints = {**dict(program.get("constraints") or {}), **s01_constraints}
     if merged_constraints:
         fields["constraints"] = merged_constraints
     if kind:
@@ -993,10 +1007,14 @@ async def kit_core(
                 "profile": profile_json,
                 "registries": registries,
             }
-            s12 = (await runner.run("S12", common, topic_ctx, progress_cb)).output
+            # S12/S13 — только содержание: в промпт идут РО темы (экономия токенов).
+            # S14/S15 создают оценочные средства, которые считает покрытие РО (V-COV-02),
+            # поэтому им остаётся полный список.
+            content_common = {**common, "outcomes": _topic_outcomes(outcomes_json, topic.outcome_refs)}
+            s12 = (await runner.run("S12", content_common, topic_ctx, progress_cb)).output
             lecture_plans.extend(s12.get("lecture_plans") or [])
             if module.ref in slides_modules:
-                s13 = (await runner.run("S13", common, topic_ctx, progress_cb)).output
+                s13 = (await runner.run("S13", content_common, topic_ctx, progress_cb)).output
                 slides.extend(s13.get("slides") or [])
             s14 = (await runner.run("S14", {**common, "count": per_topic_questions}, topic_ctx, progress_cb)).output
             questions.extend(s14.get("questions") or [])

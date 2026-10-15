@@ -58,7 +58,6 @@ FAKE_RESPONSES: dict[str, dict[str, Any]] = {
             "audience": "Школьники 8–9 классов",
             "entry_level": "Нулевой",
             "constraints": {
-                "unit_hours": 2,
                 "min_practice_share_pct": 50,
                 "days_per_week": 2,
                 "max_hours_per_day": 2,

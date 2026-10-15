@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ModelClass = Literal["struct", "bulk", "embed", "rerank"]
@@ -38,6 +39,24 @@ class Settings(BaseSettings):
     llm_concurrency: int = Field(default=8, ge=1, le=64)
     llm_timeout_s: int = Field(default=90, ge=5)
     llm_cache_ttl_h: int = Field(default=168, ge=1)  # 7 суток
+    # Доп. параметры запроса (JSON), напр. '{"reasoning":{"enabled":false}}' для OpenRouter —
+    # отключает скрытое «рассуждение» моделей (в замере: выход 67 → 17 токенов). Пусто = не слать.
+    llm_extra_body_json: str = ""
+
+    @field_validator("llm_extra_body_json")
+    @classmethod
+    def _extra_body_is_object(cls, value: str) -> str:
+        """LLM_EXTRA_BODY_JSON — JSON-объект; иначе шлюз падал бы при каждом вызове."""
+        if not value.strip():
+            return ""
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"LLM_EXTRA_BODY_JSON: невалидный JSON ({exc.msg})") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM_EXTRA_BODY_JSON: ожидается JSON-объект, например {\"reasoning\":{\"enabled\":false}}")
+        return value
+    llm_max_output_tokens: int = Field(default=0, ge=0)  # 0 — лимит не задаётся
     llm_max_repairs: int = Field(default=2, ge=0)     # «ремонт» JSON до 2 раз
     llm_backoff_base_s: float = 1.0                   # 1 → 2 → 4 с + джиттер
     llm_circuit_failures: int = 5                     # 5 ошибок за окно → размыкание

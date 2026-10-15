@@ -111,13 +111,42 @@ def normalize_structure(
                 "topics": topics,
             }
         )
+    _enforce_sequence(modules, gaps)
     return modules, gaps
+
+
+def _enforce_sequence(modules: list[dict[str, Any]], gaps: list[str]) -> None:
+    """V-SEQ-01: сложность не убывает по порядку программы (модули по номеру, темы по порядку).
+
+    Модель часто ставит базовую тему после продвинутой. Поднимаем сложность такой темы до
+    предыдущей (детерминированно, без повторного вызова LLM) и фиксируем поправку в gaps.
+    """
+    previous = 1
+    for module in modules:
+        for topic in module["topics"]:
+            if topic["complexity"] < previous:
+                gaps.append(
+                    f"{topic['ref']}: сложность {topic['complexity']} поднята до {previous} "
+                    "(V-SEQ-01: сложность не убывает по программе)"
+                )
+                topic["complexity"] = previous
+            previous = topic["complexity"]
+
+
+def uncovered_outcomes(modules: list[dict[str, Any]], known: set[str]) -> list[str]:
+    """РО из S06, которые не раскрыты ни в одной теме (иначе упадёт V-COV-01 на утверждении)."""
+    covered = {ref for module in modules for topic in module["topics"] for ref in topic["outcome_refs"]}
+    return sorted(known - covered)
 
 
 async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     """Построить модули и темы по компетенциям S06 (часы не распределяются!)."""
     profile = inputs.get("profile") if isinstance(inputs.get("profile"), dict) else {}
     s06 = inputs.get("S06") if isinstance(inputs.get("S06"), dict) else {}
+    competencies_json = to_json(inputs.get("competencies") or s06.get("competencies") or [])
+    total_hours = inputs.get("total_hours") or (profile.get("total_hours") or "не задан")
+    known = known_outcomes(inputs)
+
     payload = cast(
         StructureOut,
         await complete_structured(
@@ -125,13 +154,36 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             METADATA,
             StructureOut,
             profile_json=to_json(profile),
-            total_hours=inputs.get("total_hours") or (profile.get("total_hours") or "не задан"),
-            competencies_json=to_json(inputs.get("competencies") or s06.get("competencies") or []),
+            total_hours=total_hours,
+            competencies_json=competencies_json,
         ),
     )
-    modules, gaps = normalize_structure(payload.modules, known_outcomes(inputs))
+    modules, gaps = normalize_structure(payload.modules, known)
+    missing = uncovered_outcomes(modules, known) if known else []
+    if missing:
+        # Одна целевая перепопытка: модель пропустила РО — просим раскрыть их в темах.
+        retry = cast(
+            StructureOut,
+            await complete_structured(
+                ctx,
+                METADATA,
+                StructureOut,
+                profile_json=to_json(profile),
+                total_hours=total_hours,
+                competencies_json=competencies_json,
+                missing_outcomes=", ".join(missing),
+                previous_json=to_json(payload.model_dump()),
+            ),
+        )
+        retry_modules, retry_gaps = normalize_structure(retry.modules, known)
+        retry_missing = uncovered_outcomes(retry_modules, known)
+        # Берём вариант, который раскрывает больше РО: перепопытка не должна ухудшить результат.
+        if retry_modules and len(retry_missing) <= len(missing):
+            payload, modules, gaps, missing = retry, retry_modules, retry_gaps, retry_missing
     if not modules:
         raise ValueError("S07: после постпроверки не осталось валидных модулей")
+    if missing:
+        gaps.append(f"РО не раскрыты ни в одной теме после ремонта: {', '.join(missing)}")
     return {
         "modules": modules,
         "gaps": [*[text.strip() for text in payload.gaps if text.strip()], *gaps],
