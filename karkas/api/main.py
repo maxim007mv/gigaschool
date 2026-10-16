@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=api_prefix)
     app.include_router(auth.me_router, prefix=api_prefix)
     app.include_router(files.router, prefix=api_prefix)
+    app.include_router(files.local_storage_router, prefix=api_prefix)
     app.include_router(programs.router, prefix=api_prefix)
     app.include_router(programs.sse_router, prefix=api_prefix)
     app.include_router(clarify.router, prefix=api_prefix)

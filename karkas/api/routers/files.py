@@ -5,19 +5,59 @@
 
 from __future__ import annotations
 
+import mimetypes
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.api.deps import CurrentPrincipal, enforce_rate_limit, require_roles
-from karkas.api.errors import FileTooLarge, NotFound, UnsupportedFile
+from karkas.api.errors import FileTooLarge, Forbidden, NotFound, UnsupportedFile
 from karkas.infra import ingest, storage
 from karkas.infra.db import get_session
 from karkas.infra.repos import files as files_repo
+from karkas.infra.storage import LocalStorage, verify_local_presign
 from karkas.settings import settings
 
 router = APIRouter(tags=["files"], dependencies=[Depends(enforce_rate_limit)])
+
+# Без JWT: доступ только по HMAC-подписи (как S3 presigned). Нужно для <a href> в UI.
+local_storage_router = APIRouter(tags=["files"])
+
+
+@local_storage_router.get("/local-storage/{bucket}/{key:path}")
+async def download_local_storage(
+    bucket: str,
+    key: str,
+    exp: Annotated[int, Query()],
+    sig: Annotated[str, Query()],
+) -> Response:
+    """Скачать файл локального хранилища по подписанной ссылке (dev / LocalStorage)."""
+    allowed = {settings.s3_bucket_art, settings.s3_bucket_src}
+    if bucket not in allowed:
+        raise NotFound("Файл не найден")
+    if not verify_local_presign(bucket, key, exp, sig):
+        raise Forbidden("Ссылка на файл недействительна или истекла")
+    store = storage.get_storage()
+    if not isinstance(store, LocalStorage):
+        raise NotFound("Локальная раздача недоступна")
+    path = store._path(bucket, key)
+    if not path.is_file():
+        raise NotFound("Файл не найден")
+    # Не выходим за корень хранилища (защита от подмены key).
+    try:
+        path.resolve().relative_to(store.root.resolve())
+    except ValueError as exc:
+        raise Forbidden("Недопустимый путь") from exc
+    data = path.read_bytes()
+    mime, _ = mimetypes.guess_type(path.name)
+    safe_name = path.name.replace('"', "").replace("\r", "").replace("\n", "") or "download"
+    return Response(
+        content=data,
+        media_type=mime or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
 
 
 @router.post("/files", status_code=201)

@@ -37,11 +37,11 @@ export function mockDelay(ms = 150): Promise<void> {
 export const MOCK_PROGRAMS: ProgramSummary[] = [
   {
     id: "p-100-python",
-    title: "Основы Python",
+    title: "Python с нуля: первые шаги для школьников (16 ч)",
     kind: "dop",
-    form: "distance",
+    form: "full_time",
     total_hours: 16,
-    status: "framework_review",
+    status: "kit_review",
     audience: "Школьники 8–9 классов",
     updated_at: "2026-10-13T09:40:00Z",
     needs_input: false,
@@ -52,7 +52,7 @@ export const MOCK_PROGRAMS: ProgramSummary[] = [
     kind: "dpp_pk",
     form: "part_time",
     total_hours: 36,
-    status: "kit_review",
+    status: "framework_review",
     audience: "Учителя школ",
     updated_at: "2026-10-12T16:05:00Z",
     needs_input: false,
@@ -386,38 +386,30 @@ export function mockFramework(): FrameworkResponse {
 
 export function mockReport(): Report {
   return {
-    passed: false,
+    passed: true,
     version: 7,
     duration_ms: 412,
     summary: {
       hours: { ok: true, checked: 38 },
-      coverage: { ok: false, outcomes: 5, min_assessments: 2 },
-      sources: { verified: 3, unverified: 1, not_found: 0 },
-      template: { sections_total: 24, filled: 24 },
+      coverage: { ok: true, outcomes: 3, min_assessments: 2 },
+      sources: { verified: 2, unverified: 0, not_found: 0 },
+      template: { sections_total: 17, filled: 17 },
       plagiarism: { max_overlap: 0.06 },
     },
     issues: [
       {
-        rule_code: "V-COV-02",
-        severity: "error",
-        entity_ref: "LO2.1",
-        message: "Результат обучения LO2.1 проверяется одним оценочным средством, а нужно не меньше двух.",
-        fix_hint: { endpoint: "edits", body: { target_ref: "T2.1", instruction: "Добавить вопрос к тесту модуля 2 по теме «Условия и циклы»" } },
-      },
-      {
-        rule_code: "V-SRC-04",
+        rule_code: "V-REA-01",
         severity: "warning",
-        entity_ref: "SRC-02",
-        message: "Книга не найдена в доступных каталогах — помечена «не подтверждено».",
+        entity_ref: "LO1.3",
+        message:
+          "Практический опыт LO1.3 за 16 ч — нереалистично: за такой объём формируется начальный опыт, перенесите результат в умения или увеличьте объём",
         fix_hint: null,
       },
     ],
     gaps: [
       "Заказчик хочет «пойти работать в сферу»; за 16 часов реалистичен начальный уровень — показано в отчёте.",
     ],
-    sample_findings: [
-      "Образец: итоговая строка «Всего» — 18 ч, а сумма тем — 16 ч. Ошибка не перенесена.",
-    ],
+    sample_findings: [],
     assumptions: [
       "Режим занятий не указан: принято не более 4 ч в день (ответ «на ваше усмотрение»)",
       "Дистанционные занятия: 4 часа лекций (значение по умолчанию для ДОП с ДОТ)",
@@ -426,14 +418,16 @@ export function mockReport(): Report {
 }
 
 export function mockUsage(): Usage {
+  // Тариф xiaomi/mimo-v2.6-flash (~¥0.70/¥2.10 за 1M → малые ₽).
   return {
-    calls: 68,
-    prompt_tokens: 402_100,
-    completion_tokens: 310_300,
-    tokens: 712_400,
-    cost_rub: "742.50",
-    duration_s: 690,
-    cache_hit_pct: 12.4,
+    calls: 41,
+    prompt_tokens: 148_900,
+    completion_tokens: 163_800,
+    tokens: 312_700,
+    cost_rub: "5.23",
+    duration_s: 95,
+    cache_hit_pct: 17.1,
+    savings_hours: 40,
   };
 }
 

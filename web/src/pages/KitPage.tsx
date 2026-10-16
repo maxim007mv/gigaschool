@@ -5,7 +5,7 @@
  * До утверждения каркаса экран закрыт (Human Gate, 409 GATE_NOT_PASSED).
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 
 import type { Assessment, ContentBlock, KitV1, Source } from "../entities/kit";
@@ -87,6 +87,23 @@ export function KitPage() {
 
   const kit = kitQuery.data ?? null;
 
+  // Сразу открываем первый материал — иначе экран выглядит «пустым».
+  useEffect(() => {
+    if (!kit || selection !== null) return;
+    const first =
+      kit.content.module_programs[0] ??
+      kit.content.lecture_plans[0] ??
+      kit.content.slides[0] ??
+      null;
+    if (first) {
+      setSelection({ kind: "block", block: first });
+      return;
+    }
+    if (kit.framework.modules[0]) {
+      setSelection({ kind: "assessments", moduleRef: kit.framework.modules[0].ref });
+    }
+  }, [kit, selection]);
+
   const editTargetRef = useMemo(() => {
     if (!selection) return null;
     if (selection.kind === "block") return selection.block.ref;
@@ -154,35 +171,24 @@ export function KitPage() {
       <header className="flex flex-wrap items-center justify-between gap-md">
         <div className="flex flex-col gap-xs">
           <Stepper current={4} />
-          <h1 className="text-title font-bold text-ink">
-            {T.kit.title}: {kit.program.title}
-          </h1>
-          <div className="flex flex-wrap items-center gap-sm">
-            {kit.report ? (
-              <Badge variant={kit.report.passed ? "ok" : "error"}>
-                {kit.report.passed ? T.report.passed : T.report.failed}
-              </Badge>
-            ) : (
-              <Badge variant="neutral">{T.report.notYet}</Badge>
-            )}
-            <Badge variant="neutral" className="tnum">
-              {kit.program.total_hours} ч
-            </Badge>
-          </div>
+          <h1 className="text-title font-bold text-ink">{kit.program.title}</h1>
+          <p className="text-base text-ink-muted">
+            Слева выберите материал — справа текст. Снизу можно скачать файлы.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-md">
           <Link
-            to="/programs/$programId/versions"
+            to="/programs/$programId/framework"
             params={{ programId: id }}
-            className="text-base text-primary underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            className="text-base text-primary underline underline-offset-2"
           >
-            {T.versions.title}
+            ← К часам
           </Link>
           <Button
-            variant="primary"
+            variant="secondary"
             onClick={() => setEditOpen(true)}
             disabled={!selection}
-            disabledReason={!selection ? T.kit.previewEmpty : undefined}
+            disabledReason={!selection ? "Сначала выберите материал слева" : undefined}
           >
             {T.kit.edit}
           </Button>

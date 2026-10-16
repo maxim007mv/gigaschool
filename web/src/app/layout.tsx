@@ -46,9 +46,18 @@ export function AppLayout() {
             >
               {T.nav.kb}
             </Link>
-            <span className="rounded-full bg-primary-bg px-md py-xs text-caption font-medium text-primary">
-              {roleLabel}
-            </span>
+            {me.isError ? (
+              <Link
+                to="/login"
+                className="rounded-btn bg-primary px-md py-xs text-caption font-medium text-white hover:bg-primary-dark"
+              >
+                {T.auth.loginLink}
+              </Link>
+            ) : (
+              <span className="rounded-full bg-primary-bg px-md py-xs text-caption font-medium text-primary">
+                {roleLabel}
+              </span>
+            )}
           </nav>
         </div>
       </header>

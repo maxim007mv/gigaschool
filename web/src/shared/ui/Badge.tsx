@@ -1,10 +1,11 @@
 /**
- * Бейдж состояния (Д3 §7): цвет + значок + текст — не только цвет
- * (требование доступности WCAG 1.4.1).
+ * Бейдж состояния (Д3 §7): цвет + SVG-иконка + текст — не только цвет
+ * (требование доступности WCAG 1.4.1). Без emoji/символов-«стикеров».
  */
 
 import type { ReactNode } from "react";
 import { cx } from "./cx";
+import { IconAlert, IconCheck, IconCross, IconDot, IconInfo } from "./icons";
 
 export type BadgeVariant = "ok" | "error" | "warning" | "info" | "neutral";
 
@@ -16,12 +17,12 @@ export interface BadgeProps {
   className?: string;
 }
 
-const ICONS: Record<BadgeVariant, string> = {
-  ok: "✓",
-  error: "✕",
-  warning: "!",
-  info: "i",
-  neutral: "•",
+const ICONS: Record<BadgeVariant, typeof IconCheck> = {
+  ok: IconCheck,
+  error: IconCross,
+  warning: IconAlert,
+  info: IconInfo,
+  neutral: IconDot,
 };
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
@@ -33,6 +34,7 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
 };
 
 export function Badge({ variant = "neutral", children, srText, className }: BadgeProps) {
+  const Icon = ICONS[variant];
   return (
     <span
       className={cx(
@@ -41,9 +43,7 @@ export function Badge({ variant = "neutral", children, srText, className }: Badg
         className,
       )}
     >
-      <span aria-hidden="true" className="font-bold">
-        {ICONS[variant]}
-      </span>
+      <Icon className="shrink-0" />
       <span>{children}</span>
       {srText ? <span className="sr-only">, {srText}</span> : null}
     </span>

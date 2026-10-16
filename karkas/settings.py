@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     # --- Прочее ------------------------------------------------------------
     tariffs_json: str = "{}"  # {"<model>": {"in": 0.0, "out": 0.0}} руб. за 1M токенов
     storage_dir: str = "var/storage"  # локальное хранилище (dev); S3 — при заданных ключах
+    # База для HTTP-presign локального хранилища (кликабельные ссылки в UI).
+    public_api_base: str = "http://127.0.0.1:8100"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

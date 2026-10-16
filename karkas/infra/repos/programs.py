@@ -87,10 +87,11 @@ async def list_programs(
         WHERE org_id = :org_id
     """
     params: dict[str, Any] = {"org_id": org_id, "limit": limit}
-    if status:
+    # UI шлёт status=all / kind=all как «без фильтра»; в enum такого значения нет.
+    if status and status != "all":
         sql += " AND status = CAST(:status AS program_status)"
         params["status"] = status
-    if kind:
+    if kind and kind != "all":
         sql += " AND kind = CAST(:kind AS program_kind)"
         params["kind"] = kind
     if cursor:

@@ -17,9 +17,16 @@ import { VersionsPage } from "../pages/VersionsPage";
 import { KbPage } from "../pages/KbPage";
 import { ActualizePage } from "../pages/ActualizePage";
 import { AdaptPage } from "../pages/AdaptPage";
+import { LoginPage } from "../pages/LoginPage";
 
 const rootRoute = createRootRoute({
   component: AppLayout,
+});
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
 });
 
 const programsRoute = createRoute({
@@ -77,6 +84,7 @@ const kbRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
+  loginRoute,
   programsRoute,
   intakeRoute,
   clarifyRoute,

@@ -17,12 +17,11 @@ describe("App (smoke)", () => {
       expect(screen.getByText("КАРКАС")).toBeInTheDocument();
     });
 
-    // Мок-данные: программа «Основы Python» с бейджем статуса.
-    // Статус встречается и в бейдже, и в фильтре — проверяем наличие.
+    // Мок-данные: программа «Основы Python» и кнопка следующего шага.
     await waitFor(() => {
       expect(screen.getByText("Основы Python")).toBeInTheDocument();
     });
-    expect(screen.getAllByText("Каркас на проверке").length).toBeGreaterThan(0);
-    expect(screen.getByText("Требуется ответ")).toBeInTheDocument();
+    expect(screen.getByText("Каркас на проверке")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Проверить часы" })).toBeInTheDocument();
   });
 });

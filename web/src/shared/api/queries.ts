@@ -122,8 +122,13 @@ export function usePrograms(filters: ProgramFilters = {}): UseQueryResult<Progra
         await mocks.mockDelay();
         return mocks.mockPrograms(filters);
       }
+      // «all» — значение UI-фильтра «все», в API не передаём (иначе CAST enum → 500).
       const response = await apiFetch<ProgramListResponse>("/programs", {
-        query: { status: filters.status, kind: filters.kind, q: filters.q },
+        query: {
+          status: filters.status && filters.status !== "all" ? filters.status : undefined,
+          kind: filters.kind && filters.kind !== "all" ? filters.kind : undefined,
+          q: filters.q || undefined,
+        },
       });
       return response.data;
     },

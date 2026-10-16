@@ -13,6 +13,7 @@ import { ApiError } from "../../shared/api/client";
 import { T } from "../../shared/i18n/ru";
 import { Badge } from "../../shared/ui/Badge";
 import { Button } from "../../shared/ui/Button";
+import { IconCheck } from "../../shared/ui/icons";
 import {
   Dialog,
   DialogClose,
@@ -128,8 +129,8 @@ export function EditDrawer({ open, onOpenChange, targetRef, targetTitle, onPlan,
 
         {applied && plan ? (
           <div className="mt-lg border-t border-line pt-lg">
-            <p className="mb-sm text-base font-medium text-success" role="status">
-              <span aria-hidden="true">✓</span>{" "}
+            <p className="mb-sm inline-flex items-center gap-xs text-base font-medium text-success" role="status">
+              <IconCheck className="h-3.5 w-3.5" />
               {applied.status === "running" ? T.kit.editQueued : T.kit.editApplied}
             </p>
             <DiffView changedRefs={plan.affected} />

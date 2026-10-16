@@ -5,6 +5,7 @@
 
 import { cx } from "./cx";
 import { T } from "../i18n/ru";
+import { IconCheck, IconChevronRight } from "./icons";
 
 export interface StepperProps {
   /** Метка текущего шага, начиная с 0. */
@@ -55,9 +56,7 @@ export function Stepper({ current, labels = T.steps.labels, maxReached, onSelect
                 </span>
               )}
               {index < labels.length - 1 ? (
-                <span aria-hidden="true" className="text-line">
-                  →
-                </span>
+                <IconChevronRight className="text-line" />
               ) : null}
             </li>
           );
@@ -77,7 +76,7 @@ function StepMark({ index, current }: { index: number; current: number }) {
         isDone ? "bg-success text-white" : index === current ? "bg-primary text-white" : "bg-line text-ink-muted",
       )}
     >
-      {isDone ? "✓" : index + 1}
+      {isDone ? <IconCheck className="h-3 w-3" /> : index + 1}
     </span>
   );
 }

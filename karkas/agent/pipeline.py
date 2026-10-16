@@ -1754,6 +1754,7 @@ async def _index_kb_document(
 async def dispatch_job(job: dict[str, Any], *, on_progress: ProgressFn | None = None) -> None:
     """Выполнить задачу очереди по виду (worker вызывает эту функцию)."""
     kind = job["kind"]
+    job_id = str(job["id"]) if job.get("id") else None
     program_id = str(job["program_id"]) if job.get("program_id") else None
     payload = job.get("payload") or {}
     progress_cb = _progress_adapter(on_progress)

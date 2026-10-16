@@ -15,7 +15,7 @@ import {
   type Activity,
   type FrameworkOp,
 } from "../entities/kit";
-import { formatProgramForm, formatProgramKind, formatStatus } from "../entities/formatters";
+import { formatStatus } from "../entities/formatters";
 import { ApiError } from "../shared/api/client";
 import { problemIssueMessages } from "../shared/api/problem";
 import {
@@ -27,6 +27,7 @@ import {
 import { T } from "../shared/i18n/ru";
 import { Badge } from "../shared/ui/Badge";
 import { Button } from "../shared/ui/Button";
+import { IconCheck } from "../shared/ui/icons";
 import { Stepper } from "../shared/ui/Stepper";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/ui/Tabs";
 import { useToast } from "../shared/ui/Toast";
@@ -232,32 +233,21 @@ export function FrameworkPage() {
         <div className="flex flex-wrap items-center justify-between gap-md">
           <div className="flex flex-col gap-xs">
             <h1 className="text-title font-bold text-ink">{data.program.title}</h1>
-            <div className="flex flex-wrap items-center gap-sm">
-              <Badge variant={approved ? "ok" : "info"}>{formatStatus(data.status)}</Badge>
-              <Badge variant="neutral">{formatProgramKind(data.program.kind)}</Badge>
-              <Badge variant="neutral">{formatProgramForm(data.program.form)}</Badge>
-              <Badge variant="neutral" className="tnum">
-                {data.program.total_hours} ч
-              </Badge>
-              <span className="tnum text-caption text-ink-muted">
-                {T.framework.version} {data.version}
-              </span>
-            </div>
+            <p className="text-base text-ink-muted">
+              {data.program.total_hours} ч · {formatStatus(data.status)}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-md">
-            <Link
-              to="/"
-              className="text-base text-primary underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            >
-              {T.nav.programs}
+            <Link to="/" className="text-base text-primary underline underline-offset-2">
+              ← К списку
             </Link>
             {approved ? (
               <Link
                 to="/programs/$programId/kit"
                 params={{ programId: id }}
-                className="inline-flex min-h-[36px] items-center justify-center rounded-btn bg-primary px-lg py-sm font-medium text-white hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-btn bg-primary px-xl py-sm text-base font-semibold text-white hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                {T.framework.buildKit}
+                Открыть материалы →
               </Link>
             ) : null}
           </div>
@@ -265,10 +255,18 @@ export function FrameworkPage() {
       </header>
 
       {approved ? (
-        <p className="rounded-card border border-success/30 bg-success-bg px-lg py-md text-base text-success" role="status">
-          <span aria-hidden="true">✓</span> {T.framework.approved}. {T.framework.approvedHint}
+        <p
+          className="inline-flex items-center gap-sm rounded-card border border-success/30 bg-success-bg px-lg py-md text-base text-success"
+          role="status"
+        >
+          <IconCheck className="h-3.5 w-3.5 shrink-0" />
+          Часы утверждены. Дальше — материалы комплекта.
         </p>
-      ) : null}
+      ) : (
+        <p className="rounded-card border border-line bg-surface px-lg py-md text-base text-ink-muted">
+          Смотрите таблицу часов. Если ошибок нет — нажмите «Утвердить каркас» внизу справа.
+        </p>
+      )}
 
       {approve.error instanceof ApiError && approve.error.code === "HOURS_MISMATCH" ? (
         <div role="alert" className="rounded-card border border-danger/30 bg-danger-bg px-lg py-md text-base text-danger">

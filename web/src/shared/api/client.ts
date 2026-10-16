@@ -57,13 +57,39 @@ export function apiUrl(path: string, query?: ApiFetchOptions["query"]): string {
   return qs ? `${base}?${qs}` : base;
 }
 
+const ACCESS_KEY = "karkas.access_token";
+const REFRESH_KEY = "karkas.refresh_token";
+
 /** Токен доступа (JWT) из localStorage; в демо может отсутствовать. */
 export function getAccessToken(): string | null {
   try {
-    return window.localStorage.getItem("karkas.access_token");
+    return window.localStorage.getItem(ACCESS_KEY);
   } catch {
     return null;
   }
+}
+
+export function setAccessToken(token: string | null): void {
+  try {
+    if (token) window.localStorage.setItem(ACCESS_KEY, token);
+    else window.localStorage.removeItem(ACCESS_KEY);
+  } catch {
+    // private mode
+  }
+}
+
+export function setRefreshToken(token: string | null): void {
+  try {
+    if (token) window.localStorage.setItem(REFRESH_KEY, token);
+    else window.localStorage.removeItem(REFRESH_KEY);
+  } catch {
+    // private mode
+  }
+}
+
+export function clearAuthTokens(): void {
+  setAccessToken(null);
+  setRefreshToken(null);
 }
 
 /**
@@ -112,6 +138,12 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   });
 
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/")) {
+      clearAuthTokens();
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.assign("/login");
+      }
+    }
     throw new ApiError(response.status, await parseProblem(response));
   }
 

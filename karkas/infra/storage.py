@@ -7,8 +7,11 @@ Presigned-ссылки живут 15 минут (settings.s3_presign_ttl_s).
 from __future__ import annotations
 
 import hashlib
+import hmac
+import time
 from pathlib import Path
 from typing import Protocol
+from urllib.parse import quote
 
 from karkas.settings import settings
 
@@ -19,11 +22,27 @@ class ObjectStorage(Protocol):
     def presign(self, bucket: str, key: str, ttl_s: int = 900) -> str: ...
 
 
+def local_presign_signature(bucket: str, key: str, exp: int) -> str:
+    """HMAC-подпись для локального HTTP-presign (без boto3)."""
+    secret = (settings.jwt_secret or "dev").encode("utf-8")
+    payload = f"{bucket}\n{key}\n{exp}".encode("utf-8")
+    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+
+def verify_local_presign(bucket: str, key: str, exp: int, signature: str) -> bool:
+    """Проверить срок и подпись локальной ссылки."""
+    if exp < int(time.time()):
+        return False
+    expected = local_presign_signature(bucket, key, exp)
+    return hmac.compare_digest(expected, signature or "")
+
+
 class LocalStorage:
     """Локальное хранилище для разработки и тестов (MinIO/S3 — на стенде)."""
 
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root or settings.storage_dir)
+        # Абсолютный корень: иначе пути и раздача через API ломаются на cwd.
+        self.root = Path(root or settings.storage_dir).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, bucket: str, key: str) -> Path:
@@ -40,8 +59,14 @@ class LocalStorage:
         return self._path(bucket, key).read_bytes()
 
     def presign(self, bucket: str, key: str, ttl_s: int = 900) -> str:
-        # В dev ссылка — путь к файлу; контракт URL сохраняется для стенда (S3 presigned).
-        return self._path(bucket, key).as_uri()
+        """HTTP-ссылка на /api/v1/local-storage/... (кликабельна в UI, как S3)."""
+        exp = int(time.time()) + max(1, int(ttl_s))
+        sig = local_presign_signature(bucket, key, exp)
+        base = (settings.public_api_base or "http://127.0.0.1:8100").rstrip("/")
+        return (
+            f"{base}/api/v1/local-storage/{quote(bucket, safe='')}/"
+            f"{quote(key, safe='/')}?exp={exp}&sig={sig}"
+        )
 
 
 class S3Storage:
