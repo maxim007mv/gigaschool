@@ -21,6 +21,11 @@
 - источники и НПА со статусом ≠ verified помечаются «[не подтверждено — проверьте]»;
 - при отсутствии данных раздел не пропадает: выводится явная пометка (функция
   не падает ни на пустом комплекте, ни без слайдов/тестов).
+
+Педагогический текст (аннотации, разделы 3.x, методичка, формулировки заданий)
+берётся **только** из комплекта KitV1 (выход навыков S11–S17 / GigaChat).
+Экспортёр не подставляет шаблонные абзацы вместо ИИ — только рендер и
+организационные пропуски (V-TPL-03).
 """
 
 from __future__ import annotations
@@ -112,14 +117,8 @@ ORDER_DATE_PLACEHOLDER = "«__» ________ 20__ г."
 SIGNATURE_PLACEHOLDER = "______________________"
 UNVERIFIED_MARK = "[не подтверждено — проверьте]"
 NORMAL_FONT_SIZE_PT = 12
-DEFAULT_CONDITIONS_TEXT = (
-    "Материально-техническое и организационное обеспечение уточняется образовательной "
-    "организацией: учебные аудитории, рабочее место преподавателя, доступ слушателей "
-    "к информационным и телекоммуникационным ресурсам."
-)
-DEFAULT_TEACHERS_TEXT = (
-    f"Занятия проводят: {SIGNATURE_PLACEHOLDER} (ФИО, должность, учёная степень) — "
-    "реквизиты заполняются образовательной организацией (V-TPL-03)."
+AI_SECTION_MISSING = (
+    "[раздел не сформирован моделью — требуется генерация комплекта (GigaChat), не подстановка шаблона]"
 )
 ANNOTATION_MISSING_TEXT = "Аннотация в комплекте не сформирована."
 LEGAL_BASIS_MISSING_TEXT = "Основание разработки программы в комплекте не указано."
@@ -132,11 +131,6 @@ DOP_TITLE_LINES = (
     "ОБЩЕРАЗВИВАЮЩАЯ ПРОГРАММА",
 )
 DOP_EXPLANATORY_NOTE_HEADING = "Пояснительная записка"
-DOP_METHODICAL_DEFAULT = (
-    "Методические рекомендации для теоретических, практических занятий и самостоятельной "
-    "работы формируются образовательной организацией на основе комплекта материалов программы."
-)
-
 # Заголовки разделов эталона АЦР (24 ч) — единый источник: karkas.domain.acr_reference.
 DOP_ACR_SECTION_HEADINGS: tuple[str, ...] = DOP_ACR_HEADINGS
 
@@ -579,8 +573,8 @@ def _add_section_1(document: DocxDocument, kit: KitV1) -> None:
 
     document.add_heading("1.6 Требования к слушателям", level=2)
     profile = kit.profile
-    _para(document, f"Категория слушателей: {profile.audience or 'уточняется образовательной организацией'}.")
-    _para(document, f"Входной уровень: {profile.entry_level or 'уточняется образовательной организацией'}.")
+    _para(document, f"Категория слушателей: {profile.audience or AI_SECTION_MISSING}.")
+    _para(document, f"Входной уровень: {profile.entry_level or AI_SECTION_MISSING}.")
 
     document.add_heading("1.7 Форма обучения", level=2)
     form_line = FORM_LABELS.get(header.form, header.form)
@@ -698,7 +692,7 @@ def _add_section_3(document: DocxDocument, kit: KitV1) -> None:
             index += 1
     else:
         document.add_heading(f"3.{index} Материально-техническое и организационное обеспечение", level=2)
-        _para(document, DEFAULT_CONDITIONS_TEXT)
+        _para(document, AI_SECTION_MISSING)
         index += 1
 
     document.add_heading(f"3.{index} Учебно-методическое обеспечение и литература", level=2)
@@ -723,7 +717,7 @@ def _add_section_3(document: DocxDocument, kit: KitV1) -> None:
     index += 1
 
     document.add_heading(f"3.{index} Кадровое обеспечение", level=2)
-    _para(document, DEFAULT_TEACHERS_TEXT)
+    _para(document, f"Преподаватель(и): {SIGNATURE_PLACEHOLDER} / {SIGNATURE_PLACEHOLDER} /")
 
 
 def _add_appendix_1(document: DocxDocument, kit: KitV1) -> None:
@@ -828,7 +822,7 @@ def _add_dop_part_1(document: DocxDocument, kit: KitV1) -> None:
         document,
         profile.audience
         or _template_section_text(kit, "категор", "слушател")
-        or "Категория обучающихся уточняется образовательной организацией.",
+        or AI_SECTION_MISSING,
     )
     if profile.entry_level:
         _para(document, f"Входной уровень: {profile.entry_level}.")
@@ -918,7 +912,7 @@ def _add_dop_part_2(document: DocxDocument, kit: KitV1) -> None:
 
     document.add_heading("2.4. Методические материалы", level=2)
     methodical = _template_section_text(kit, "методическ")
-    _para(document, methodical or DOP_METHODICAL_DEFAULT)
+    _para(document, methodical or AI_SECTION_MISSING)
 
 
 def _add_dop_part_3(document: DocxDocument, kit: KitV1) -> None:
@@ -926,11 +920,11 @@ def _add_dop_part_3(document: DocxDocument, kit: KitV1) -> None:
 
     document.add_heading("3.1. Материально-технические условия реализации программы", level=2)
     mto = _template_section_text(kit, "материально", "техническ")
-    _para(document, mto or DEFAULT_CONDITIONS_TEXT)
+    _para(document, mto or AI_SECTION_MISSING)
 
     document.add_heading("3.2. Учебно-методическое и информационное обеспечение программы", level=2)
     umi = _template_section_text(kit, "учебно-методическ", "информацион")
-    _para(document, umi or "Комплект методических материалов формируется по программе.")
+    _para(document, umi or AI_SECTION_MISSING)
 
     document.add_heading("3.3. Литература", level=2)
     for section, subheading in (
@@ -952,7 +946,7 @@ def _add_dop_part_3(document: DocxDocument, kit: KitV1) -> None:
             document.add_paragraph(line, style="List Bullet")
 
     document.add_heading("3.4. Кадровое обеспечение программы", level=2)
-    _para(document, DEFAULT_TEACHERS_TEXT)
+    _para(document, f"Преподаватель(и): {SIGNATURE_PLACEHOLDER} / {SIGNATURE_PLACEHOLDER} /")
 
 
 def _add_internship_title_page(document: DocxDocument, kit: KitV1) -> None:
@@ -1034,7 +1028,7 @@ def _add_internship_section_1(document: DocxDocument, kit: KitV1) -> None:
 
     document.add_heading("1.6. Требования к слушателям", level=2)
     profile = kit.profile
-    _para(document, profile.audience or "Категория слушателей уточняется образовательной организацией.")
+    _para(document, profile.audience or AI_SECTION_MISSING)
 
     document.add_heading("1.7. Форма обучения", level=2)
     _para(document, FORM_LABELS.get(header.form, header.form))
@@ -1082,7 +1076,7 @@ def _add_internship_section_2(document: DocxDocument, kit: KitV1) -> None:
         heading = f"Раздел {module.number}. {module.title}" if module else block.ref
         document.add_heading(heading, level=3)
         text = _block_text(block)
-        _para(document, text or "Содержание раздела уточняется.")
+        _para(document, text or AI_SECTION_MISSING)
 
     document.add_heading("2.5. Оценка качества освоения программы", level=2)
     for kind, label in ASSESSMENT_KIND_LABELS.items():

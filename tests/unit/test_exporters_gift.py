@@ -256,7 +256,20 @@ def build_export_kit() -> KitV1:
                 topic_ref="T1.1",
                 body={
                     "title": "Введение в Python",
-                    "bullets": ["Что такое Python", "Переменные и типы данных", "Первая программа"],
+                    "slides": [
+                        {
+                            "title": "Введение в Python",
+                            "bullets": ["Что такое Python", "Переменные и типы данных", "Первая программа"],
+                            "notes": "План лекции: разбор примеров и демонстрация",
+                            "layout": "title_and_content",
+                        },
+                        {
+                            "title": "Практика",
+                            "bullets": ["Напишите программу hello world"],
+                            "notes": "Раздать лист с заданием",
+                            "layout": "title_and_content",
+                        },
+                    ],
                 },
             )
         ],

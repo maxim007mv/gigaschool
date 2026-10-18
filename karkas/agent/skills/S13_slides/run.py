@@ -19,6 +19,7 @@ class SlideOut(BaseModel):
     title: str = ""
     bullets: list[str] = Field(default_factory=list)
     notes: str = ""
+    layout: str = "title_and_content"  # title | title_and_content — выбор макета для pptx
 
 
 class SlidesBodyOut(BaseModel):
@@ -45,11 +46,15 @@ def normalize_block(
         title = slide.title.strip()
         if not title:
             continue
+        layout = (slide.layout or "title_and_content").strip().lower()
+        if layout not in ("title", "title_only", "title_and_content", "content"):
+            layout = "title_and_content"
         slides.append(
             {
                 "title": title,
                 "bullets": [text.strip() for text in slide.bullets[:MAX_BULLETS] if text.strip()],
                 "notes": slide.notes.strip(),
+                "layout": layout,
             }
         )
     trimmed = max(0, len(slides) - MAX_SLIDES)
