@@ -38,6 +38,7 @@ from docx.table import Table
 from docxtpl import DocxTemplate
 from jinja2.sandbox import SandboxedEnvironment
 
+from karkas.domain.acr_reference import DOP_ACR_HEADINGS
 from karkas.domain.kit import (
     Assessment,
     ContentBlock,
@@ -136,31 +137,8 @@ DOP_METHODICAL_DEFAULT = (
     "работы формируются образовательной организацией на основе комплекта материалов программы."
 )
 
-# Заголовки разделов эталона АЦР (24 ч, data/templates/acr_dop_intensive_ai_24h.txt).
-DOP_ACR_SECTION_HEADINGS: tuple[str, ...] = (
-    "УТВЕРЖДЕНО",
-    *DOP_TITLE_LINES,
-    DOP_EXPLANATORY_NOTE_HEADING,
-    "1.1. Актуальность Программы",
-    "1.2. Категории обучающихся",
-    "1.3. Цель и задачи программы",
-    "1.4. Сроки реализации",
-    "1.5. Планируемые результаты обучения",
-    "1.6. Календарный учебный график",
-    "2. Содержание программы",
-    "2.1. Учебный план",
-    "2.2. Учебно-тематический план",
-    "2.3. Оценочные материалы",
-    "2.4. Методические материалы",
-    "3. Организационно-педагогические условия реализации программы",
-    "3.1. Материально-технические условия реализации программы",
-    "3.2. Учебно-методическое и информационное обеспечение программы",
-    "3.3. Литература",
-    "3.3.1. Основная литература",
-    "3.3.2. Дополнительная литература",
-    "3.3.3. Интернет-ресурсы",
-    "3.4. Кадровое обеспечение программы",
-)
+# Заголовки разделов эталона АЦР (24 ч) — единый источник: karkas.domain.acr_reference.
+DOP_ACR_SECTION_HEADINGS: tuple[str, ...] = DOP_ACR_HEADINGS
 
 
 # ---------------------------------------------------------------------------
@@ -977,6 +955,158 @@ def _add_dop_part_3(document: DocxDocument, kit: KitV1) -> None:
     _para(document, DEFAULT_TEACHERS_TEXT)
 
 
+def _add_internship_title_page(document: DocxDocument, kit: KitV1) -> None:
+    header = kit.program
+    organization = document.add_paragraph()
+    organization.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    organization.add_run(header.organization or ORDER_PLACEHOLDER)
+    approved = document.add_paragraph()
+    approved.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    approved.add_run("УТВЕРЖДЕНО").bold = True
+    order = document.add_paragraph()
+    order.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    order.add_run(f"Приказом № {ORDER_PLACEHOLDER} от {ORDER_DATE_PLACEHOLDER}")
+    document.add_paragraph()
+    for line in (
+        "ДОПОЛНИТЕЛЬНАЯ ПРОФЕССИОНАЛЬНАЯ ПРОГРАММА",
+        "ПОВЫШЕНИЯ КВАЛИФИКАЦИИ В ФОРМЕ СТАЖИРОВКИ",
+    ):
+        paragraph = document.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.add_run(line)
+    title = document.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.add_run(f"«{header.title}»").bold = True
+    document.add_paragraph()
+    footer = document.add_paragraph()
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} — {header.year or datetime.now(timezone.utc).year}")
+    document.add_page_break()
+
+
+def _add_internship_section_1(document: DocxDocument, kit: KitV1) -> None:
+    """Раздел 1 стажировки — заголовки как в data/templates/acr_dpp_pk_staj_bsa_248h.txt."""
+    header = kit.program
+    hours = _program_hours(kit)
+    document.add_heading(
+        "1. ОБЩАЯ ХАРАКТЕРИСТИКА ДОПОЛНИТЕЛЬНОЙ ПРОФЕССИОНАЛЬНОЙ ПРОГРАММЫ",
+        level=1,
+    )
+
+    document.add_heading("1.1. Аннотация программы", level=2)
+    annotation_block = _find_block(kit, "annotation")
+    annotation = _block_text(annotation_block) if annotation_block else ""
+    _para(document, annotation or ANNOTATION_MISSING_TEXT)
+
+    document.add_heading("1.2. Цель реализации программы", level=2)
+    _para(document, kit.framework.goal or "Цель в комплекте не сформулирована.")
+
+    document.add_heading("1.3. Планируемые результаты обучения", level=2)
+    if not kit.framework.competencies:
+        _para(document, COMPETENCIES_MISSING_TEXT)
+    for competency in kit.framework.competencies:
+        document.add_heading(f"{competency.ref}. {competency.title}", level=3)
+        for outcome in competency.outcomes:
+            _para(document, f"{outcome.ref}. ({OUTCOME_TYPE_LABELS.get(outcome.type, outcome.type)}) {outcome.text}")
+
+    document.add_heading("1.4. Программа разработана на основе", level=2)
+    basis_lines: list[str] = []
+    for competency in kit.framework.competencies:
+        standard = competency.prof_standard
+        if standard is None:
+            continue
+        line = f"Профессиональный стандарт {standard.code}"
+        if standard.title:
+            line += f" «{standard.title}»"
+        if standard.status != "active":
+            line += f" {UNVERIFIED_MARK}"
+        basis_lines.append(line)
+    for legal in header.legal_basis:
+        line = legal.act
+        if legal.status != "verified":
+            line += f" {UNVERIFIED_MARK}"
+        basis_lines.append(line)
+    _para(document, "; ".join(basis_lines) if basis_lines else LEGAL_BASIS_MISSING_TEXT)
+
+    document.add_heading("1.5. Перечень профессиональных компетенций", level=2)
+    for competency in kit.framework.competencies:
+        _bullets(document, [f"{competency.ref}. {competency.title}"])
+
+    document.add_heading("1.6. Требования к слушателям", level=2)
+    profile = kit.profile
+    _para(document, profile.audience or "Категория слушателей уточняется образовательной организацией.")
+
+    document.add_heading("1.7. Форма обучения", level=2)
+    _para(document, FORM_LABELS.get(header.form, header.form))
+
+    document.add_heading("1.8. Объём программы", level=2)
+    _para(
+        document,
+        f"{hours['grand_total']} академических часов; контактная работа — {hours['contact']} ч; "
+        f"самостоятельная работа — {hours['self_study']} ч; итоговая аттестация — {hours['final_attestation']} ч.",
+    )
+    calendar = kit.framework.calendar
+    if calendar is not None:
+        _para(document, f"Срок обучения: {calendar.days} дней (до {calendar.max_hours_per_day} ч в день).")
+
+    document.add_heading("1.9. Выдаваемый документ", level=2)
+    _para(document, header.document or "Удостоверение о повышении квалификации установленного образца.")
+
+
+def _add_internship_section_2(document: DocxDocument, kit: KitV1) -> None:
+    use_distance = _uses_distance(kit)
+    header = _curriculum_header(use_distance)
+    document.add_heading("2. СОДЕРЖАНИЕ ПРОГРАММЫ", level=1)
+
+    document.add_heading("2.1. Учебный план", level=2)
+    _add_items_table(document, header, _study_plan_items(kit), use_distance)
+
+    document.add_heading("2.2. Учебно-тематический план", level=2)
+    _add_items_table(document, header, _thematic_plan_items(kit), use_distance)
+
+    document.add_heading("2.3. Календарный учебный график", level=2)
+    calendar = kit.framework.calendar
+    if calendar is None:
+        _para(document, CALENDAR_MISSING_TEXT)
+    else:
+        _para(
+            document,
+            f"Срок обучения: {calendar.days} дней. Режим занятий: до {calendar.max_hours_per_day} часов в день.",
+        )
+
+    document.add_heading("2.4. Рабочая программа учебных дисциплин", level=2)
+    if not kit.content.module_programs:
+        _para(document, MODULE_PROGRAMS_MISSING_TEXT)
+    for block in kit.content.module_programs:
+        module = next((m for m in kit.framework.modules if m.ref == block.module_ref), None)
+        heading = f"Раздел {module.number}. {module.title}" if module else block.ref
+        document.add_heading(heading, level=3)
+        text = _block_text(block)
+        _para(document, text or "Содержание раздела уточняется.")
+
+    document.add_heading("2.5. Оценка качества освоения программы", level=2)
+    for kind, label in ASSESSMENT_KIND_LABELS.items():
+        group = [a for a in kit.content.assessments if a.kind == kind]
+        if not group:
+            continue
+        document.add_heading(label, level=3)
+        for assessment in group:
+            _add_assessment_overview(document, kit, assessment)
+
+
+def _build_dpp_internship_document(kit: KitV1) -> bytes:
+    """Стажировка ПК — структура как acr_dpp_pk_staj_bsa_248h (без копирования ошибки итогов)."""
+    document = Document()
+    _prepare_styles(document)
+    _add_internship_title_page(document, kit)
+    _add_internship_section_1(document, kit)
+    _add_internship_section_2(document, kit)
+    _add_signatures(document, kit)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
 def _build_dop_document(kit: KitV1) -> bytes:
     """Собрать .docx ДОП по структуре эталона АЦР (приказ № 629, пример 24 ч)."""
     document = Document()
@@ -1027,4 +1157,6 @@ def export_docx_program(kit: KitV1, template_path: Path | None = None) -> bytes:
         return buffer.getvalue()
     if kit.program.kind == "dop":
         return _build_dop_document(kit)
+    if kit.program.form == "internship":
+        return _build_dpp_internship_document(kit)
     return _build_generated_document(kit)

@@ -24,7 +24,9 @@ def test_eval_kits_from_data_dir() -> None:
     if not cases:
         pytest.skip("нет data/eval/tk*.json — положите комплекты из личного кабинета хакатона")
     for case_key, path in cases:
-        kit = KitV1.model_validate(json.loads(path.read_text(encoding="utf-8")))
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        kit_payload = raw["kit"] if isinstance(raw, dict) and "kit" in raw else raw
+        kit = KitV1.model_validate(kit_payload)
         results = run_checklist(kit, case_key)
         failed = [r for r in results if not r.passed]
         assert not failed, f"{path.name}:\n" + format_report(results)

@@ -63,6 +63,16 @@ def _pptx_text(presentation: Presentation) -> str:
 # ---------------------------------------------------------------------------
 
 
+def test_docx_internship_follows_acr_section_headings() -> None:
+    from karkas.domain.acr_reference import DPP_PK_INTERNSHIP_HEADINGS
+    from karkas.eval.reference_kits import build_tk5_kit
+
+    kit = build_tk5_kit()
+    text = _docx_text(Document(io.BytesIO(export_docx_program(kit))))
+    missing = [h for h in DPP_PK_INTERNSHIP_HEADINGS if h not in text]
+    assert not missing, "нет заголовков стажировки: " + ", ".join(missing[:6])
+
+
 def test_docx_dop_follows_acr_section_headings() -> None:
     """ДОП: заголовки как в эталоне АЦР (data/templates/acr_dop_intensive_ai_24h)."""
     kit = build_minimal_kit(total_hours=24, final_att_hours=2)

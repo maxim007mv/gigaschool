@@ -10,7 +10,7 @@ summary по группам, sample_findings и gaps. Правила, для к�
 Группы правил лежат в соседних модулях: hours (V-HRS-01..09, V-CAL-01),
 coverage (V-COV-01..04, V-SEQ-01, V-DUP-01), sources (V-SRC-01..04, V-SVC-01,
 V-ACT-01), template (V-TPL-01..03), language (V-LNG-01), plagiarism (V-PLG-01),
-realism (V-REA-01), request (V-REQ-01), sample (V-SMP-01).
+realism (V-REA-01), request (V-REQ-01), sample (V-SMP-01), acr_export (V-ACR-01 — структура .docx по эталонам АЦР).
 """
 
 from __future__ import annotations
@@ -94,6 +94,7 @@ class ValidationContext:
 def run_validation(ctx: ValidationContext) -> Report:
     """Полный прогон правил V-*; возвращает отчёт (S10 для каркаса, S19 для комплекта)."""
     from karkas.domain.validators import (
+        acr_export,
         coverage,
         hours,
         language,
@@ -120,6 +121,7 @@ def run_validation(ctx: ValidationContext) -> Report:
         ("realism", realism),
         ("request", request),
         ("sample", sample),
+        ("acr_export", acr_export),
     ):
         result = module.validate(ctx)
         groups[name] = result

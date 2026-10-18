@@ -1,0 +1,444 @@
+{
+  "meta": {
+    "case_id": "tk5",
+    "title": "Стажировка «DevOps-инженер от Linux до CI/CD»",
+    "request_text": "Программа повышения квалификации в форме стажировки на 256 часов; 254 ч самостоятельной работы и 2 ч итоговой аттестации; не копировать ошибку итоговой строки образца 248 ч.",
+    "checklist": [
+      {
+        "item_id": "TK5-1",
+        "text": "Общий объем 256 ч: 254 СРС + 2 ч итоговой аттестации."
+      },
+      {
+        "item_id": "TK5-2",
+        "text": "Лекции, практики и лабораторные равны нулю."
+      },
+      {
+        "item_id": "TK5-3",
+        "text": "Ошибка итоговой строки образца не перенесена."
+      },
+      {
+        "item_id": "TK5-4",
+        "text": "Календарь ~2 месяца, не более 4 ч в день."
+      },
+      {
+        "item_id": "TK5-5",
+        "text": "Темы Linux, сети, контейнеризация, CI/CD, мониторинг, IaC."
+      },
+      {
+        "item_id": "TK5-6",
+        "text": "Текущий контроль — собеседование с вопросами по разделам."
+      }
+    ],
+    "source": "data/eval/test_cases_official.txt"
+  },
+  "kit": {
+    "schema_version": "kit.v1",
+    "program": {
+      "kind": "dpp_pk",
+      "title": "DevOps-инженер от Linux до CI/CD",
+      "form": "internship",
+      "total_hours": 256,
+      "final_attestation": {
+        "form": "защита отчёта о стажировке",
+        "hours": 2
+      },
+      "document": "удостоверение о повышении квалификации",
+      "legal_basis": [
+        {
+          "ref": "LB-01",
+          "act": "Приказ Минобрнауки России от 24.03.2025 № 266",
+          "status": "verified"
+        }
+      ],
+      "organization": null,
+      "city": null,
+      "year": null
+    },
+    "profile": {
+      "audience": "стажёры ИТ-компаний",
+      "entry_level": "базовый Linux",
+      "schedule": null,
+      "duration_hint": null,
+      "notes": null,
+      "glossary": {},
+      "constraints": {
+        "min_practice_share_pct": 0.0,
+        "self_study_only": false,
+        "unit_hours": 1,
+        "max_hours_per_day": 8,
+        "days_per_week": 5,
+        "distance_share_pct": 0.0,
+        "self_study_share_pct": 0.0
+      }
+    },
+    "placeholders": {
+      "order_number": "",
+      "order_date": "",
+      "teachers": [],
+      "signatures": []
+    },
+    "framework": {
+      "goal": "Подготовка DevOps-инженера",
+      "tasks": [],
+      "competencies": [
+        {
+          "ref": "C1",
+          "title": "Администрирование и DevOps",
+          "activity_kind": null,
+          "prof_standard": {
+            "code": "06.015",
+            "title": "Специалист по информационным системам",
+            "status": "active",
+            "order_number": null
+          },
+          "labor_functions": [
+            {
+              "code": "C/14.6",
+              "title": "Сопровождение ИС",
+              "otf_code": null
+            }
+          ],
+          "outcomes": [
+            {
+              "ref": "LO1.1",
+              "type": "skill",
+              "text": "Настраивает CI/CD и мониторинг",
+              "bloom_level": null
+            }
+          ]
+        }
+      ],
+      "modules": [
+        {
+          "ref": "M1",
+          "number": 1,
+          "title": "Linux и сети",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T1.1",
+              "title": "Linux и сети",
+              "summary": null,
+              "workload": {
+                "lecture": 0,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 50,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M2",
+          "number": 2,
+          "title": "Контейнеризация",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T2.1",
+              "title": "Контейнеризация",
+              "summary": null,
+              "workload": {
+                "lecture": 0,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 50,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M3",
+          "number": 3,
+          "title": "CI/CD",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T3.1",
+              "title": "CI/CD",
+              "summary": null,
+              "workload": {
+                "lecture": 0,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 52,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M4",
+          "number": 4,
+          "title": "Мониторинг",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T4.1",
+              "title": "Мониторинг",
+              "summary": null,
+              "workload": {
+                "lecture": 0,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 52,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M5",
+          "number": 5,
+          "title": "Инфраструктура как код",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T5.1",
+              "title": "Инфраструктура как код",
+              "summary": null,
+              "workload": {
+                "lecture": 0,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 50,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        }
+      ],
+      "final_attestation": {
+        "form": "защита отчёта о стажировке",
+        "hours": 2
+      },
+      "calendar": {
+        "weeks": 9,
+        "days": 64,
+        "days_per_week": 5,
+        "max_hours_per_day": 4,
+        "sessions": []
+      },
+      "gaps": []
+    },
+    "content": {
+      "module_programs": [
+        {
+          "ref": "MP-M1",
+          "kind": "module_program",
+          "module_ref": "M1",
+          "topic_ref": null,
+          "body": {
+            "text": "Linux и сети"
+          },
+          "generated_by": null,
+          "stale": false
+        },
+        {
+          "ref": "MP-M2",
+          "kind": "module_program",
+          "module_ref": "M2",
+          "topic_ref": null,
+          "body": {
+            "text": "Контейнеризация"
+          },
+          "generated_by": null,
+          "stale": false
+        },
+        {
+          "ref": "MP-M3",
+          "kind": "module_program",
+          "module_ref": "M3",
+          "topic_ref": null,
+          "body": {
+            "text": "CI/CD"
+          },
+          "generated_by": null,
+          "stale": false
+        },
+        {
+          "ref": "MP-M4",
+          "kind": "module_program",
+          "module_ref": "M4",
+          "topic_ref": null,
+          "body": {
+            "text": "Мониторинг"
+          },
+          "generated_by": null,
+          "stale": false
+        },
+        {
+          "ref": "MP-M5",
+          "kind": "module_program",
+          "module_ref": "M5",
+          "topic_ref": null,
+          "body": {
+            "text": "Инфраструктура как код"
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "lecture_plans": [],
+      "slides": [],
+      "sections": [
+        {
+          "ref": "ANN-1",
+          "kind": "annotation",
+          "module_ref": null,
+          "topic_ref": null,
+          "body": {
+            "text": "Стажировка DevOps."
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "assessments": [
+        {
+          "ref": "IV-1",
+          "kind": "interview_question",
+          "topic_ref": "T1.1",
+          "module_ref": null,
+          "stem": "Вопросы собеседования по разделу Linux и сети",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "IV-2",
+          "kind": "interview_question",
+          "topic_ref": "T2.1",
+          "module_ref": null,
+          "stem": "Вопросы собеседования по разделу Контейнеризация",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "IV-3",
+          "kind": "interview_question",
+          "topic_ref": "T3.1",
+          "module_ref": null,
+          "stem": "Вопросы собеседования по разделу CI/CD",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "IV-4",
+          "kind": "interview_question",
+          "topic_ref": "T4.1",
+          "module_ref": null,
+          "stem": "Вопросы собеседования по разделу Мониторинг",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "IV-5",
+          "kind": "interview_question",
+          "topic_ref": "T5.1",
+          "module_ref": null,
+          "stem": "Вопросы собеседования по разделу Инфраструктура как код",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        }
+      ],
+      "sources": [
+        {
+          "ref": "SRC-01",
+          "section": "internet",
+          "citation": "Документация Linux",
+          "url": null,
+          "isbn": null,
+          "normative_act_ref": null,
+          "topic_refs": [],
+          "status": "verified",
+          "evidence": {}
+        }
+      ]
+    },
+    "assumptions": [],
+    "report": null,
+    "usage": null
+  }
+}

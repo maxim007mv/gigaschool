@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Callable, Iterable
 
 from karkas.domain.kit import KitV1
-from karkas.domain.validators import ValidationContext, run_validation
+from karkas.domain.validators import ValidationContext
 
 @dataclass(frozen=True)
 class CheckResult:
@@ -61,13 +61,21 @@ def _check_no_zero_topics(kit: KitV1) -> CheckResult:
     )
 
 
-def _check_validation_passed(kit: KitV1) -> CheckResult:
-    report = run_validation(ValidationContext(kit=kit))
+def _check_acr_docx_structure(kit: KitV1) -> CheckResult:
+    """Сверка .docx с эталонами АЦР (V-ACR-01) — пункт «обязательные разделы» из ТК-ОБЩ."""
+    from karkas.domain.validators.acr_export import validate_acr_export
+
+    ctx = ValidationContext(kit=kit)
+    if ctx.kit.content.assessments or ctx.kit.content.module_programs:
+        stage = "kit"
+    else:
+        return CheckResult("TK-COMMON", "TK-ОБЩ-3", True, "нет содержания — V-ACR пропущен")
+    result = validate_acr_export(ValidationContext(kit=kit, stage=stage))
     return CheckResult(
         "TK-COMMON",
         "TK-ОБЩ-3",
-        report.passed,
-        f"самопроверка: errors={len(report.errors)}",
+        result.ok,
+        "структура .docx по эталону АЦР" if result.ok else (result.issues[0].message if result.issues else "V-ACR-01"),
     )
 
 
@@ -268,14 +276,51 @@ def _check_interview_per_module(kit: KitV1) -> CheckResult:
     )
 
 
+def _check_tk1_template_and_practice(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 16:
+        return CheckResult("TK-1", "TK1-1", True, "не ТК-1")
+    practice = sum(t.workload.practice for m in kit.framework.modules for t in m.topics)
+    ok = kit.program.kind == "dop" and practice >= 8
+    return CheckResult("TK-1", "TK1-1", ok, f"шаблон={kit.program.kind}, практика {practice} ч")
+
+
+def _check_tk1_calendar(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 16:
+        return CheckResult("TK-1", "TK1-3", True, "не ТК-1")
+    cal = kit.framework.calendar
+    if cal is None:
+        return CheckResult("TK-1", "TK1-3", False, "календарь не задан")
+    sessions = [s for s in cal.sessions if s.topic_ref is not None]
+    ok = len(sessions) == 8 and all(s.hours == 2 for s in sessions) and cal.weeks <= 4
+    return CheckResult("TK-1", "TK1-3", ok, f"занятий={len(sessions)}, недель={cal.weeks}")
+
+
+def _check_tk5_total_256(kit: KitV1) -> CheckResult:
+    if kit.program.form != "internship":
+        return CheckResult("TK-5", "TK5-1", True, "не стажировка")
+    ss = sum(t.workload.self_study for m in kit.framework.modules for t in m.topics)
+    ok = (
+        kit.program.total_hours == 256
+        and _hours_grand(kit) == 256
+        and ss == 254
+        and kit.framework.final_attestation.hours == 2
+    )
+    return CheckResult(
+        "TK-5",
+        "TK5-1",
+        ok,
+        f"Σ={_hours_grand(kit)}, СРС={ss}, ИА={kit.framework.final_attestation.hours}",
+    )
+
+
 _COMMON: tuple[Callable[[KitV1], CheckResult], ...] = (
     _check_hours_match,
     _check_no_zero_topics,
-    _check_validation_passed,
+    _check_acr_docx_structure,
 )
 
 _BY_CASE: dict[str, tuple[Callable[[KitV1], CheckResult], ...]] = {
-    "tk1": (_check_dop_no_prof_standard,),
+    "tk1": (_check_tk1_template_and_practice, _check_tk1_calendar, _check_dop_no_prof_standard),
     "tk2": (
         _check_tk2_template_and_hours,
         _check_tk2_distance_split,
@@ -290,6 +335,7 @@ _BY_CASE: dict[str, tuple[Callable[[KitV1], CheckResult], ...]] = {
     ),
     "tk4": (_check_tk4_hours_after_clarify,),
     "tk5": (
+        _check_tk5_total_256,
         _check_internship_self_study,
         _check_calendar_internship,
         lambda k: _check_keywords(

@@ -1,0 +1,368 @@
+{
+  "meta": {
+    "case_id": "tk3",
+    "title": "«Анализ данных на Python» для сотрудников банков",
+    "request_text": "Программа повышения квалификации на 72 часа «Анализ данных на Python» для сотрудников региональных отделений банков; формат очно-заочный, срок 4 недели.",
+    "checklist": [
+      {
+        "item_id": "TK3-1",
+        "text": "72 часа; календарный график на 4 недели."
+      },
+      {
+        "item_id": "TK3-2",
+        "text": "Темы pandas, визуализация, SQL, основы статистики с часами."
+      },
+      {
+        "item_id": "TK3-3",
+        "text": "Вводный блок по основам Python."
+      },
+      {
+        "item_id": "TK3-8",
+        "text": "Задания на банковских ситуациях."
+      }
+    ],
+    "source": "data/eval/test_cases_official.txt"
+  },
+  "kit": {
+    "schema_version": "kit.v1",
+    "program": {
+      "kind": "dpp_pk",
+      "title": "Анализ данных на Python",
+      "form": "part_time",
+      "total_hours": 72,
+      "final_attestation": {
+        "form": "защита проекта",
+        "hours": 2
+      },
+      "document": "удостоверение о повышении квалификации",
+      "legal_basis": [
+        {
+          "ref": "LB-01",
+          "act": "Приказ Минобрнауки России от 24.03.2025 № 266",
+          "status": "verified"
+        }
+      ],
+      "organization": null,
+      "city": null,
+      "year": null
+    },
+    "profile": {
+      "audience": "сотрудники банков",
+      "entry_level": "опыт работы в Excel",
+      "schedule": null,
+      "duration_hint": null,
+      "notes": null,
+      "glossary": {},
+      "constraints": {
+        "min_practice_share_pct": 0.0,
+        "self_study_only": false,
+        "unit_hours": 1,
+        "max_hours_per_day": 8,
+        "days_per_week": 5,
+        "distance_share_pct": 0.0,
+        "self_study_share_pct": 0.0
+      }
+    },
+    "placeholders": {
+      "order_number": "",
+      "order_date": "",
+      "teachers": [],
+      "signatures": []
+    },
+    "framework": {
+      "goal": "Анализ банковских данных на Python",
+      "tasks": [],
+      "competencies": [
+        {
+          "ref": "C1",
+          "title": "Анализ данных",
+          "activity_kind": null,
+          "prof_standard": {
+            "code": "06.015",
+            "title": "Специалист по информационным системам",
+            "status": "active",
+            "order_number": null
+          },
+          "labor_functions": [
+            {
+              "code": "C/14.6",
+              "title": "Работа с данными",
+              "otf_code": null
+            }
+          ],
+          "outcomes": [
+            {
+              "ref": "LO1.1",
+              "type": "skill",
+              "text": "Анализирует отток клиентов банка",
+              "bloom_level": null
+            }
+          ]
+        }
+      ],
+      "modules": [
+        {
+          "ref": "M1",
+          "number": 1,
+          "title": "Основы Python для аналитика",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T1.1",
+              "title": "Введение в Python",
+              "summary": null,
+              "workload": {
+                "lecture": 18,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M2",
+          "number": 2,
+          "title": "Pandas и визуализация",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T2.1",
+              "title": "Pandas и визуализация данных",
+              "summary": null,
+              "workload": {
+                "lecture": 18,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M3",
+          "number": 3,
+          "title": "SQL для выгрузки данных",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T3.1",
+              "title": "SQL для банковских выгрузок",
+              "summary": null,
+              "workload": {
+                "lecture": 17,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        },
+        {
+          "ref": "M4",
+          "number": 4,
+          "title": "Основы статистики",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T4.1",
+              "title": "Статистика оттока клиентов банка и задолженности",
+              "summary": null,
+              "workload": {
+                "lecture": 17,
+                "practice": 0,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        }
+      ],
+      "final_attestation": {
+        "form": "защита проекта на обезличенных банковских данных",
+        "hours": 2
+      },
+      "calendar": {
+        "weeks": 4,
+        "days": 20,
+        "days_per_week": 5,
+        "max_hours_per_day": 4,
+        "sessions": []
+      },
+      "gaps": []
+    },
+    "content": {
+      "module_programs": [
+        {
+          "ref": "MP-M1",
+          "kind": "module_program",
+          "module_ref": "M1",
+          "topic_ref": null,
+          "body": {
+            "text": "Содержание"
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "lecture_plans": [],
+      "slides": [],
+      "sections": [
+        {
+          "ref": "ANN-1",
+          "kind": "annotation",
+          "module_ref": null,
+          "topic_ref": null,
+          "body": {
+            "text": "Для учителей Ингушетии."
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "assessments": [
+        {
+          "ref": "Q-001",
+          "kind": "test_question",
+          "topic_ref": "T1.1",
+          "module_ref": null,
+          "stem": "Вопрос Q-001",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "Q-002",
+          "kind": "test_question",
+          "topic_ref": "T2.1",
+          "module_ref": null,
+          "stem": "Вопрос Q-002",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.2"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "PF-01",
+          "kind": "portfolio_item",
+          "topic_ref": null,
+          "module_ref": null,
+          "stem": "Портфолио из трёх материалов",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [
+            {
+              "criterion": "Качество",
+              "max_points": 5.0,
+              "levels": [
+                "зачтено"
+              ]
+            }
+          ],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        }
+      ],
+      "sources": [
+        {
+          "ref": "SRC-01",
+          "section": "software",
+          "citation": "GigaChat",
+          "url": null,
+          "isbn": null,
+          "normative_act_ref": null,
+          "topic_refs": [],
+          "status": "verified",
+          "evidence": {}
+        }
+      ]
+    },
+    "assumptions": [],
+    "report": null,
+    "usage": null
+  }
+}

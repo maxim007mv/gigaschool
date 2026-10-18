@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-18 — Хаб: ТК-1…ТК-5, V-ACR-01, чистый корень, трассировка
+
+### Проблема
+Технический чекпоинт хаба: LLM-ревью репозитория; экспертная обратная связь — нет сверки с шаблонами АЦР; в корне лежали лишние .docx; открытые тест-кейсы не были в `data/eval/`.
+
+### Фикс
+- Корень: архивные `.docx`, `ПЛАН_*.md`, копии `.mdc` → `docs/archive/`; `docs/hub/hub_notes.md`, шаблон стажировки 248 ч в `data/templates/`.
+- **V-ACR-01** `validators/acr_export.py`, заголовки в `acr_reference.py`; экспорт стажировки в `docx_program.py`.
+- `data/eval/tk1…tk5.json`, `karkas/eval/official_cases.py`, `reference_kits.py`, `scripts/run_eval.py`, `export_eval_cases.py`.
+- `docs/REQUIREMENTS_TRACEABILITY.md`, README: одна команда, лимиты Cloud.ru, метрики только измеренные.
+
+### Проверка
+`.venv/bin/python scripts/run_eval.py`; `.venv/bin/pytest tests/eval tests/unit/test_exporters_docx_pptx.py -q`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Бриф продукта, эталон ДОП 24 ч, экспорт .docx по АЦР
 
 ### Проблема

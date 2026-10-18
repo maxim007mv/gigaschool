@@ -3,7 +3,17 @@
 ИИ-агент проектирования образовательных программ с верифицируемым каркасом и Human-in-the-Loop
 (хакатон «Точка сборки», кейс №1, АЦР + GigaCowork).
 
-Продуктовый бриф чекпоинта 1: [`data/templates/product_brief_karkas.md`](data/templates/product_brief_karkas.md).
+Продуктовый бриф: [`data/templates/product_brief_karkas.md`](data/templates/product_brief_karkas.md).
+Правила хаба и лимиты LLM: [`docs/hub/hub_notes.md`](docs/hub/hub_notes.md).
+Трассировка «требование → модуль → тест»: [`docs/REQUIREMENTS_TRACEABILITY.md`](docs/REQUIREMENTS_TRACEABILITY.md).
+
+## Запуск одной командой (демо для проверяющего)
+
+```bash
+git clone <repo> && cd gigaschool && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]" && bash scripts/serve.sh
+```
+
+Откройте `http://<хост>:8000` — SPA методиста и API. Без PostgreSQL используется lite-режим (SQLite, см. `KARKAS_LITE` в `scripts/serve.sh`).
 
 **Главная идея:** LLM пишет тексты, а структура, арифметика и проверки — детерминированный код.
 Каркас ≤ 3 минут, комплект 72 ч ≤ 20 минут, генерация содержания только после утверждения
@@ -19,14 +29,14 @@
 | 4 | Матрица связей | `/programs/{id}/framework` (вкладка «Связи») | РО ↔ темы ↔ оценочные средства |
 | 5 | Комплект УМК | `/programs/{id}/kit` | Дерево материалов, самопроверка, выгрузка .docx/.pptx/LMS/JSON |
 
-## Метрики для защиты (бриф §5)
+## Метрики (только измеренные в продукте)
 
-На экране **«Комплект УМК»** и в `GET /api/v1/programs/{id}/usage`:
+На экране **«Комплект УМК»** и в `GET /api/v1/programs/{id}/usage` (не фиксированные «рыночные» проценты):
 
-- **Экономия времени методиста** — база 2 нед. × 50% занятости минус активное время по `audit_log`
-- **Стоимость генерации** — сумма токенов Cloud.ru FM × тариф (`llm_call`, ₽)
-- **First-Time Approval Rate (каркас)** — `framework.approve` без `framework.reopen` в аудите
-- **V-HRS** — 100% сходимость часов (солвер + валидаторы, eval ТК-1…ТК-5)
+- **Активное время методиста** и **экономия к базовой линии** (40 ч на программу в API) — из `audit_log`
+- **Токены и ₽** — сумма `llm_call` × тариф Cloud.ru FM в настройках
+- **FTAR каркаса** — доля программ с `framework.approve` без последующего `framework.reopen` (по аудиту)
+- **Сходимость часов** — солвер + **V-HRS**; открытые ТК — `scripts/run_eval.py`
 
 ## Отличие от зарубежных аналогов
 
@@ -95,8 +105,11 @@ cd web && npm install && npm run dev           # http://localhost:5173 → /api 
 
 ```bash
 .venv/bin/pytest tests/eval -q
-.venv/bin/python scripts/run_eval.py           # все data/eval/tk*.json
+.venv/bin/python scripts/run_eval.py           # все data/eval/tk*.json (официальные чек-листы хаба)
+.venv/bin/python scripts/export_eval_cases.py  # пересобрать tk*.json из reference_kits
 ```
+
+LLM для хакатона: только модели Cloud.ru Foundation Models (`OPENAI_BASE_URL`), `max_tokens ≤ 4096`, не более 2 параллельных запросов (см. `docs/hub/hub_notes.md`).
 
 ## Тесты (обязательный пайплайн проекта — AGENTS.md)
 
