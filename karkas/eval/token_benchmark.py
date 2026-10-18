@@ -182,6 +182,7 @@ def _variable_bundle(scale: ProgramScale) -> dict[str, Any]:
         "form": "защита проекта",
         "allowed_normative_json": to_json([]),
         "affected_json": to_json([]),
+        "knowledge_snippets": "",
     }
 
 

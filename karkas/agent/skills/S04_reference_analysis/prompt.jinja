@@ -6,6 +6,10 @@
 
 Референсы:
 {{ references_text }}
+{% if knowledge_snippets %}
+База знаний организации:
+{{ knowledge_snippets }}
+{% endif %}
 
 Верни ТОЛЬКО JSON:
 {"sections":[{"title":"1.1 Аннотация","source_name":"образец.pdf","order":1}],

@@ -84,6 +84,7 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             module_json=to_json(module),
             outcomes_json=to_json(outcomes),
             profile_json=to_json(inputs.get("profile") or {}),
+            knowledge_snippets=str(inputs.get("knowledge_snippets") or ""),
         ),
     )
     blocks, notes = normalize_blocks(payload, module_ref, topic_refs)

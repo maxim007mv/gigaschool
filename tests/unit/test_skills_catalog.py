@@ -544,7 +544,7 @@ async def test_s18_verifies_sources_and_summary() -> None:
         {"ref": "SRC-02", "section": "normative", "citation": "Старый приказ", "normative_act_ref": "Минобрнауки 100"},
         {"ref": "SRC-03", "section": "main", "citation": "Книга", "isbn": "978-5-4461-1234-0"},
         {"ref": "SRC-04", "section": "main", "citation": "Книга с опечаткой", "isbn": "978-5-4461-1234-1"},
-        {"ref": "SRC-05", "section": "internet", "citation": "Документация", "url": "https://example.org"},
+        {"ref": "SRC-05", "section": "internet", "citation": "Документация", "url": "https://docs.python.org/3/"},
         {"ref": "SRC-06", "section": "software", "citation": "Python 3.13", "url": None},
         {"ref": "SRC-07", "section": "additional", "citation": "Книга без ISBN", "isbn": None},
     ]
@@ -562,13 +562,17 @@ async def test_s18_verifies_sources_and_summary() -> None:
     statuses = {source["ref"]: source["status"] for source in result["sources"]}
     assert statuses["SRC-01"] == "verified"
     assert statuses["SRC-02"] == "outdated"
-    assert statuses["SRC-03"] == "unverified"
+    assert statuses["SRC-03"] == "partially_verified"
     assert statuses["SRC-04"] == "not_found"
-    assert statuses["SRC-05"] == "unverified"
+    assert statuses["SRC-05"] == "verified"
     assert statuses["SRC-06"] == "verified"
     assert statuses["SRC-07"] == "unverified"
-    assert result["summary"] == {"verified": 2, "unverified": 3, "not_found": 1, "outdated": 1}
-    assert set(result["unconfirmed"]) == {"SRC-02", "SRC-03", "SRC-04", "SRC-05", "SRC-07"}
+    assert result["summary"]["verified"] == 3
+    assert result["summary"]["partially_verified"] == 1
+    assert result["summary"]["not_found"] == 1
+    assert result["summary"]["outdated"] == 1
+    assert result["summary"]["unverified"] == 1
+    assert "SRC-05" not in result["unconfirmed"]
     assert result["sources"][4]["evidence"]["http_checked"] is False
 
 

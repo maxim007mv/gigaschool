@@ -257,6 +257,15 @@ def _src_04(ctx: "ValidationContext", skipped: list[str]) -> list:
                     entity_ref=source.ref,
                 )
             )
+        elif source.status == "partially_verified":
+            issues.append(
+                issue(
+                    "V-SRC-04",
+                    "info",
+                    f"Источник «{source.citation}»: ISBN проверен по контрольной сумме — уточните издание вручную",
+                    entity_ref=source.ref,
+                )
+            )
         elif source.status == "unverified":
             issues.append(
                 issue(

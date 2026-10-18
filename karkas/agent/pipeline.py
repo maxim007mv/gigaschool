@@ -30,12 +30,14 @@ from karkas.agent.skills import SKILLS, SkillContext
 from karkas.agent.skills._base import InMemoryCheckpointStore
 from karkas.api.sse import bus
 from karkas.domain.intake_slots import detect_hour_total_conflicts
+from karkas.domain.legal_basis import build_program_legal_basis
 from karkas.domain.verified_registry import (
     annotate_registries_dict,
     apply_source_verification_flags,
     merge_file_prof_standards,
     verification_assumptions_for_competencies,
 )
+from karkas.infra.kb_retrieval import format_kb_snippets, retrieve_kb_snippets
 from karkas.settings import settings
 from karkas.domain.kit import (
     ACTIVITIES,
@@ -837,6 +839,10 @@ async def framework_core(
     ctx = await _seeded_context(program_id, scope, {}, gateway=gateway, extra={"registries": registries})
     prefix = ctx.extra["checkpoint_prefix"]
 
+    org_id = str(program["org_id"])
+    kb_text = format_kb_snippets(
+        await retrieve_kb_snippets(session, org_id, brief_text, limit=5, max_tokens=1200)
+    )
     inputs: dict[str, Any] = {
         "brief": brief_text,
         "files_text": files_text,
@@ -849,6 +855,8 @@ async def framework_core(
         "answers": answers,
         "candidates": registries["prof_standards"],
         "allowed_normative": [f"{a['number']}" for a in registries["normative_acts"]],
+        "knowledge": kb_text,
+        "knowledge_snippets": kb_text,
     }
 
     await runner.run("S09", inputs, ctx, progress_cb)  # цепочка S01 → S05 → S06 → S07 → S08 → S09
@@ -869,6 +877,13 @@ async def framework_core(
     s09 = await ctx.checkpoint.load(f"{prefix}S09") or {}
 
     kit = _assemble_kit(program, answers, s01, s02, s04, s05, s06, s07, s08, s09)
+    legal_basis = build_program_legal_basis(
+        str(s02.get("kind") or program.get("kind") or "dop"),
+        registries.get("normative_acts") or [],
+    )
+    kit = kit.model_copy(
+        update={"program": kit.program.model_copy(update={"legal_basis": legal_basis})}
+    )
     kit_dump = kit.model_dump(mode="json")
     sample_declared = _sample_declared_totals_from_errors(s04.get("sample_errors") or [])
     s10 = (
@@ -1031,7 +1046,16 @@ async def kit_core(
             "profile": profile_json,
             "registries": registries,
         }
-        content_common = {**common, "outcomes": _topic_outcomes(outcomes_json, topic.outcome_refs)}
+        topic_rag = format_kb_snippets(
+            await retrieve_kb_snippets(
+                session, str(program["org_id"]), f"{topic.title} {module.title}", limit=4, max_tokens=800
+            )
+        )
+        content_common = {
+            **common,
+            "outcomes": _topic_outcomes(outcomes_json, topic.outcome_refs),
+            "knowledge_snippets": topic_rag,
+        }
         lectures: list[dict[str, Any]] = []
         slide_blocks: list[dict[str, Any]] = []
         question_blocks: list[dict[str, Any]] = []
@@ -1058,6 +1082,11 @@ async def kit_core(
             gateway=gateway,
             extra={"registries": registries, "kit": kit_dump},
         )
+        module_rag = format_kb_snippets(
+            await retrieve_kb_snippets(
+                session, str(program["org_id"]), f"{module.title} {kit.program.title}", limit=4, max_tokens=800
+            )
+        )
         s11 = (
             await runner.run(
                 "S11",
@@ -1067,6 +1096,7 @@ async def kit_core(
                     "outcomes": outcomes_json,
                     "profile": profile_json,
                     "registries": registries,
+                    "knowledge_snippets": module_rag,
                 },
                 module_ctx,
                 progress_cb,

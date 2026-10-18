@@ -42,7 +42,7 @@ OutcomeType = Literal["knowledge", "skill", "experience"]
 ProgramKind = Literal["dpp_pk", "dop"]
 ProgramForm = Literal["full_time", "part_time", "distance", "internship"]
 DeliveryMode = Literal["in_person", "distance"]
-VerifyStatus = Literal["verified", "unverified", "not_found", "outdated"]
+VerifyStatus = Literal["verified", "partially_verified", "unverified", "not_found", "outdated"]
 IssueSeverity = Literal["error", "warning", "info"]
 AssessmentKind = Literal[
     "test_question",

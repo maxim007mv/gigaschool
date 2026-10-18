@@ -95,6 +95,7 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             RefAnalysisOut,
             references_text="\n\n".join(parts),
             profile_json=to_json(inputs.get("profile") or {}),
+            knowledge_snippets=str(inputs.get("knowledge_snippets") or ""),
         ),
     )
     return normalize(payload)

@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "description": "Домены для internet-источников (S18): без HTTP в unit-тестах",
+    "updated": "2026-10-18"
+  },
+  "domains": [
+    "gov.ru",
+    "publication.pravo.gov.ru",
+    "consultant.ru",
+    "garant.ru",
+    "profstandart.rosmintrud.ru",
+    "docs.python.org",
+    "python.org",
+    "postgresql.org",
+    "docs.docker.com",
+    "habr.com",
+    "elibrary.ru",
+    "yandex.ru",
+    "cloud.ru",
+    "developers.sber.ru",
+    "git-scm.com",
+    "gitlab.com",
+    "gitea.io"
+  ]
+}

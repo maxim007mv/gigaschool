@@ -15,7 +15,7 @@ export type OutcomeType = "knowledge" | "skill" | "experience";
 export type ProgramKind = "dpp_pk" | "dop";
 export type ProgramForm = "full_time" | "part_time" | "distance" | "internship";
 export type DeliveryMode = "in_person" | "distance";
-export type VerifyStatus = "verified" | "unverified" | "not_found" | "outdated";
+export type VerifyStatus = "verified" | "partially_verified" | "unverified" | "not_found" | "outdated";
 export type IssueSeverity = "error" | "warning" | "info";
 export type AssessmentKind =
   | "test_question"

@@ -8,6 +8,10 @@
 
 Рабочая программа модуля (контекст):
 {{ module_program_json }}
+{% if knowledge_snippets %}
+Фрагменты базы знаний (цитируй с пометкой источника):
+{{ knowledge_snippets }}
+{% endif %}
 
 Верни ТОЛЬКО JSON:
 {"lecture_plans":[{"ref":"LP-T1.1","kind":"lecture_plan","module_ref":"M1","topic_ref":"T1.1",

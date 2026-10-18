@@ -149,16 +149,34 @@ def verification_assumptions_for_competencies(competencies: list[Competency]) ->
     return notes
 
 
+def _registry_backed_verified(src: Source) -> bool:
+    """S18 подтвердил источник по реестру БД (НПА / ПО / домен)."""
+    if src.section == "normative" and src.status == "verified":
+        return bool((src.evidence or {}).get("matched"))
+    if src.section == "software" and src.status == "verified":
+        return True
+    if src.section == "internet" and src.status == "verified":
+        return bool((src.evidence or {}).get("domain_allowlisted"))
+    return False
+
+
 def apply_source_verification_flags(sources: list[Source]) -> list[Source]:
-    """Источники без совпадения с verified.json — status unverified."""
+    """Дополнительные пометки из verified.json: только повышение доверия, без понижения S18.
+
+    Нельзя перезаписывать verified НПА/ПО из реестра БД из-за пустого списка citations в файле.
+    """
     verified = load_file_verified()
     updated: list[Source] = []
     for src in sources:
+        if _registry_backed_verified(src) or src.status in ("partially_verified", "not_found", "outdated"):
+            updated.append(src)
+            continue
         cite = (src.citation or "").strip().lower()
-        if src.status == "verified" and cite and cite not in verified.source_citations:
-            if not any(cite in known or known in cite for known in verified.source_citations):
-                updated.append(src.model_copy(update={"status": "unverified"}))
-                continue
+        if cite and verified.source_citations:
+            if any(cite == known or known in cite or cite in known for known in verified.source_citations):
+                if src.status == "unverified":
+                    updated.append(src.model_copy(update={"status": "verified"}))
+                    continue
         updated.append(src)
     return updated
 

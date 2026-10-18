@@ -6,12 +6,13 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from karkas.agent.skills._base import SkillContext, SkillSpec, registry_bundle, today_from_inputs
+from karkas.domain.source_domains import url_on_allowlist
 from karkas.domain.validators import NormativeAct, RegistryBundle, ServiceRecord
 
 DIR = "S18_source_verification"
 METADATA = SkillSpec(code="S18", name="Верификация источников", dir=DIR, depends_on=("S17",))
 
-STATUSES: tuple[str, ...] = ("verified", "unverified", "not_found", "outdated")
+STATUSES: tuple[str, ...] = ("verified", "partially_verified", "unverified", "not_found", "outdated")
 
 
 def isbn13_valid(value: str) -> bool:
@@ -107,9 +108,9 @@ def verify_source(source: dict[str, Any], bundle: RegistryBundle | None, today: 
     elif section in ("main", "additional") and source.get("isbn"):
         value = str(source["isbn"])
         if isbn_valid(value):
-            status = "unverified"
+            status = "partially_verified"
             evidence["isbn_check"] = "ok"
-            evidence["reason"] = "ISBN корректен; подтверждение по каталогу библиотек недоступно"
+            evidence["reason"] = "контрольная сумма ISBN верна — частично проверено (каталог библиотек не подключён)"
         else:
             status = "not_found"
             evidence["isbn_check"] = "failed"
@@ -118,9 +119,20 @@ def verify_source(source: dict[str, Any], bundle: RegistryBundle | None, today: 
         status = "unverified"
         evidence["reason"] = "ISBN не указан — подтверждение по каталогу невозможно"
     elif section == "internet":
-        status = "unverified"
+        allowed, host = url_on_allowlist(str(source.get("url") or ""))
         evidence["http_checked"] = False
-        evidence["reason"] = "HTTP-проверка отключена в этом шаге (заглушка allowlist)"
+        if not source.get("url"):
+            status = "unverified"
+            evidence["reason"] = "URL не указан"
+        elif allowed:
+            status = "verified"
+            evidence["domain_allowlisted"] = True
+            evidence["host"] = host
+            evidence["reason"] = "домен в белом списке (без сетевой проверки)"
+        else:
+            status = "not_found"
+            evidence["host"] = host
+            evidence["reason"] = "домен не в белом списке доверенных источников"
     elif section == "software":
         service = _find_service(source, bundle)
         if service is None:
@@ -148,6 +160,8 @@ def verify_sources(
     summary = {status: 0 for status in STATUSES}
     for source in updated:
         status = str(source.get("status") or "unverified")
+        if status not in summary:
+            summary[status] = 0
         summary[status] = summary.get(status, 0) + 1
     return updated, summary
 

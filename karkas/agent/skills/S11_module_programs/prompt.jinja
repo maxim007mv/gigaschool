@@ -8,6 +8,10 @@
 
 Профиль аудитории:
 {{ profile_json }}
+{% if knowledge_snippets %}
+Фрагменты базы знаний:
+{{ knowledge_snippets }}
+{% endif %}
 
 Верни ТОЛЬКО JSON:
 {"module_programs":[{"ref":"MP-M1","kind":"module_program","module_ref":"M1","topic_ref":null,

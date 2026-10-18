@@ -16,6 +16,7 @@ def test_file_registry_contains_demo_codes() -> None:
     reg = load_file_verified()
     assert reg.prof_ok("06.015")
     assert reg.lf_ok("06.015", "C/14.6")
+    assert "266" in reg.normative_numbers
 
 
 def test_unverified_prof_standard_flagged() -> None:
@@ -40,8 +41,45 @@ def test_annotate_registries_marks_file_verified() -> None:
     assert raw["prof_standards"][0]["file_verified"] is True
 
 
-def test_source_not_in_file_becomes_unverified() -> None:
+def test_normative_verified_by_s18_not_downgraded() -> None:
+    """Приказ № 266 из реестра БД остаётся verified после apply_source_verification_flags."""
     sources = apply_source_verification_flags(
-        [Source(ref="SRC-01", section="internet", citation="Несуществующая книга 2026", status="verified")]
+        [
+            Source(
+                ref="SRC-01",
+                section="normative",
+                citation="Приказ Минобрнауки России от 24.03.2025 № 266",
+                status="verified",
+                evidence={"matched": "Минобрнауки России № 266"},
+            )
+        ]
+    )
+    assert sources[0].status == "verified"
+
+
+def test_invented_literature_stays_unverified() -> None:
+    sources = apply_source_verification_flags(
+        [
+            Source(
+                ref="SRC-01",
+                section="main",
+                citation="Выдуманная книга про квантовые таблицы 2099",
+                status="unverified",
+            )
+        ]
     )
     assert sources[0].status == "unverified"
+
+
+def test_file_citation_can_upgrade_source() -> None:
+    sources = apply_source_verification_flags(
+        [
+            Source(
+                ref="SRC-02",
+                section="internet",
+                citation="Документация Linux",
+                status="unverified",
+            )
+        ]
+    )
+    assert sources[0].status == "verified"

@@ -116,6 +116,7 @@ ORDER_PLACEHOLDER = "___"
 ORDER_DATE_PLACEHOLDER = "«__» ________ 20__ г."
 SIGNATURE_PLACEHOLDER = "______________________"
 UNVERIFIED_MARK = "[не подтверждено — проверьте]"
+PARTIAL_VERIFY_MARK = "[частично проверено — ISBN]"
 NORMAL_FONT_SIZE_PT = 12
 AI_SECTION_MISSING = (
     "[раздел не сформирован моделью — требуется генерация комплекта (GigaChat), не подстановка шаблона]"
@@ -258,7 +259,9 @@ def _module_payload(module: Module) -> dict[str, Any]:
 def _source_payload(source: Source, number: int, *, marked: bool = True) -> dict[str, Any]:
     """Источник для контекста docxtpl с пометкой неподтверждённых."""
     citation = source.citation
-    if marked and source.status != "verified":
+    if marked and source.status == "partially_verified":
+        citation = f"{citation} {PARTIAL_VERIFY_MARK}"
+    elif marked and source.status != "verified":
         citation = f"{citation} {UNVERIFIED_MARK}"
     return {
         "ref": source.ref,

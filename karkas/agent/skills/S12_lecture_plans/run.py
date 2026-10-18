@@ -105,6 +105,7 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             topic_json=to_json(topic),
             outcomes_json=to_json(inputs.get("outcomes") or []),
             module_program_json=to_json(module_program),
+            knowledge_snippets=str(inputs.get("knowledge_snippets") or ""),
         ),
     )
     return {"lecture_plans": normalize_plans(payload, topic_ref, module_ref)}

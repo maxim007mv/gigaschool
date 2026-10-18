@@ -108,7 +108,29 @@ async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
             "Российская Федерация",
             "273-ФЗ",
             "2012-12-29",
+            None,
+            None,
             "Об образовании в Российской Федерации",
+        ),
+        (
+            str(uuid.uuid4()),
+            "order",
+            "Минобрнауки России",
+            "499",
+            "2013-07-01",
+            None,
+            "2025-08-31",
+            "Порядок ДПП (утратил силу, заменён № 266)",
+        ),
+        (
+            str(uuid.uuid4()),
+            "order",
+            "Минобрнауки России",
+            "266",
+            "2025-03-24",
+            "2025-09-01",
+            None,
+            "Порядок ДПП (действующий)",
         ),
         (
             str(uuid.uuid4()),
@@ -116,15 +138,39 @@ async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
             "Минпросвещения России",
             "629",
             "2022-07-27",
-            "Порядок ДОП (приказ № 629)",
+            None,
+            None,
+            "Порядок ДОП",
+        ),
+        (
+            str(uuid.uuid4()),
+            "order",
+            "Минобрнауки России",
+            "816",
+            "2017-08-23",
+            None,
+            None,
+            "Порядок применения ДОТ и электронного обучения",
+        ),
+        (
+            str(uuid.uuid4()),
+            "letter",
+            "Минобрнауки России",
+            "ВК-1013/06",
+            "2015-04-01",
+            None,
+            None,
+            "Методические рекомендации по ДПП с ДОТ",
         ),
     ]
-    for act_id, kind, issuer, number, signed_on, title in acts:
+    for act_id, kind, issuer, number, signed_on, valid_from, valid_to, title in acts:
         await conn.execute(
             text(
                 """
-                INSERT INTO normative_act (id, kind, issuer, number, signed_on, title, verified_by, verified_on)
-                VALUES (:id, :kind, :issuer, :number, :signed_on, :title, 'lite-seed', date('now'))
+                INSERT INTO normative_act (id, kind, issuer, number, signed_on, title,
+                    valid_from, valid_to, verified_by, verified_on)
+                VALUES (:id, :kind, :issuer, :number, :signed_on, :title,
+                    :valid_from, :valid_to, 'lite-seed', date('now'))
                 """
             ),
             {
@@ -133,6 +179,8 @@ async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
                 "issuer": issuer,
                 "number": number,
                 "signed_on": signed_on,
+                "valid_from": valid_from,
+                "valid_to": valid_to,
                 "title": title,
             },
         )
@@ -155,6 +203,53 @@ async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
         ),
         {"id": str(uuid.uuid4()), "ps": ps_id},
     )
+    extra_ps = [
+        ("06.022", "Системный аналитик"),
+        ("06.026", "Администратор информационных и коммуникационных систем"),
+        ("01.001", "Педагог"),
+        ("01.003", "Педагог дополнительного образования"),
+    ]
+    for code, title in extra_ps:
+        await conn.execute(
+            text(
+                """
+                INSERT INTO prof_standard (id, code, title, source)
+                VALUES (:id, :code, :title, 'lite-seed; требует проверки')
+                """
+            ),
+            {"id": str(uuid.uuid4()), "code": code, "title": title},
+        )
+    services = [
+        ("Python", "tool", 1, "current", "3.13"),
+        ("PostgreSQL", "platform", 1, "current", "17"),
+        ("Docker", "platform", 1, "current", "27"),
+        ("Git", "tool", 1, "current", "2.47"),
+        ("Visual Studio Code", "tool", 1, "current", "1.95"),
+        ("VSCodium", "tool", 1, "current", "1.95"),
+        ("Jupyter Notebook", "tool", 1, "current", "7.2"),
+        ("GigaChat", "ai_service", 1, "current", "3"),
+        ("Yandex Cloud", "platform", 1, "current", "2025"),
+        ("Linux", "platform", 1, "current", "6.x"),
+        ("ChatGPT", "ai_service", 0, "current", "2025"),
+    ]
+    for name, category, available, lifecycle, version in services:
+        await conn.execute(
+            text(
+                """
+                INSERT INTO service_catalog (id, name, category, available_ru, lifecycle,
+                    latest_version, checked_on)
+                VALUES (:id, :name, :category, :available, :lifecycle, :version, date('now'))
+                """
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "category": category,
+                "available": available,
+                "lifecycle": lifecycle,
+                "version": version,
+            },
+        )
 
 
 async def _seed_demo_program(conn) -> None:  # type: ignore[no-untyped-def]

@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-18 — Источники: S18/verified.json, реестры, RAG, legal_basis
+
+### Проблема
+`apply_source_verification_flags` понижала verified НПА из реестра БД; в lite-сидах не хватало НПА 266/499 и service_catalog; internet без allowlist; раздел 1.4 не заполнялся; RAG не попадал в промпты.
+
+### Фикс
+- `verified_registry`: только upgrade из файла, без понижения S18 (НПА/ПО/allowlist).
+- S18: домены `source_domains.json`, ISBN → `partially_verified`.
+- Сиды lite + `005_seed_services.sql`; расширен `verified.json`.
+- `build_program_legal_basis` в `framework_core`; kb_retrieval в S04/S06/S11/S12.
+- Тесты: НПА 266, выдуманная книга, DOCX-маркеры.
+
+### Проверка
+`.venv/bin/pytest tests -q --ignore=tests/payments_audit`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Бенчмарк токенов, make check, S17 в kit, code review
 
 ### Проблема
