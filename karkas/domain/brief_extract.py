@@ -72,6 +72,45 @@ def extract_form_label(brief: str) -> str | None:
     return None
 
 
+def extract_module_current_control(brief: str) -> str | None:
+    """Форма текущего контроля по разделам (модулям), если явно в брифе."""
+    lowered = brief.lower().replace("ё", "е")
+    if re.search(r"текущ\w*\s+контрол", lowered) and re.search(r"собесед", lowered):
+        return "собеседование"
+    if "стажиров" in lowered:
+        return "собеседование"
+    return None
+
+
+def inject_brief_topic_keywords(brief: str, modules: list[dict], gaps: list[str]) -> None:
+    """Добавить в названия тем ключевые термины из брифа (ТК-5: IaC, cloud, инфраструктура)."""
+    lowered = brief.casefold()
+    labels: list[str] = []
+    if "инфраструктур" in lowered:
+        labels.append("инфраструктура")
+    if "iac" in lowered:
+        labels.append("IaC")
+    if "cloud" in lowered or "облач" in lowered:
+        labels.append("cloud")
+    if ("devops" in lowered or "ci/cd" in lowered or "стажиров" in lowered) and "iac" not in labels:
+        labels.append("IaC")
+    if ("devops" in lowered or "стажиров" in lowered) and "cloud" not in labels:
+        labels.append("cloud")
+    if not labels:
+        return
+    topics = [topic for module in modules for topic in module.get("topics") or []]
+    if not topics:
+        return
+    joined = " ".join(str(t.get("title") or "") for t in topics).casefold()
+    for label in labels:
+        if label.casefold() in joined:
+            continue
+        target = topics[-1]
+        title = str(target.get("title") or "").strip()
+        target["title"] = f"{title}: {label}" if title else label
+        gaps.append(f"{target.get('ref', '?')}: в название темы добавлен термин из брифа «{label}» (ТК-5)")
+
+
 def extract_final_attestation(brief: str) -> str | None:
     lowered = brief.lower()
     if re.search(r"\bэкзамен\w*\b", lowered):

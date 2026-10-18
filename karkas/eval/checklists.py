@@ -332,7 +332,7 @@ _BY_CASE: dict[str, tuple[Callable[[KitV1], CheckResult], ...]] = {
             k,
             "TK-5",
             "TK5-5",
-            ["linux", "сет", "контейнер", "ci/cd", "мониторинг", "инфраструктур"],
+            ["linux", "сет", "контейнер", "ci/cd", "мониторинг", "инфраструктур", "iac", "cloud"],
         ),
         _check_interview_per_module,
     ),

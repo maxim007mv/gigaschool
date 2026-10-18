@@ -65,9 +65,7 @@ async def apply_migrations(
             for path in migration_files(migrations_dir, include_demo):
                 content = path.read_text(encoding="utf-8")
                 digest = hashlib.sha256(content.encode("utf-8")).digest()
-                row = await conn.fetchrow(
-                    "SELECT sha256 FROM schema_migrations WHERE filename = $1", path.name
-                )
+                row = await conn.fetchrow("SELECT sha256 FROM schema_migrations WHERE filename = $1", path.name)
                 if row is not None:
                     if bytes(row["sha256"]) != digest:
                         raise RuntimeError(

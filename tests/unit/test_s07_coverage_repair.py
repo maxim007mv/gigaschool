@@ -87,12 +87,14 @@ def test_repair_call_fixes_missing_outcome() -> None:
     assert not any("не раскрыты" in gap for gap in result["gaps"])
 
 
-def test_unrepaired_outcome_is_reported_in_gaps() -> None:
+def test_unrepaired_outcome_is_linked_deterministically() -> None:
     gateway = _SequenceGateway([PARTIAL, PARTIAL])
     result = asyncio.run(run(INPUTS, SkillContext(gateway=gateway)))
 
     assert len(gateway.prompts) == 2
-    assert any("РО не раскрыты ни в одной теме после ремонта: LO2.1" in gap for gap in result["gaps"])
+    covered = {ref for m in result["modules"] for t in m["topics"] for ref in t["outcome_refs"]}
+    assert "LO2.1" in covered
+    assert not any("не раскрыты" in gap for gap in result["gaps"])
 
 
 def test_no_repair_when_all_outcomes_covered() -> None:
@@ -137,5 +139,4 @@ def test_worse_repair_is_discarded() -> None:
     gateway = _SequenceGateway([PARTIAL, WORSE])
     result = asyncio.run(run(INPUTS, SkillContext(gateway=gateway)))
     covered = {ref for m in result["modules"] for t in m["topics"] for ref in t["outcome_refs"]}
-    assert covered == {"LO1.1", "LO1.2"}
-    assert any("РО не раскрыты ни в одной теме после ремонта: LO2.1" in gap for gap in result["gaps"])
+    assert {"LO1.1", "LO1.2", "LO2.1"} <= covered

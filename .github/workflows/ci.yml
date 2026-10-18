@@ -32,8 +32,8 @@ jobs:
           .venv/bin/pip install -e ".[dev]"
       - name: Ruff
         run: |
-          .venv/bin/ruff check karkas tests scripts
-          .venv/bin/ruff format --check karkas tests scripts
+          .venv/bin/ruff check karkas tests scripts migrations
+          .venv/bin/ruff format --check karkas tests scripts migrations
       - name: Mypy (domain)
         run: .venv/bin/mypy karkas/domain
       - name: Pytest

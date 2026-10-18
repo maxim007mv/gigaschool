@@ -15,6 +15,25 @@ METADATA = SkillSpec(code="S06", name="Карта компетенций (З/У/
 OUTCOME_TYPES: tuple[str, ...] = ("knowledge", "skill", "experience")
 _COMPETENCY_RE = re.compile(r"^C\d{1,2}$")
 _OUTCOME_RE = re.compile(r"^LO\d{1,2}\.\d{1,2}$")
+_TEACHER_SIDE_RE = re.compile(
+    r"учебн\w*\s+материал|проведени\w*\s+занят|преподав|обучающ\w*\s+друг",
+    re.IGNORECASE,
+)
+_HAS_EXPERIENCE_RE = re.compile(r"\bимеет\s+опыт\b", re.IGNORECASE)
+_EXPERIENCE_WORD_RE = re.compile(r"\bопыт\b", re.IGNORECASE)
+
+
+def _normalize_outcome_text(text: str, *, short_program: bool) -> str:
+    """Слушатель, не преподаватель; для коротких программ — «начальный опыт»."""
+    cleaned = text.strip()
+    if _TEACHER_SIDE_RE.search(cleaned):
+        cleaned = "Имеет начальный опыт применения изученных методов в типовых рабочих задачах программы"
+    elif short_program:
+        if _HAS_EXPERIENCE_RE.search(cleaned) and "начальн" not in cleaned.casefold():
+            cleaned = _HAS_EXPERIENCE_RE.sub("Имеет начальный опыт", cleaned, count=1)
+        elif _EXPERIENCE_WORD_RE.search(cleaned) and "начальн" not in cleaned.casefold():
+            cleaned = _EXPERIENCE_WORD_RE.sub("начальный опыт", cleaned, count=1)
+    return cleaned
 
 
 class OutcomeOut(BaseModel):
@@ -121,11 +140,17 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
         total_hours = int(inputs.get("total_hours") or profile.get("total_hours") or 0)
     except (TypeError, ValueError):
         total_hours = 0
-    if 0 < total_hours <= 72:
+    short_program = 0 < total_hours <= 72
+    if short_program:
         for comp in competencies:
             for outcome in comp["outcomes"]:
                 if outcome["type"] == "experience":
                     outcome["type"] = "skill"
+                outcome["text"] = _normalize_outcome_text(outcome["text"], short_program=True)
+    else:
+        for comp in competencies:
+            for outcome in comp["outcomes"]:
+                outcome["text"] = _normalize_outcome_text(outcome["text"], short_program=False)
     if not competencies:
         raise ValueError("S06: после постпроверки не осталось валидных компетенций")
     return {

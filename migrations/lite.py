@@ -1,7 +1,7 @@
 """SQLite lite-режим: схема и демо-сид без PostgreSQL.
 
-    python -m migrations.lite
-    python -m migrations.lite --demo
+python -m migrations.lite
+python -m migrations.lite --demo
 """
 
 from __future__ import annotations
@@ -77,9 +77,7 @@ async def apply_lite(database_url: str, *, include_demo: bool = False) -> list[s
 
 
 async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
-    exists = (
-        await conn.execute(text("SELECT 1 FROM organization WHERE id = :id"), {"id": ORG_ID})
-    ).first()
+    exists = (await conn.execute(text("SELECT 1 FROM organization WHERE id = :id"), {"id": ORG_ID})).first()
     if exists:
         return
     await conn.execute(
@@ -253,9 +251,7 @@ async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
 
 
 async def _seed_demo_program(conn) -> None:  # type: ignore[no-untyped-def]
-    exists = (
-        await conn.execute(text("SELECT 1 FROM program WHERE id = :id"), {"id": DEMO_PROGRAM_ID})
-    ).first()
+    exists = (await conn.execute(text("SELECT 1 FROM program WHERE id = :id"), {"id": DEMO_PROGRAM_ID})).first()
     if exists:
         return
     profile = json.dumps(

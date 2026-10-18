@@ -19,6 +19,7 @@ from karkas.domain.kit import (
     DeliveryMode,
     KitV1,
     LaborFunctionRef,
+    Module,
     ProfStandardRef,
     Source,
     find_topic,
@@ -172,7 +173,7 @@ def _sanitize_sources(kit: KitV1, sources: list[Source]) -> list[Source]:
         citation = src.citation or ""
         if src.status == "not_found":
             continue
-        if kit.program.kind == "dop" and re.search(r"\b499\b", citation):
+        if re.search(r"\b499\b", citation):
             continue
         if kit.program.kind == "dop" and src.section == "normative" and "профессиональн" in citation.lower():
             continue
@@ -319,6 +320,45 @@ def _ensure_sections(kit: KitV1, sections: list[ContentBlock]) -> list[ContentBl
     return out
 
 
+def _ensure_module_attestation_forms(modules: list[Module]) -> list[Module]:
+    """Стажировка: промежуточная аттестация модулей — собеседование."""
+    out: list[Module] = []
+    for module in modules:
+        att = (module.att_form or "").strip() or None
+        out.append(module if att else module.model_copy(update={"att_form": "собеседование"}))
+    return out
+
+
+def _ensure_internship_interviews(kit: KitV1, assessments: list[Assessment]) -> list[Assessment]:
+    if kit.program.form != "internship":
+        return assessments
+    result = list(assessments)
+    for module in kit.framework.modules:
+        if not module.topics:
+            continue
+        topic_refs = {t.ref for t in module.topics}
+        has_interview = any(
+            item.kind == "interview_question" and item.topic_ref in topic_refs for item in result
+        )
+        if has_interview:
+            continue
+        topic = module.topics[0]
+        outcome_refs = list(topic.outcome_refs or [])
+        if not outcome_refs:
+            outcome_refs = [o.ref for o in kit.iter_outcomes()][:1] or ["LO1.1"]
+        result.append(
+            Assessment(
+                ref=f"IV-{module.ref}",
+                kind="interview_question",
+                topic_ref=topic.ref,
+                module_ref=module.ref,
+                stem=f"Вопросы собеседования по разделу «{module.title}»",
+                outcome_refs=outcome_refs[:1],
+            )
+        )
+    return result
+
+
 def _ensure_module_programs(kit: KitV1, blocks: list[ContentBlock]) -> list[ContentBlock]:
     """Рабочие программы модулей (раздел 2.4) — по одному блоку на модуль каркаса."""
     by_module = {b.module_ref: b for b in blocks if b.module_ref}
@@ -338,6 +378,8 @@ def _ensure_module_programs(kit: KitV1, blocks: list[ContentBlock]) -> list[Cont
                 ]
             if not str(body.get("text") or "").strip():
                 body["text"] = "\n".join(f"{t.ref}. {t.title}" for t in module.topics)
+            if module.att_form and not str(body.get("att_form") or "").strip():
+                body["att_form"] = module.att_form
             if body != block.body:
                 idx = out.index(block)
                 out[idx] = block.model_copy(update={"body": body})
@@ -354,6 +396,7 @@ def _ensure_module_programs(kit: KitV1, blocks: list[ContentBlock]) -> list[Cont
                     ),
                     "topics": [{"topic_ref": t.ref, "summary": (t.summary or t.title).strip()} for t in module.topics],
                     "text": "\n".join(f"{t.ref}. {t.title}" for t in module.topics),
+                    **({"att_form": module.att_form} if module.att_form else {}),
                 },
             )
         )
@@ -598,12 +641,19 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
 
     lecture_plans = [_ensure_lecture_structure(b) for b in kit.content.lecture_plans]
     slides = _ensure_slide_blocks(_attach_module_refs(kit, list(kit.content.slides)))
-    assessments = _sanitize_assessments(list(kit.content.assessments))
+    modules_fw = list(kit.framework.modules)
+    if kit.program.form == "internship":
+        modules_fw = _ensure_module_attestation_forms(modules_fw)
+    assessments = _ensure_internship_interviews(
+        kit.model_copy(update={"framework": kit.framework.model_copy(update={"modules": modules_fw})}),
+        _sanitize_assessments(list(kit.content.assessments)),
+    )
     sources = _ensure_normative_sources(kit, _sanitize_sources(kit, list(kit.content.sources)))
     profile = kit.profile.model_copy(update={"glossary": _ensure_school_glossary(kit)})
     sections = _ensure_sections(kit, list(kit.content.sections))
     sections = _ensure_prof_standard_gap_section(kit, sections, competencies)
-    module_programs = _ensure_module_programs(kit, list(kit.content.module_programs))
+    kit_with_modules = kit.model_copy(update={"framework": kit.framework.model_copy(update={"modules": modules_fw})})
+    module_programs = _ensure_module_programs(kit_with_modules, list(kit.content.module_programs))
 
     legal = kit.program.legal_basis
     if not legal:
@@ -621,6 +671,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
             "gaps": gaps,
             "calendar": calendar,
             "competencies": competencies,
+            "modules": modules_fw,
         }
     )
     content = kit.content.model_copy(

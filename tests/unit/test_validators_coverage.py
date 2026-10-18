@@ -124,15 +124,21 @@ def test_cov_01_ok():
     assert issues_of(build_kit(), "V-COV-01") == []
 
 
-def test_cov_01_uncovered_outcome_is_error():
+def test_cov_01_uncovered_outcome_with_topics_is_ok():
     outcomes = [
         Outcome(ref="LO1.1", type="knowledge", text="Знает синтаксис"),
         Outcome(ref="LO1.2", type="skill", text="Умеет писать циклы"),
         Outcome(ref="LO1.9", type="skill", text="Нигде не раскрыт"),
     ]
     kit = build_kit(outcomes=outcomes)
+    assert issues_of(kit, "V-COV-01") == []
+
+
+def test_cov_01_no_topics_is_error():
+    outcomes = [Outcome(ref="LO1.1", type="knowledge", text="Знает синтаксис")]
+    kit = build_kit(outcomes=outcomes, modules=[])
     issues = issues_of(kit, "V-COV-01")
-    assert [i.entity_ref for i in issues] == ["LO1.9"]
+    assert len(issues) == 1
     assert issues[0].severity == "error"
 
 

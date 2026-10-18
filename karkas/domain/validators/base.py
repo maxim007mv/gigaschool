@@ -121,6 +121,16 @@ def is_substantial_text(text: str, min_letters: int = _TOLERATED_LETTERS) -> boo
     return sum(len(w) for w in _WORD_RE.findall(text)) >= min_letters
 
 
+_FENCED_CODE_RE = re.compile(r"```[\s\S]*?```", re.MULTILINE)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+
+
+def strip_code_spans(text: str) -> str:
+    """Убрать фрагменты кода и inline-code перед проверкой языка (V-LNG-01)."""
+    without_fences = _FENCED_CODE_RE.sub(" ", text)
+    return _INLINE_CODE_RE.sub(" ", without_fences)
+
+
 def word_tokens(text: str) -> list[str]:
     """Слова и числа в нижнем регистре — вход n-грамм (V-PLG-01)."""
     return _TOKEN_RE.findall(text.lower())

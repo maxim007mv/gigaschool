@@ -8,6 +8,8 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from karkas.agent.skills._base import SkillContext, SkillSpec, clamp, complete_structured, to_json
+from karkas.domain.brief_extract import extract_module_current_control, inject_brief_topic_keywords
+from karkas.domain.outcome_coverage import link_uncovered_outcomes
 
 DIR = "S07_module_structure"
 METADATA = SkillSpec(code="S07", name="Структура модулей и тем", dir=DIR, model_class="struct", depends_on=("S06",))
@@ -121,6 +123,29 @@ def normalize_structure(items: list[ModuleOut], known: set[str]) -> tuple[list[d
     return modules, gaps
 
 
+def _apply_module_att_forms(modules: list[dict[str, Any]], att_form: str | None, gaps: list[str]) -> None:
+    if not att_form:
+        return
+    for module in modules:
+        if not (module.get("att_form") or "").strip():
+            module["att_form"] = att_form
+            gaps.append(f"{module.get('ref', '?')}: форма аттестации модуля — {att_form}")
+
+
+def _postprocess_modules(
+    modules: list[dict[str, Any]],
+    *,
+    brief: str,
+    module_att: str | None,
+    known: set[str],
+    gaps: list[str],
+) -> None:
+    _apply_module_att_forms(modules, module_att, gaps)
+    if brief:
+        inject_brief_topic_keywords(brief, modules, gaps)
+    link_uncovered_outcomes(modules, known, gaps)
+
+
 def _enforce_sequence(modules: list[dict[str, Any]], gaps: list[str]) -> None:
     """V-SEQ-01: сложность не убывает по порядку программы (модули по номеру, темы по порядку).
 
@@ -164,6 +189,12 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             competencies_json=competencies_json,
         ),
     )
+    brief = str(inputs.get("brief") or "").strip()
+    constraints = inputs.get("constraints") if isinstance(inputs.get("constraints"), dict) else {}
+    internship = bool(constraints.get("self_study_only")) or str(
+        inputs.get("form") or profile.get("form") or ""
+    ).casefold() == "internship"
+    module_att = extract_module_current_control(brief) or ("собеседование" if internship else None)
     modules, gaps = normalize_structure(payload.modules, known)
     missing = uncovered_outcomes(modules, known) if known else []
     if missing:
@@ -189,8 +220,11 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     if not modules:
         raise ValueError("S07: после постпроверки не осталось валидных модулей")
     _cap_topics_to_units(modules, inputs.get("constraints"), gaps)
+    _postprocess_modules(modules, brief=brief, module_att=module_att, known=known, gaps=gaps)
+    missing = uncovered_outcomes(modules, known) if known else []
     if missing:
         gaps.append(f"РО не раскрыты ни в одной теме после ремонта: {', '.join(missing)}")
+        raise ValueError(f"S07: нераскрытые РО после детерминированной привязки: {', '.join(missing)}")
     return {
         "modules": modules,
         "gaps": [*[text.strip() for text in payload.gaps if text.strip()], *gaps],

@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-18 — TK-3 V-COV-01, TK-5 стажировка, НПА on_date, V-LNG-01
+
+### Проблема
+TK-3: S06 давал РО преподавателя без привязки к темам (V-COV-01); TK-5: нет IaC/cloud в темах, нет собеседований по модулям; в источниках цитировался утративший силу приказ № 499; V-LNG-01 ругался на shell в текстах; CI не форматировал `migrations/`.
+
+### Фикс
+Детерминированная привязка РО в S07 (`outcome_coverage`); правила S06/S07; V-COV-01 только при отсутствии тем; реестр НПА с `on_date=today` в pipeline; kit_fixup — интервью по модулям стажировки; пропуск inline/fenced code в V-LNG-01; ruff на migrations; тест `test_tk3_outcome_coverage.py`.
+
+### Проверка
+`pytest tests/unit/test_tk3_outcome_coverage.py tests/unit/test_s07_coverage_repair.py`; полный `pytest tests`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Реестр ПС 009, fallback S05, V-TPL-01 для TK-3/5
 
 ### Проблема

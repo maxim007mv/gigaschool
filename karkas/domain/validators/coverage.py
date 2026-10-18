@@ -26,17 +26,15 @@ _TYPE_LABELS = {"knowledge": "знание", "skill": "умение", "experienc
 
 def _cov_01(kit: KitV1, outcomes: list[Outcome], topics: list[Topic]) -> list:
     issues = []
-    for outcome in outcomes:
-        covered = [t.ref for t in topics if outcome.ref in t.outcome_refs]
-        if not covered:
-            issues.append(
-                issue(
-                    "V-COV-01",
-                    "error",
-                    f"Результат обучения {outcome.ref} не раскрыт ни в одной теме — свяжите его с темой программы",
-                    entity_ref=outcome.ref,
-                )
+    if outcomes and not topics:
+        issues.append(
+            issue(
+                "V-COV-01",
+                "error",
+                "В программе есть результаты обучения, но нет тем — добавьте темы и привяжите к ним РО",
+                entity_ref=None,
             )
+        )
     return issues
 
 

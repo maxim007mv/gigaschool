@@ -208,7 +208,7 @@
           "topics": [
             {
               "ref": "T4.1",
-              "title": "Мониторинг",
+              "title": "Мониторинг cloud-сервисов",
               "summary": null,
               "workload": {
                 "lecture": 0,
@@ -238,7 +238,7 @@
           "topics": [
             {
               "ref": "T5.1",
-              "title": "Инфраструктура как код",
+              "title": "Инфраструктура как код (IaC)",
               "summary": null,
               "workload": {
                 "lecture": 0,

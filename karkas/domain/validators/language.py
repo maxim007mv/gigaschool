@@ -21,6 +21,7 @@ from karkas.domain.validators.base import (
     is_substantial_text,
     issue,
     iter_text_units,
+    strip_code_spans,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - только для аннотаций
@@ -52,6 +53,7 @@ def _looks_like_code_snippet(text: str) -> bool:
 def _language_issues(ctx: ValidationContext) -> list:
     issues = []
     for ref, text in iter_text_units(ctx.kit):
+        text = strip_code_spans(text)
         if not is_substantial_text(text):
             continue
         if _looks_like_code_snippet(text):
