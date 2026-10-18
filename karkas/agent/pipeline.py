@@ -362,11 +362,11 @@ async def _answers_by_slot(session: AsyncSession, program_id: str) -> dict[str, 
 
 async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
     """Реестры в виде словаря для адаптера registry_bundle и S05-кандидатов."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from karkas.infra.repos import registry as registry_repo
 
-    acts = await registry_repo.normative_acts(session, on_date=datetime.now(timezone.utc).date())
+    acts = await registry_repo.normative_acts(session, on_date=datetime.now(UTC).date())
     ps_rows = (
         (await session.execute(text("SELECT code, title, status, order_number FROM prof_standard"))).mappings().all()
     )
