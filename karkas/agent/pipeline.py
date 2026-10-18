@@ -1359,6 +1359,38 @@ def _hours_signature(kit: KitV1) -> tuple[tuple[str, str, int], ...]:
     )
 
 
+def _s11_checkpoint_seed(kit: KitV1, module: Module | None) -> dict[str, Any]:
+    """Заготовка S11 для чекпоинтов точечной пересборки (S12 не тянет цепочку S01–S10)."""
+    if module is None:
+        return {"module_programs": [], "notes": ""}
+    blocks = [
+        {
+            "ref": block.ref,
+            "kind": "module_program",
+            "module_ref": block.module_ref,
+            "topic_ref": block.topic_ref,
+            "body": block.body,
+        }
+        for block in kit.content.module_programs
+        if block.module_ref == module.ref
+    ]
+    if not blocks:
+        blocks = [
+            {
+                "ref": f"MP-{module.ref}",
+                "kind": "module_program",
+                "module_ref": module.ref,
+                "body": {
+                    "topics": [
+                        {"topic_ref": t.ref, "summary": t.title, "work_forms": [], "materials": []}
+                        for t in module.topics
+                    ],
+                },
+            }
+        ]
+    return {"module_programs": blocks, "notes": ""}
+
+
 async def _regenerate_affected(
     session: AsyncSession,
     *,
@@ -1426,7 +1458,7 @@ async def _regenerate_affected(
         topic_ctx = await _seeded_context(
             program_id,
             f"edit:{edit_id}:{topic.ref}",
-            {"S11": {}},
+            {"S04": {}, "S10": {}, "S11": _s11_checkpoint_seed(kit, module)},
             gateway=gateway,
             extra={"registries": registries, "kit": kit_dump},
         )
@@ -1714,7 +1746,7 @@ async def kit_regenerate_core(
     validate_ctx = await _seeded_context(
         program_id,
         f"kit_regen:{scope_id}",
-        {"S18": {}, "S16": {}},
+        {"S18": {}, "S16": {}, "S15": {}, "S14": {}, "S13": {}},
         gateway=gateway,
         extra={"registries": registries},
     )

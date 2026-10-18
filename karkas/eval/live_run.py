@@ -107,7 +107,7 @@ def _match_tk4_answers(questions: list[dict[str, Any]]) -> dict[str, str | None]
             value = _TK4_SLOT_ANSWERS[slot]
         elif slot == "total_hours":
             value = _hours_from_question(text) or _TK4_SLOT_ANSWERS["total_hours"]
-        else:
+        elif not slot:
             for key, ans in keyword_fallback:
                 if key in text:
                     value = ans
