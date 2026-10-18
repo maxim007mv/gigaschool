@@ -56,7 +56,9 @@ def worker_db(monkeypatch):
 
     import os
 
-    user = os.environ.get("USER", "postgres")
+    from tests.integration.pg import pg_user
+
+    user = pg_user()
     url = f"postgresql+asyncpg://{user}@127.0.0.1:5432/{TEST_DB}"
     monkeypatch.setattr(settings, "database_url", url)
 

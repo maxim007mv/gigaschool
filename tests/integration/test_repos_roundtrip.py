@@ -77,7 +77,9 @@ def database_url() -> str:
     for sql_file in sorted(MIGRATIONS.glob("*.sql")):
         result = _psql("-f", str(sql_file), db=TEST_DB)
         assert result.returncode == 0, f"{sql_file.name}: {result.stderr}"
-    user = os.environ.get("USER", "postgres")
+    from tests.integration.pg import pg_user
+
+    user = pg_user()
     yield f"postgresql+asyncpg://{user}@127.0.0.1:5432/{TEST_DB}"
     _psql("-c", f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
 

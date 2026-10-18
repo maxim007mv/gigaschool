@@ -42,7 +42,9 @@ async def test_runner_applies_and_is_idempotent() -> None:
     db = "karkas_runner_test"
     _psql("-c", f"DROP DATABASE IF EXISTS {db} WITH (FORCE)")
     assert _psql("-c", f"CREATE DATABASE {db}").returncode == 0
-    dsn = f"postgresql://{__import__('os').environ.get('USER', 'postgres')}@127.0.0.1:5432/{db}"
+    from tests.integration.pg import pg_user
+
+    dsn = f"postgresql://{pg_user()}@127.0.0.1:5432/{db}"
     try:
         expected = [p.name for p in migration_files(MIGRATIONS_DIR, include_demo=False)]
         applied = await apply_migrations(dsn)
