@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-18 — Приёмка хакатона: UI «Связи», eval, порт 8000
+
+### Проблема
+Сборка фронтенда падала (отсутствовал `CoverageMatrix`). Юнит-тесты API не ставились без `PyJWT`. На ВМ заданы `OPENAI_*`, а не `FM_*`. Не было автопрогона эталонных чек-листов и единой точки входа на `:8000`.
+
+### Фикс
+- `web/src/features/coverage/CoverageMatrix.tsx` — матрица связей РО↔темы на экране каркаса.
+- `pyproject.toml`: зависимость `PyJWT`; `karkas/settings.py`: алиасы `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
+- `karkas/api/main.py`: раздача `web/dist` с того же порта, что API; `scripts/serve.sh`, `data/README.md`.
+- `karkas/eval/`, `scripts/run_eval.py`, `tests/eval/` — чек-листы над KitV1.
+
+### Проверка
+`.venv/bin/pytest tests/unit tests/eval -q`; `cd web && npx tsc --noEmit`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-16 — Блок «Эффект»: ненулевые токены на демо FakeGateway
 
 ### Проблема

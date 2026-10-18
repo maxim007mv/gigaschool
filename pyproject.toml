@@ -22,6 +22,7 @@ dependencies = [
     "structlog>=24.1",
     "prometheus-client>=0.20",
     "orjson>=3.10",
+    "PyJWT>=2.8",
 ]
 
 [project.optional-dependencies]

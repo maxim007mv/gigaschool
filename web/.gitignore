@@ -7,7 +7,7 @@ dist-ssr/
 *.local
 
 # Отчёты инструментов
-coverage/
+/coverage/
 playwright-report/
 test-results/
 .vite/

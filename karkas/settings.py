@@ -10,7 +10,7 @@ import json
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field, field_validator, model_validator
+from pydantic import AliasChoices, Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ModelClass = Literal["struct", "bulk", "embed", "rerank"]
@@ -27,8 +27,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # --- Cloud.ru Foundation Models (единственный разрешённый LLM-провайдер) ---
-    fm_base_url: str = "https://foundation-models.api.cloud.ru/v1"
-    fm_api_key: str = ""
+    fm_base_url: str = Field(
+        default="https://foundation-models.api.cloud.ru/v1",
+        validation_alias=AliasChoices("FM_BASE_URL", "OPENAI_BASE_URL"),
+    )
+    fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY", "OPENAI_API_KEY"))
     model_struct: str = ""  # GigaChat3.5-432B-A28B (ai-sage) — каркас, компетенции, смысловые проверки
     model_bulk: str = ""    # Qwen3.6-35B-A3B — массовая генерация содержания
     model_embed: str = ""   # Qwen3-Embedding-0.6B — RAG
@@ -105,7 +108,7 @@ class Settings(BaseSettings):
     tariffs_json: str = "{}"  # {"<model>": {"in": 0.0, "out": 0.0}} руб. за 1M токенов
     storage_dir: str = "var/storage"  # локальное хранилище (dev); S3 — при заданных ключах
     # База для HTTP-presign локального хранилища (кликабельные ссылки в UI).
-    public_api_base: str = "http://127.0.0.1:8100"
+    public_api_base: str = "http://127.0.0.1:8000"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

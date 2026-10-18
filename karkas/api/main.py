@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from karkas import __version__
 from karkas.api.errors import register_error_handlers
@@ -62,7 +65,17 @@ def create_app() -> FastAPI:
     app.include_router(usage.router, prefix=api_prefix)
     app.include_router(agent.router, prefix=api_prefix)
 
+    _maybe_mount_ui(app)
     return app
+
+
+def _maybe_mount_ui(app: FastAPI) -> None:
+    """SPA методиста с того же порта, что и API (хакатон: 0.0.0.0:8000)."""
+    dist = Path(__file__).resolve().parents[2] / "web" / "dist"
+    if not dist.is_dir():
+        return
+    # html=True — fallback на index.html для client-side routing.
+    app.mount("/", StaticFiles(directory=dist, html=True), name="ui")
 
 
 app = create_app()

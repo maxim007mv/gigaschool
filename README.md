@@ -24,22 +24,60 @@ specs/             спецификации Д1–Д5 (извлечены из .
 deploy/            Docker Compose, Caddy, Dockerfile (профиль A)
 ```
 
-## Быстрый старт (локально)
+## Быстрый старт (ВМ хакатона, порт 8000)
+
+Приложение для приёмки слушает **`0.0.0.0:8000`**: REST API, OpenAPI и (после сборки) SPA методиста с того же порта.
 
 ```bash
-python3.13 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-# PostgreSQL 16+/17 + pgvector; затем:
-cp .env.example .env               # заполнить FM_API_KEY и модели
-.venv/bin/python -m migrations.runner --demo
-.venv/bin/uvicorn karkas.api.main:app --reload
-.venv/bin/python -m karkas.worker --concurrency 4
-cd web && npm install && npm run dev
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+cp .env.example .env   # при необходимости; на ВМ часто уже заданы OPENAI_BASE_URL и OPENAI_API_KEY
+```
+
+Переменные LLM (не коммитить ключи):
+
+| Переменная | Назначение |
+|------------|------------|
+| `OPENAI_BASE_URL` / `FM_BASE_URL` | OpenAI-совместимый шлюз Cloud.ru |
+| `OPENAI_API_KEY` / `FM_API_KEY` | Ключ доступа |
+| `MODEL_STRUCT` | Каркас, компетенции (напр. `GigaChat/GigaChat-3-Pro`) |
+| `MODEL_BULK` | Массовая генерация содержания |
+| `MODEL_EMBED` | Эмбеддинги (`ai-sage/Giga-Embeddings-instruct-3B`) |
+
+Для reasoning-моделей с длинным «скрытым» выводом задайте `LLM_MAX_OUTPUT_TOKENS>=1000` (см. вебинар по моделям).
+
+PostgreSQL 16+/17 + pgvector:
+
+```bash
+.venv/bin/python -m migrations.runner --demo   # демо-программа 248 ч
+.venv/bin/python -m karkas.worker --concurrency 4 &
+bash scripts/serve.sh                          # API + UI на :8000
+```
+
+Для кликабельных ссылок на выгрузки в local storage задайте `PUBLIC_API_BASE=http://<хост>:8000` (по умолчанию `http://127.0.0.1:8000`).
+
+Разработка фронтенда отдельно (hot reload, прокси на API):
+
+```bash
+.venv/bin/uvicorn karkas.api.main:app --host 0.0.0.0 --port 8000 --reload
+cd web && npm install && npm run dev           # http://localhost:5173 → /api на :8000
+```
+
+Материалы кейса — в каталог [`data/`](data/README.md) (шаблоны, открытые запросы, JSON для eval).
+
+## Eval и чек-листы
+
+Детерминированные проверки по пунктам ТК-ОБЩ / ТК-1…ТК-5 над экспортом `KitV1`:
+
+```bash
+.venv/bin/pytest tests/eval -q
+.venv/bin/python scripts/run_eval.py           # все data/eval/tk*.json
 ```
 
 ## Тесты (обязательный пайплайн проекта — AGENTS.md)
 
 ```bash
 .venv/bin/pytest tests/unit -q                     # юниты домена и инфраструктуры
+.venv/bin/pytest tests/eval -q                     # чек-листы (без живых моделей)
 .venv/bin/pytest tests/integration -q              # живой PostgreSQL (миграции, репозитории)
 bash scripts/test_migrations.sh                    # DDL + триггеры Human Gate
 cd web && npx tsc --noEmit && npx vitest run       # фронтенд

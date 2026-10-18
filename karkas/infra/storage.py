@@ -62,7 +62,7 @@ class LocalStorage:
         """HTTP-ссылка на /api/v1/local-storage/... (кликабельна в UI, как S3)."""
         exp = int(time.time()) + max(1, int(ttl_s))
         sig = local_presign_signature(bucket, key, exp)
-        base = (settings.public_api_base or "http://127.0.0.1:8100").rstrip("/")
+        base = (settings.public_api_base or "http://127.0.0.1:8000").rstrip("/")
         return (
             f"{base}/api/v1/local-storage/{quote(bucket, safe='')}/"
             f"{quote(key, safe='/')}?exp={exp}&sig={sig}"
