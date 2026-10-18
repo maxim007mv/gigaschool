@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     model_struct_backup: str = ""  # резервная структурная модель (Д1 §7)
     model_bulk_backup: str = ""    # резервная модель массовой генерации
     model_allowlist: str = ""  # ids через запятую; пусто = разрешены только 4 модели выше
-    llm_concurrency: int = Field(default=8, ge=1, le=64)
-    llm_timeout_s: int = Field(default=90, ge=5)
+    llm_concurrency: int = Field(default=2, ge=1, le=64)  # лимит хаба: 2 параллельных запроса
+    llm_timeout_s: int = Field(default=120, ge=5)  # таймаут шлюза хаба
     llm_cache_ttl_h: int = Field(default=168, ge=1)  # 7 суток
     # Доп. параметры запроса (JSON), напр. '{"reasoning":{"enabled":false}}' для OpenRouter —
     # отключает скрытое «рассуждение» моделей (в замере: выход 67 → 17 токенов). Пусто = не слать.
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
         if not isinstance(parsed, dict):
             raise ValueError("LLM_EXTRA_BODY_JSON: ожидается JSON-объект, например {\"reasoning\":{\"enabled\":false}}")
         return value
-    llm_max_output_tokens: int = Field(default=0, ge=0)  # 0 — лимит не задаётся
+    llm_max_output_tokens: int = Field(default=4096, ge=0, le=4096)  # хаб: max_tokens ≤ 4096
     llm_max_repairs: int = Field(default=2, ge=0)     # «ремонт» JSON до 2 раз
     llm_backoff_base_s: float = 1.0                   # 1 → 2 → 4 с + джиттер
     llm_circuit_failures: int = 5                     # 5 ошибок за окно → размыкание

@@ -87,6 +87,19 @@ export function ReportPanel({ report, onExportReport, onFixIssue, className }: R
               : undefined
           }
         />
+        <SummaryItem
+          label={T.report.summaryItems.acr}
+          ok={
+            report.summary.acr_export && typeof report.summary.acr_export === "object"
+              ? Boolean((report.summary.acr_export as { ok?: boolean }).ok)
+              : undefined
+          }
+          value={
+            report.summary.acr_export && typeof report.summary.acr_export === "object"
+              ? `разделов эталона: ${(report.summary.acr_export as { expected_sections?: number }).expected_sections ?? "—"}`
+              : undefined
+          }
+        />
       </dl>
 
       {/* Замечания */}

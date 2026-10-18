@@ -13,6 +13,7 @@ import { T } from "../shared/i18n/ru";
 import { Badge } from "../shared/ui/Badge";
 import { Button } from "../shared/ui/Button";
 import { cx } from "../shared/ui/cx";
+import { ProgramStatusBar } from "../features/progress/ProgramStatusBar";
 import { Stepper } from "../shared/ui/Stepper";
 import { useToast } from "../shared/ui/Toast";
 import { ErrorState, PageSkeleton } from "../app/states";
@@ -91,6 +92,7 @@ export function ClarifyPage() {
     <div className="flex flex-col gap-lg">
       <header className="flex flex-col gap-sm">
         <Stepper current={1} />
+        {id ? <ProgramStatusBar programId={id} currentStep={1} /> : null}
         <h1 className="text-title font-bold text-ink">{T.clarify.title}</h1>
         <p className="text-base text-ink-muted">{T.clarify.subtitle}</p>
       </header>

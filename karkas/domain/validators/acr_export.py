@@ -2,31 +2,15 @@
 
 from __future__ import annotations
 
-import io
-
-from docx import Document
-
-from karkas.domain.acr_reference import expected_acr_headings
-from karkas.domain.kit import KitV1
 from typing import TYPE_CHECKING
 
+from karkas.domain.acr_reference import expected_acr_headings
+from karkas.domain.acr_docx_text import docx_plain_text, missing_acr_headings
+from karkas.domain.docx_export import export_program_docx
 from karkas.domain.validators.base import GroupResult, issue, resolve_stage
-from karkas.infra.exporters.docx_program import export_docx_program
 
 if TYPE_CHECKING:
     from karkas.domain.validators import ValidationContext
-
-
-def _docx_plain_text(data: bytes) -> str:
-    try:
-        document = Document(io.BytesIO(data))
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"не удалось разобрать .docx: {exc}") from exc
-    parts: list[str] = [p.text for p in document.paragraphs]
-    for table in document.tables:
-        for row in table.rows:
-            parts.extend(cell.text for cell in row.cells)
-    return "\n".join(parts)
 
 
 def validate(ctx: ValidationContext) -> GroupResult:
@@ -37,10 +21,9 @@ def validate(ctx: ValidationContext) -> GroupResult:
 
 
 def validate_acr_export(ctx: ValidationContext) -> GroupResult:
-    kit: KitV1 = ctx.kit
-    headings = expected_acr_headings(kit.program.kind, kit.program.form)
+    kit = ctx.kit
     try:
-        blob = export_docx_program(kit)
+        blob = export_program_docx(kit)
     except Exception as exc:  # noqa: BLE001 — отчёт методисту, не падение API
         return GroupResult(
             issues=[
@@ -54,20 +37,20 @@ def validate_acr_export(ctx: ValidationContext) -> GroupResult:
             meta={"kind": kit.program.kind, "form": kit.program.form},
         )
     try:
-        text = _docx_plain_text(blob)
-    except ValueError as exc:
+        text = docx_plain_text(blob)
+    except Exception as exc:  # noqa: BLE001
         return GroupResult(
             issues=[
                 issue(
                     "V-ACR-01",
                     "error",
-                    str(exc),
+                    f"не удалось разобрать .docx: {exc}",
                     entity_ref="acr_export",
                 )
             ],
             meta={"kind": kit.program.kind, "form": kit.program.form},
         )
-    missing = [h for h in headings if h not in text]
+    missing = missing_acr_headings(text, kit.program.kind, kit.program.form)
     issues = []
     if missing:
         issues.append(
@@ -89,8 +72,9 @@ def validate_acr_export(ctx: ValidationContext) -> GroupResult:
     return GroupResult(
         issues=issues,
         meta={
-            "expected_sections": len(headings),
+            "expected_sections": len(expected_acr_headings(kit.program.kind, kit.program.form)),
             "missing_count": len(missing),
             "reference": "data/templates/" + ref_file,
+            "ok": len(missing) == 0,
         },
     )

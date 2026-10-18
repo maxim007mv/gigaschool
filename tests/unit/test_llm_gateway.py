@@ -68,8 +68,9 @@ class _FakeCompletions:
         messages: list[dict],
         temperature: float,
         response_format: dict | None = None,
+        **kwargs: object,
     ) -> _Response:
-        return await self._client.create(model, messages, temperature, response_format)
+        return await self._client.create(model, messages, temperature, response_format, **kwargs)
 
 
 class _FakeChat:
@@ -98,6 +99,7 @@ class FakeClient:
         messages: list[dict],
         temperature: float,
         response_format: dict | None,
+        **kwargs: object,
     ) -> _Response:
         self.active += 1
         self.max_active = max(self.max_active, self.active)
@@ -108,6 +110,7 @@ class FakeClient:
                     "messages": [dict(m) for m in messages],
                     "temperature": temperature,
                     "response_format": response_format,
+                    **kwargs,
                 }
             )
             if self.delay:

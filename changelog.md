@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-18 — Eval live, бриф-трассировка, порт .docx, UX прогресса
+
+### Проблема
+Нужны оценка произвольного kit JSON, live-метрики защиты (время/токены/₽), лимиты хаба, отвязка V-ACR от infra, пробелы брифа в документации и наглядный прогресс в UI.
+
+### Фикс
+- `scripts/run_eval.py`: `--kit` + `--live` → `karkas/eval/live_run.py`, `defense_metrics.py`.
+- Порт `domain/docx_export.py` + `infra/exporters/bootstrap.py`; V-ACR без прямого импорта exporter.
+- `settings`: concurrency=2, max_tokens≤4096, timeout 120s; `serve.sh` — `VITE_USE_MOCKS=0`, worker×2.
+- `docs/REQUIREMENTS_TRACEABILITY.md` — таблица брифа с пробелами; README Demo walkthrough.
+- UI: `ProgramStatusBar`, строка «Шаблон АЦР» в `ReportPanel`.
+
+### Проверка
+`.venv/bin/pytest tests -q --ignore=tests/payments_audit`; `cd web && npx tsc --noEmit`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Хаб: ТК-1…ТК-5, V-ACR-01, чистый корень, трассировка
 
 ### Проблема

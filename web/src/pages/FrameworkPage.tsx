@@ -28,6 +28,7 @@ import { T } from "../shared/i18n/ru";
 import { Badge } from "../shared/ui/Badge";
 import { Button } from "../shared/ui/Button";
 import { IconCheck } from "../shared/ui/icons";
+import { ProgramStatusBar } from "../features/progress/ProgramStatusBar";
 import { Stepper } from "../shared/ui/Stepper";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/ui/Tabs";
 import { useToast } from "../shared/ui/Toast";
@@ -230,6 +231,7 @@ export function FrameworkPage() {
     <div className="flex flex-col gap-lg">
       <header className="flex flex-col gap-sm">
         <Stepper current={approved ? 3 : 2} maxReached={approved ? 4 : 2} />
+        {id ? <ProgramStatusBar programId={id} currentStep={approved ? 3 : 2} /> : null}
         <div className="flex flex-wrap items-center justify-between gap-md">
           <div className="flex flex-col gap-xs">
             <h1 className="text-title font-bold text-ink">{data.program.title}</h1>

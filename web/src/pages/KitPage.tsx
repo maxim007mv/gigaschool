@@ -36,6 +36,7 @@ import { T } from "../shared/i18n/ru";
 import { Badge } from "../shared/ui/Badge";
 import { Button } from "../shared/ui/Button";
 import { cx } from "../shared/ui/cx";
+import { ProgramStatusBar } from "../features/progress/ProgramStatusBar";
 import { Stepper } from "../shared/ui/Stepper";
 import { useToast } from "../shared/ui/Toast";
 import { ErrorState, PageSkeleton } from "../app/states";
@@ -173,6 +174,7 @@ export function KitPage() {
       <header className="flex flex-wrap items-center justify-between gap-md">
         <div className="flex flex-col gap-xs">
           <Stepper current={4} />
+          <ProgramStatusBar programId={id} currentStep={4} />
           <h1 className="text-title font-bold text-ink">{kit.program.title}</h1>
           <p className="text-base text-ink-muted">
             Слева выберите материал — справа текст. Снизу можно скачать файлы.
@@ -229,6 +231,7 @@ export function KitPage() {
           />
           <ReportPanel
             report={kit.report}
+            className={kit.report && !kit.report.passed ? "border-2 border-error/40" : undefined}
             onExportReport={async () => {
               const result = await exportMutation.mutateAsync(["report"]);
               setExportId(result.export_id);

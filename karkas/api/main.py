@@ -32,6 +32,8 @@ from karkas.settings import settings
 
 def create_app() -> FastAPI:
     """Фабрика приложения (используется тестами и uvicorn)."""
+    import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация export_program_docx
+
     configure_logging()
     app = FastAPI(
         title="КАРКАС API",

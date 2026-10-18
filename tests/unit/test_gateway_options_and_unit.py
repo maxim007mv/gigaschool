@@ -68,7 +68,7 @@ async def test_extra_body_and_max_tokens_sent_when_configured() -> None:
 
 async def test_options_absent_by_default() -> None:
     client = _RecordingClient()
-    gateway = LlmGateway(client=client, settings=_settings())
+    gateway = LlmGateway(client=client, settings=_settings(llm_max_output_tokens=0))
     await _call(gateway)
     sent = client.chat.completions.kwargs[0]
     assert "extra_body" not in sent

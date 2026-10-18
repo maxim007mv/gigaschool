@@ -11,7 +11,7 @@ fi
 
 if [[ ! -d web/dist ]]; then
   echo "Сборка фронтенда (web/dist)…"
-  (cd web && npm ci && npm run build)
+  (cd web && npm ci && VITE_USE_MOCKS=0 npm run build)
 fi
 
 if [[ -z "${DATABASE_URL:-}" ]] && [[ -f .env ]]; then
@@ -34,7 +34,7 @@ echo "Миграции…"
 .venv/bin/python -m migrations.runner --demo
 
 echo "Запуск воркера очереди job…"
-.venv/bin/python -m karkas.worker --concurrency 4 &
+.venv/bin/python -m karkas.worker --concurrency 2 &
 WORKER_PID=$!
 trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
 

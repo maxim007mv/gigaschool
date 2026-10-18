@@ -10,6 +10,8 @@ import os
 
 import pytest
 
+import karkas.infra.exporters.bootstrap  # noqa: F401 — V-ACR / export_program_docx в тестах
+
 from karkas.domain.kit import (
     Competency,
     Content,

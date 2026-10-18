@@ -22,6 +22,8 @@ from karkas.infra.repos import jobs as jobs_repo
 from karkas.logging_setup import get_logger
 from karkas.settings import settings
 
+import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация export_program_docx для V-ACR в воркере
+
 logger = get_logger("karkas.worker")
 
 #: Таймауты по видам задач (Д4 §9, таблица «Типы задач»).
