@@ -17,11 +17,10 @@ describe("App (smoke)", () => {
       expect(screen.getByText("КАРКАС")).toBeInTheDocument();
     });
 
-    // Мок-данные: программа «Основы Python» и кнопка следующего шага.
+    // Мок-данные: программа в статусе framework_review и кнопка следующего шага.
     await waitFor(() => {
-      expect(screen.getByText("Основы Python")).toBeInTheDocument();
+      expect(screen.getByText(/Искусственный интеллект для учителя/)).toBeInTheDocument();
     });
-    expect(screen.getByText("Каркас на проверке")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Проверить часы" })).toBeInTheDocument();
   });
 });

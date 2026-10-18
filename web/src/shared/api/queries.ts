@@ -77,7 +77,9 @@ export function frameworkFromApi(payload: FrameworkApiResponse, report: Report |
 }
 
 /** В dev включаем моки, пока backend не поднят; в сборке — всегда реальный API. */
-export const USE_MOCKS: boolean = import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS !== "0";
+export const USE_MOCKS: boolean =
+  (import.meta.env.DEV || import.meta.env.MODE === "test") &&
+  import.meta.env.VITE_USE_MOCKS !== "0";
 
 // Демонстрационное состояние моков: каркас программы p-100 считается
 // утверждённым после вызова framework:approve.

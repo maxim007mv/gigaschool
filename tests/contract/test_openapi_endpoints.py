@@ -55,6 +55,7 @@ EXPECTED_ENDPOINTS: list[tuple[str, str]] = [
     ("get", "/api/v1/programs/{program_id}/usage"),
     ("post", "/api/v1/agent/run"),
     ("get", "/api/v1/agent/runs/{run_id}"),
+    ("get", "/api/v1/local-storage/{bucket}/{key}"),
     ("get", "/healthz"),
     ("get", "/readyz"),
     ("get", "/metrics"),
