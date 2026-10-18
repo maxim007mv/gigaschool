@@ -60,7 +60,6 @@ def hardened(monkeypatch):
         result = _psql("-f", str(sql_file), db=TEST_DB)
         assert result.returncode == 0, f"{sql_file.name}: {result.stderr}"
 
-    import os
 
     from tests.integration.pg import pg_user
 
