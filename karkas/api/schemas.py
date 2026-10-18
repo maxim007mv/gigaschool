@@ -275,6 +275,9 @@ class UsageOut(BaseModel):
     p95_latency_ms: float | None = None
     savings_hours: float | None = None
     tokens: int = 0
+    methodologist_active_hours: float | None = None
+    manual_baseline_hours: float | None = None
+    first_time_framework_approval: bool | None = None
 
 
 class AgentRunIn(BaseModel):

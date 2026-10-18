@@ -126,6 +126,42 @@ COMPETENCIES_MISSING_TEXT = "Компетенции в комплекте не �
 CALENDAR_MISSING_TEXT = "Календарный учебный график формируется по мере комплектования групп."
 MODULE_PROGRAMS_MISSING_TEXT = "Рабочие программы модулей в комплекте не сформированы."
 
+DOP_TITLE_LINES = (
+    "ДОПОЛНИТЕЛЬНАЯ ОБЩЕОБРАЗОВАТЕЛЬНАЯ",
+    "ОБЩЕРАЗВИВАЮЩАЯ ПРОГРАММА",
+)
+DOP_EXPLANATORY_NOTE_HEADING = "Пояснительная записка"
+DOP_METHODICAL_DEFAULT = (
+    "Методические рекомендации для теоретических, практических занятий и самостоятельной "
+    "работы формируются образовательной организацией на основе комплекта материалов программы."
+)
+
+# Заголовки разделов эталона АЦР (24 ч, data/templates/acr_dop_intensive_ai_24h.txt).
+DOP_ACR_SECTION_HEADINGS: tuple[str, ...] = (
+    "УТВЕРЖДЕНО",
+    *DOP_TITLE_LINES,
+    DOP_EXPLANATORY_NOTE_HEADING,
+    "1.1. Актуальность Программы",
+    "1.2. Категории обучающихся",
+    "1.3. Цель и задачи программы",
+    "1.4. Сроки реализации",
+    "1.5. Планируемые результаты обучения",
+    "1.6. Календарный учебный график",
+    "2. Содержание программы",
+    "2.1. Учебный план",
+    "2.2. Учебно-тематический план",
+    "2.3. Оценочные материалы",
+    "2.4. Методические материалы",
+    "3. Организационно-педагогические условия реализации программы",
+    "3.1. Материально-технические условия реализации программы",
+    "3.2. Учебно-методическое и информационное обеспечение программы",
+    "3.3. Литература",
+    "3.3.1. Основная литература",
+    "3.3.2. Дополнительная литература",
+    "3.3.3. Интернет-ресурсы",
+    "3.4. Кадровое обеспечение программы",
+)
+
 
 # ---------------------------------------------------------------------------
 # Расчётные значения и контекст шаблона
@@ -745,6 +781,217 @@ def _add_signatures(document: DocxDocument, kit: KitV1) -> None:
     _para(document, "Согласовано: ______________________ / ______________________ /")
 
 
+def _outcomes_grouped(kit: KitV1) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {key: [] for key in OUTCOME_TYPE_ORDER}
+    for competency in kit.framework.competencies:
+        for outcome in competency.outcomes:
+            grouped.setdefault(outcome.type, []).append(outcome.text)
+    return grouped
+
+
+def _template_section_text(kit: KitV1, *title_parts: str) -> str:
+    """Текст блока template_section, если заголовок содержит одну из подстрок."""
+    lowered = [part.lower() for part in title_parts]
+    for block in kit.content.sections:
+        if block.kind != "template_section":
+            continue
+        title = str(block.body.get("title") or "")
+        if any(part in title.lower() for part in lowered):
+            text = _block_text(block)
+            if text:
+                return text
+    return ""
+
+
+def _add_dop_title_page(document: DocxDocument, kit: KitV1) -> None:
+    header = kit.program
+    organization = document.add_paragraph()
+    organization.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    organization.add_run(header.organization or ORDER_PLACEHOLDER)
+    approved = document.add_paragraph()
+    approved.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    approved.add_run("УТВЕРЖДЕНО").bold = True
+    order = document.add_paragraph()
+    order.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    order.add_run(f"Приказом № {ORDER_PLACEHOLDER} от {ORDER_DATE_PLACEHOLDER}")
+    document.add_paragraph()
+    for line in DOP_TITLE_LINES:
+        kind_line = document.add_paragraph()
+        kind_line.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        kind_line.add_run(line).bold = True
+    title = document.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.add_run(f"«{header.title}»").bold = True
+    document.add_paragraph()
+    footer = document.add_paragraph()
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} {header.year or datetime.now(timezone.utc).year}")
+    document.add_page_break()
+
+
+def _add_dop_explanatory_note(document: DocxDocument, kit: KitV1) -> None:
+    document.add_heading(DOP_EXPLANATORY_NOTE_HEADING, level=1)
+    annotation_block = _find_block(kit, "annotation")
+    annotation = _block_text(annotation_block) if annotation_block else ""
+    _para(document, annotation or ANNOTATION_MISSING_TEXT)
+
+
+def _add_dop_part_1(document: DocxDocument, kit: KitV1) -> None:
+    header = kit.program
+    profile = kit.profile
+    hours = _program_hours(kit)
+    calendar = kit.framework.calendar
+
+    document.add_heading("1.1. Актуальность Программы", level=2)
+    _para(document, _template_section_text(kit, "актуальность") or ANNOTATION_MISSING_TEXT)
+
+    document.add_heading("1.2. Категории обучающихся", level=2)
+    _para(
+        document,
+        profile.audience
+        or _template_section_text(kit, "категор", "слушател")
+        or "Категория обучающихся уточняется образовательной организацией.",
+    )
+    if profile.entry_level:
+        _para(document, f"Входной уровень: {profile.entry_level}.")
+
+    document.add_heading("1.3. Цель и задачи программы", level=2)
+    _para(document, kit.framework.goal or "Цель в комплекте не сформулирована.")
+    if kit.framework.tasks:
+        _para(document, "Задачи Программы", bold=True)
+        _bullets(document, kit.framework.tasks)
+
+    document.add_heading("1.4. Сроки реализации", level=2)
+    _para(document, f"Трудоёмкость: {hours['grand_total']} часов.")
+    if calendar is not None:
+        _para(document, f"Срок реализации: {calendar.days} дней ({calendar.weeks} учебных недель).")
+    elif profile.schedule:
+        _para(document, f"Срок реализации: {profile.schedule}.")
+    else:
+        _para(document, "Конкретные даты устанавливаются приказом о зачислении по мере комплектования групп.")
+
+    document.add_heading("1.5. Планируемые результаты обучения", level=2)
+    grouped = _outcomes_grouped(kit)
+    for outcome_type, label in (
+        ("knowledge", "Знания"),
+        ("skill", "Умения"),
+        ("experience", "Навыки"),
+    ):
+        items = grouped.get(outcome_type) or []
+        if not items:
+            continue
+        _para(document, f"{label}:", bold=True)
+        _bullets(document, items)
+    if not any(grouped.values()):
+        _para(document, COMPETENCIES_MISSING_TEXT)
+
+    document.add_heading("1.6. Календарный учебный график", level=2)
+    if calendar is None:
+        _para(document, CALENDAR_MISSING_TEXT)
+    else:
+        _para(
+            document,
+            f"Количество учебных недель — {calendar.weeks}; учебных дней — {calendar.days}; "
+            f"режим занятий: не более {calendar.max_hours_per_day} ч в день.",
+        )
+        if calendar.sessions:
+            calendar_header = ["№", "Неделя", "День", "Тема / этап", "Вид работы", "Часы"]
+            table = document.add_table(rows=1, cols=len(calendar_header))
+            table.style = "Table Grid"
+            for index, title in enumerate(calendar_header):
+                _set_cell(table.rows[0].cells[index], title, bold=True)
+            for session in calendar.sessions:
+                topic = _topic_of(kit, session.topic_ref)
+                name = topic.title if topic is not None else FINAL_ROW_LABEL
+                values = [
+                    str(session.seq),
+                    str(session.week),
+                    str(session.day),
+                    name,
+                    ACTIVITY_LABELS.get(session.activity, session.activity),
+                    str(session.hours),
+                ]
+                cells = table.add_row().cells
+                for index, value in enumerate(values):
+                    _set_cell(cells[index], value)
+
+    if header.document:
+        _para(document, f"Документ, выдаваемый по итогам обучения: {header.document}.")
+
+
+def _add_dop_part_2(document: DocxDocument, kit: KitV1) -> None:
+    use_distance = _uses_distance(kit)
+    header = _curriculum_header(use_distance)
+    document.add_heading("2. Содержание программы", level=1)
+
+    document.add_heading("2.1. Учебный план", level=2)
+    _add_items_table(document, header, _study_plan_items(kit), use_distance)
+
+    document.add_heading("2.2. Учебно-тематический план", level=2)
+    _add_items_table(document, header, _thematic_plan_items(kit), use_distance)
+
+    document.add_heading("2.3. Оценочные материалы", level=2)
+    final = kit.framework.final_attestation
+    _para(document, f"Итоговая аттестация — {final.form} ({final.hours} ч).")
+    if not kit.content.assessments:
+        _para(document, "Оценочные материалы в комплекте не сформированы.")
+    for assessment in kit.content.assessments:
+        _add_assessment_full(document, kit, assessment)
+
+    document.add_heading("2.4. Методические материалы", level=2)
+    methodical = _template_section_text(kit, "методическ")
+    _para(document, methodical or DOP_METHODICAL_DEFAULT)
+
+
+def _add_dop_part_3(document: DocxDocument, kit: KitV1) -> None:
+    document.add_heading("3. Организационно-педагогические условия реализации программы", level=1)
+
+    document.add_heading("3.1. Материально-технические условия реализации программы", level=2)
+    mto = _template_section_text(kit, "материально", "техническ")
+    _para(document, mto or DEFAULT_CONDITIONS_TEXT)
+
+    document.add_heading("3.2. Учебно-методическое и информационное обеспечение программы", level=2)
+    umi = _template_section_text(kit, "учебно-методическ", "информацион")
+    _para(document, umi or "Комплект методических материалов формируется по программе.")
+
+    document.add_heading("3.3. Литература", level=2)
+    for section, subheading in (
+        ("main", "3.3.1. Основная литература"),
+        ("additional", "3.3.2. Дополнительная литература"),
+        ("internet", "3.3.3. Интернет-ресурсы"),
+    ):
+        sources = [source for source in kit.content.sources if source.section == section]
+        document.add_heading(subheading, level=3)
+        if not sources:
+            _para(document, "—")
+            continue
+        for index, source in enumerate(sources, start=1):
+            line = f"{index}. {source.citation}"
+            if source.url:
+                line += f" {source.url}"
+            if source.status != "verified":
+                line += f" {UNVERIFIED_MARK}"
+            document.add_paragraph(line, style="List Bullet")
+
+    document.add_heading("3.4. Кадровое обеспечение программы", level=2)
+    _para(document, DEFAULT_TEACHERS_TEXT)
+
+
+def _build_dop_document(kit: KitV1) -> bytes:
+    """Собрать .docx ДОП по структуре эталона АЦР (приказ № 629, пример 24 ч)."""
+    document = Document()
+    _prepare_styles(document)
+    _add_dop_title_page(document, kit)
+    _add_dop_explanatory_note(document, kit)
+    _add_dop_part_1(document, kit)
+    _add_dop_part_2(document, kit)
+    _add_dop_part_3(document, kit)
+    _add_signatures(document, kit)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
 def _build_generated_document(kit: KitV1) -> bytes:
     """Собрать .docx программно (python-docx) по структуре шаблона ДПП ПК."""
     document = Document()
@@ -778,4 +1025,6 @@ def export_docx_program(kit: KitV1, template_path: Path | None = None) -> bytes:
         buffer = io.BytesIO()
         template.save(buffer)
         return buffer.getvalue()
+    if kit.program.kind == "dop":
+        return _build_dop_document(kit)
     return _build_generated_document(kit)

@@ -667,7 +667,7 @@ function EffectPanel({ programId, totalHours }: { programId: string; totalHours:
   const usage = useUsage(programId || null);
   if (usage.isPending || !usage.data) return null;
   const data = usage.data;
-  const manualBaselineHours = 2 * 40 * 0.5;
+  const manualBaselineHours = data.manual_baseline_hours ?? 2 * 40 * 0.5;
   return (
     <section aria-label={T.kit.effect} className="flex flex-col gap-sm rounded-card border border-line bg-surface p-lg">
       <h2 className="text-base font-semibold text-ink">{T.kit.effect}</h2>
@@ -692,11 +692,25 @@ function EffectPanel({ programId, totalHours }: { programId: string; totalHours:
           <dt className="text-caption text-ink-muted">Из кэша</dt>
           <dd className="tnum text-base text-ink">{formatPercent(data.cache_hit_pct)}</dd>
         </div>
+        {typeof data.methodologist_active_hours === "number" ? (
+          <div>
+            <dt className="text-caption text-ink-muted">Активное время методиста</dt>
+            <dd className="tnum text-base text-ink">{data.methodologist_active_hours} ч</dd>
+          </div>
+        ) : null}
         {typeof data.savings_hours === "number" ? (
           <div className="col-span-2">
             <dt className="text-caption text-ink-muted">Экономия времени методиста</dt>
             <dd className="tnum text-base text-ink">
               {data.savings_hours} ч (база {manualBaselineHours} ч − активная проверка)
+            </dd>
+          </div>
+        ) : null}
+        {data.first_time_framework_approval !== null && data.first_time_framework_approval !== undefined ? (
+          <div className="col-span-2">
+            <dt className="text-caption text-ink-muted">First-Time Approval (каркас)</dt>
+            <dd className="text-base text-ink">
+              {data.first_time_framework_approval ? "да, с первой итерации" : "нет, были доработки"}
             </dd>
           </div>
         ) : null}

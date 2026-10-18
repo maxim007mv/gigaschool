@@ -7,7 +7,7 @@
 
 | Путь | Назначение |
 |------|------------|
-| `templates/` | Шаблоны программ АЦР (.docx) |
+| `templates/` | Шаблоны и эталоны АЦР: `acr_dop_intensive_ai_24h.docx` (+ `.txt`), `product_brief_karkas.md` |
 | `references/` | Примеры утверждённых программ |
 | `open_requests/` | Тексты открытых запросов ТК-1…ТК-5 |
 | `eval/` | Экспортированные комплекты `KitV1` в JSON (`tk1.json` … `tk5.json`) для автопроверки |

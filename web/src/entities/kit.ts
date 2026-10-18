@@ -371,6 +371,9 @@ export interface Usage {
   cache_hit_pct: number;
   p95_latency_ms?: number | null;
   savings_hours?: number | null;
+  methodologist_active_hours?: number | null;
+  manual_baseline_hours?: number | null;
+  first_time_framework_approval?: boolean | null;
   duration_s?: number;
 }
 

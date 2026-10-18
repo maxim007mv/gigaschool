@@ -72,6 +72,28 @@ async def _active_hours(session: AsyncSession, program_id: str) -> float:
     return max(0.0, float(row["span_h"]) - float(row["generation_h"] or 0))
 
 
+async def _first_time_framework_approval(session: AsyncSession, program_id: str) -> bool | None:
+    """True, если каркас утверждён с первой попытки (без framework.reopen)."""
+    pid_sql = ":pid" if uses_sqlite() else uuid_param("pid")
+    rows = (
+        await session.execute(
+            text(
+                f"""
+                SELECT action FROM audit_log
+                WHERE program_id = {pid_sql}
+                  AND action IN ('framework.approve', 'framework.reopen')
+                """
+            ),
+            {"pid": program_id},
+        )
+    ).scalars().all()
+    if not rows:
+        return None
+    if "framework.approve" not in rows:
+        return None
+    return rows.count("framework.approve") == 1 and "framework.reopen" not in rows
+
+
 @router.get("/{program_id}/usage", response_model=schemas.UsageOut)
 async def get_usage(
     program_id: str,
@@ -81,15 +103,24 @@ async def get_usage(
     program = await get_program_or_404(session, program_id, principal)
     assert_access(principal, program)
     active_hours = await _active_hours(session, program_id)
+    baseline = 2.0 * 40.0 * 0.5
     savings = usage_repo.compute_savings_hours(active_hours=active_hours)
+    ftar = await _first_time_framework_approval(session, program_id)
     usage = await usage_repo.program_usage(session, program_id)
+    common = {
+        "program_id": program_id,
+        "savings_hours": savings,
+        "methodologist_active_hours": round(active_hours, 2),
+        "manual_baseline_hours": baseline,
+        "first_time_framework_approval": ftar,
+    }
     if usage is None:
-        return schemas.UsageOut(program_id=program_id, savings_hours=savings)
+        return schemas.UsageOut(**common)
 
     prompt_tokens = int(usage.get("prompt_tokens") or 0)
     completion_tokens = int(usage.get("completion_tokens") or 0)
     return schemas.UsageOut(
-        program_id=program_id,
+        **common,
         calls=int(usage.get("calls") or 0),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
@@ -97,5 +128,4 @@ async def get_usage(
         cost_rub=Decimal(str(usage.get("cost_rub") or 0)),
         cache_hit_pct=float(usage.get("cache_hit_pct") or 0),
         p95_latency_ms=float(usage["p95_latency_ms"]) if usage.get("p95_latency_ms") is not None else None,
-        savings_hours=savings,
     )

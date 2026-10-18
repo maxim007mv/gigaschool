@@ -428,6 +428,9 @@ export function mockUsage(): Usage {
     duration_s: 95,
     cache_hit_pct: 17.1,
     savings_hours: 40,
+    methodologist_active_hours: 3.5,
+    manual_baseline_hours: 40,
+    first_time_framework_approval: true,
   };
 }
 

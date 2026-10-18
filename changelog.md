@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-18 — Бриф продукта, эталон ДОП 24 ч, экспорт .docx по АЦР
+
+### Проблема
+Чекпоинт 1 обещал 5 экранов SPA, метрики (экономия часов, FTAR, стоимость) и выгрузку ДОП по реальному шаблону АЦР.
+
+### Фикс
+- `data/templates/acr_dop_intensive_ai_24h.*`, `product_brief_karkas.md`; `docs/competitors_registry.md`.
+- `karkas/infra/exporters/docx_program.py` — ветка ДОП с заголовками как в эталоне; тест `test_docx_dop_follows_acr_section_headings`.
+- UI: ползунок 16–500 ч на «Новый запрос», подписи шагов по брифу; usage API + «Эффект»: FTAR, активные часы.
+- README: таблица экранов, метрики, позиционирование vs аналоги.
+
+### Проверка
+`.venv/bin/pytest tests/unit/test_exporters_docx_pptx.py -q`; `cd web && npx tsc --noEmit`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Сверка с кейсом: «Обязательно», ТК2–4, метрики защиты, lite-режим
 
 ### Проблема

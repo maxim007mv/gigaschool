@@ -29,6 +29,7 @@ export function IntakePage() {
   const createProgram = useCreateProgram();
 
   const [brief, setBrief] = useState("");
+  const [totalHours, setTotalHours] = useState(72);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [briefError, setBriefError] = useState<string | null>(null);
   const [understood, setUnderstood] = useState<Record<string, string | null> | null>(null);
@@ -47,7 +48,11 @@ export function IntakePage() {
         const result = await uploadFile.mutateAsync(attached.file);
         uploaded.push({ file_id: result.file_id, role: attached.role });
       }
-      const created = await createProgram.mutateAsync({ brief: brief.trim(), files: uploaded });
+      const hoursLine = `Объём программы: ${totalHours} академических часов.`;
+      const briefText = brief.includes(String(totalHours))
+        ? brief.trim()
+        : `${brief.trim()}\n\n${hoursLine}`;
+      const created = await createProgram.mutateAsync({ brief: briefText, files: uploaded });
       toast.show("success", "Запрос разобран");
       setUnderstood(created.detected ?? {});
       // Даём методисту увидеть «что агент понял» перед переходом к вопросам.
@@ -85,6 +90,27 @@ export function IntakePage() {
               {briefError}
             </p>
           ) : null}
+
+          <label className="flex flex-col gap-sm text-base">
+            <span className="font-medium text-ink">{T.intake.hoursSlider}</span>
+            <span className="text-caption text-ink-muted">{T.intake.hoursSliderHint}</span>
+            <div className="flex items-center gap-md">
+              <input
+                type="range"
+                min={16}
+                max={500}
+                step={1}
+                value={totalHours}
+                onChange={(event) => setTotalHours(Number(event.target.value))}
+                aria-valuemin={16}
+                aria-valuemax={500}
+                aria-valuenow={totalHours}
+                aria-label={T.intake.hoursSlider}
+                className="w-full"
+              />
+              <span className="tnum min-w-[3rem] text-right font-medium text-ink">{totalHours} ч</span>
+            </div>
+          </label>
 
           <div className="flex flex-col gap-sm">
             <span className="font-medium text-ink">{T.intake.files}</span>

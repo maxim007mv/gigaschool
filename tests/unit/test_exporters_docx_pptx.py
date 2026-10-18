@@ -15,9 +15,10 @@ from docx.table import Table
 from pptx import Presentation
 
 from karkas.domain.kit import ContentBlock, KitV1, Report, ReportIssue
-from karkas.infra.exporters.docx_program import export_docx_program
+from karkas.infra.exporters.docx_program import DOP_ACR_SECTION_HEADINGS, export_docx_program
 from karkas.infra.exporters.docx_report import export_docx_report
 from karkas.infra.exporters.pptx_slides import export_pptx_slides
+from tests.conftest import build_minimal_kit
 from tests.unit.test_exporters_gift import build_export_kit
 
 TOTAL_COLUMN = "Всего, ч"
@@ -60,6 +61,16 @@ def _pptx_text(presentation: Presentation) -> str:
 # ---------------------------------------------------------------------------
 # Программа .docx
 # ---------------------------------------------------------------------------
+
+
+def test_docx_dop_follows_acr_section_headings() -> None:
+    """ДОП: заголовки как в эталоне АЦР (data/templates/acr_dop_intensive_ai_24h)."""
+    kit = build_minimal_kit(total_hours=24, final_att_hours=2)
+    kit.program.title = "Интенсив по созданию продуктов на основе ИИ"
+    text = _docx_text(Document(io.BytesIO(export_docx_program(kit))))
+    missing = [heading for heading in DOP_ACR_SECTION_HEADINGS if heading not in text]
+    assert not missing, "нет заголовков: " + ", ".join(missing)
+    assert "Приложение 1. Оценочные материалы текущего контроля" not in text
 
 
 def test_docx_program_is_zip_and_opens(kit: KitV1) -> None:
