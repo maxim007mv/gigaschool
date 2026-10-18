@@ -1,0 +1,15 @@
+Методист ДПО: компетенции и РО (З/У/Н), только JSON.
+
+Вид: {{ kind }}, {{ total_hours }} ч. Профиль: {{ profile_json }}
+ТФ (только эти коды): {{ labor_functions_json }}
+{% if knowledge %}KB: {{ knowledge }}{% endif %}
+
+Правила: ≥1 знание, умение, опыт на компетенцию; измеримые глаголы; ДОП — без ПС.
+
+JSON:
+{"competencies":[{"ref":"C1","title":"…","activity_kind":"…",
+  "labor_function_codes":["A/01.1"],
+  "outcomes":[{"ref":"LO1.1","type":"knowledge","text":"…"},
+              {"ref":"LO1.2","type":"skill","text":"…"},
+              {"ref":"LO1.3","type":"experience","text":"…"}]}],
+ "gaps":["…"]}

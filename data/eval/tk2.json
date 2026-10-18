@@ -1,0 +1,305 @@
+{
+  "meta": {
+    "case_id": "tk2",
+    "title": "«Искусственный интеллект в работе учителя»",
+    "request_text": "Программа повышения квалификации «Искусственный интеллект в работе учителя» для учителей школ Ингушетии, 36 часов, очно-заочно с применением дистанционных технологий.",
+    "checklist": [
+      {
+        "item_id": "TK2-1",
+        "text": "Шаблон программы повышения квалификации, удостоверение о ПК."
+      },
+      {
+        "item_id": "TK2-2",
+        "text": "36 часов; очная и дистанционная работа разделены явно."
+      },
+      {
+        "item_id": "TK2-3",
+        "text": "Компетенции связаны с трудовыми функциями профстандарта «Педагог»."
+      },
+      {
+        "item_id": "TK2-4",
+        "text": "Отдельная тема о рисках, этике и защите персональных данных учеников."
+      }
+    ],
+    "source": "data/eval/test_cases_official.txt"
+  },
+  "kit": {
+    "schema_version": "kit.v1",
+    "program": {
+      "kind": "dpp_pk",
+      "title": "Искусственный интеллект в работе учителя",
+      "form": "part_time",
+      "total_hours": 36,
+      "final_attestation": {
+        "form": "зачёт по портфолио",
+        "hours": 2
+      },
+      "document": "удостоверение о повышении квалификации",
+      "legal_basis": [
+        {
+          "ref": "LB-01",
+          "act": "Приказ Минобрнауки России от 24.03.2025 № 266",
+          "status": "verified"
+        }
+      ],
+      "organization": null,
+      "city": null,
+      "year": null
+    },
+    "profile": {
+      "audience": "учителя школ",
+      "entry_level": "без навыков программирования",
+      "schedule": null,
+      "duration_hint": null,
+      "notes": null,
+      "glossary": {},
+      "constraints": {
+        "min_practice_share_pct": 0.0,
+        "self_study_only": false,
+        "unit_hours": 1,
+        "max_hours_per_day": 8,
+        "days_per_week": 5,
+        "distance_share_pct": 0.0,
+        "self_study_share_pct": 0.0
+      }
+    },
+    "placeholders": {
+      "order_number": "",
+      "order_date": "",
+      "teachers": [],
+      "signatures": []
+    },
+    "framework": {
+      "goal": "Использовать ИИ в работе учителя безопасно",
+      "tasks": [],
+      "competencies": [
+        {
+          "ref": "C1",
+          "title": "Применение ИИ в педагогической деятельности",
+          "activity_kind": null,
+          "prof_standard": {
+            "code": "01.001",
+            "title": "Педагог",
+            "status": "active",
+            "order_number": null
+          },
+          "labor_functions": [
+            {
+              "code": "A/01.1",
+              "title": "Обучение и воспитание",
+              "otf_code": null
+            }
+          ],
+          "outcomes": [
+            {
+              "ref": "LO1.1",
+              "type": "skill",
+              "text": "Умеет готовить материалы с помощью ИИ",
+              "bloom_level": null
+            },
+            {
+              "ref": "LO1.2",
+              "type": "knowledge",
+              "text": "Знает риски и этику использования ИИ",
+              "bloom_level": null
+            }
+          ]
+        }
+      ],
+      "modules": [
+        {
+          "ref": "M1",
+          "number": 1,
+          "title": "ИИ для учителя",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T1.1",
+              "title": "ИИ для планов уроков",
+              "summary": null,
+              "workload": {
+                "lecture": 9,
+                "practice": 8,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 8
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            },
+            {
+              "ref": "T1.2",
+              "title": "Этика, риски и защита персональных данных учеников",
+              "summary": null,
+              "workload": {
+                "lecture": 9,
+                "practice": 8,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 8
+              },
+              "outcome_refs": [
+                "LO1.2"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        }
+      ],
+      "final_attestation": {
+        "form": "зачёт по портфолио",
+        "hours": 2
+      },
+      "calendar": {
+        "weeks": 6,
+        "days": 18,
+        "days_per_week": 3,
+        "max_hours_per_day": 4,
+        "sessions": []
+      },
+      "gaps": []
+    },
+    "content": {
+      "module_programs": [
+        {
+          "ref": "MP-M1",
+          "kind": "module_program",
+          "module_ref": "M1",
+          "topic_ref": null,
+          "body": {
+            "text": "Содержание"
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "lecture_plans": [],
+      "slides": [],
+      "sections": [
+        {
+          "ref": "ANN-1",
+          "kind": "annotation",
+          "module_ref": null,
+          "topic_ref": null,
+          "body": {
+            "text": "Для учителей Ингушетии."
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "assessments": [
+        {
+          "ref": "Q-001",
+          "kind": "test_question",
+          "topic_ref": "T1.1",
+          "module_ref": null,
+          "stem": "Вопрос Q-001",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "Q-002",
+          "kind": "test_question",
+          "topic_ref": "T1.2",
+          "module_ref": null,
+          "stem": "Вопрос Q-002",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.2"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "PF-01",
+          "kind": "portfolio_item",
+          "topic_ref": null,
+          "module_ref": null,
+          "stem": "Портфолио из трёх материалов",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [
+            {
+              "criterion": "Качество",
+              "max_points": 5.0,
+              "levels": [
+                "зачтено"
+              ]
+            }
+          ],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        }
+      ],
+      "sources": [
+        {
+          "ref": "SRC-01",
+          "section": "software",
+          "citation": "GigaChat",
+          "url": null,
+          "isbn": null,
+          "normative_act_ref": null,
+          "topic_refs": [],
+          "status": "verified",
+          "evidence": {}
+        }
+      ]
+    },
+    "assumptions": [],
+    "report": null,
+    "usage": null
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "title": "S23 adapt",
+  "description": "Программа-потомок: пересчёт часов и адаптация РО (Д4 §5.11).",
+  "input": {
+    "type": "object",
+    "required": ["modules", "new_constraints"],
+    "properties": {
+      "modules": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["ref", "topics"],
+          "properties": {
+            "ref": {"type": "string"},
+            "weight": {"type": "number", "exclusiveMinimum": 0},
+            "topics": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      },
+      "new_constraints": {
+        "type": "object",
+        "required": ["total"],
+        "properties": {
+          "total": {"type": "integer", "minimum": 1},
+          "unit": {"type": "integer", "minimum": 1},
+          "self_study_only": {"type": "boolean"}
+        }
+      },
+      "new_audience": {"type": ["string", "null"]},
+      "outcomes": {"type": "array", "items": {"type": "object"}},
+      "locked_cells": {"type": ["object", "null"]}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["child"],
+    "properties": {
+      "child": {
+        "type": "object",
+        "required": ["total_hours", "rows", "module_of"],
+        "properties": {
+          "total_hours": {"type": "integer"},
+          "rows": {"type": "object"},
+          "distance": {"type": "object"},
+          "module_of": {"type": "object"},
+          "proof": {"type": "array", "items": {"type": "object"}}
+        }
+      },
+      "outcomes": {"type": "array", "items": {"type": "object"}},
+      "assumptions": {"type": "array", "items": {"type": "string"}},
+      "notes": {"type": "string"}
+    }
+  }
+}

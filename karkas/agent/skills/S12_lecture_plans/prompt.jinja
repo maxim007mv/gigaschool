@@ -1,0 +1,25 @@
+Ты — преподаватель. Составь план лекции по теме.
+
+Тема каркаса:
+{{ topic_json }}
+
+Результаты обучения темы:
+{{ outcomes_json }}
+
+Рабочая программа модуля (контекст):
+{{ module_program_json }}
+{% if knowledge_snippets %}
+Фрагменты базы знаний (цитируй с пометкой источника):
+{{ knowledge_snippets }}
+{% endif %}
+
+Верни ТОЛЬКО JSON:
+{"lecture_plans":[{"ref":"LP-T1.1","kind":"lecture_plan","module_ref":"M1","topic_ref":"T1.1",
+  "title":"…",
+  "body":{"goals":["…"],
+          "stages":[{"minutes":10,"stage":"Введение","activity":"лекция","notes":"…"}],
+          "questions":["…"],"materials":["…"],"notes":""}}]}
+
+Этапы покрывают лекционные часы темы; каждый этап — наблюдаемое действие.
+
+{% if instruction %}Правка методиста (учти при пересборке): {{ instruction }}{% endif %}

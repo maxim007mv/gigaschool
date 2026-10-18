@@ -1,0 +1,444 @@
+{
+  "meta": {
+    "case_id": "tk1",
+    "title": "«Первые шаги в Python» для школьников",
+    "request_text": "Нужна дополнительная общеразвивающая программа «Первые шаги в Python» для школьников 8 и 9 классов без опыта программирования. Объем 16 часов, занятия очно по 2 часа два раза в неделю. Практики должно быть не меньше половины всех часов.",
+    "checklist": [
+      {
+        "item_id": "TK1-1",
+        "text": "Выбран шаблон общеразвивающей программы, а не программы повышения квалификации."
+      },
+      {
+        "item_id": "TK1-2",
+        "text": "Общий объем равен ровно 16 часам, из них практических занятий не меньше 8 часов."
+      },
+      {
+        "item_id": "TK1-3",
+        "text": "Календарный график состоит из 8 занятий по 2 часа и укладывается в 4 недели."
+      },
+      {
+        "item_id": "TK1-9",
+        "text": "В программе нет привязки к профстандартам и трудовым функциям."
+      }
+    ],
+    "source": "data/eval/test_cases_official.txt"
+  },
+  "kit": {
+    "schema_version": "kit.v1",
+    "program": {
+      "kind": "dop",
+      "title": "Первые шаги в Python",
+      "form": "full_time",
+      "total_hours": 16,
+      "final_attestation": {
+        "form": "защита проекта",
+        "hours": 2
+      },
+      "document": "",
+      "legal_basis": [],
+      "organization": null,
+      "city": null,
+      "year": null
+    },
+    "profile": {
+      "audience": "школьники 8–9 классов",
+      "entry_level": "без опыта программирования",
+      "schedule": null,
+      "duration_hint": null,
+      "notes": null,
+      "glossary": {},
+      "constraints": {
+        "min_practice_share_pct": 50.0,
+        "self_study_only": false,
+        "unit_hours": 1,
+        "max_hours_per_day": 2,
+        "days_per_week": 2,
+        "distance_share_pct": 0.0,
+        "self_study_share_pct": 0.0
+      }
+    },
+    "placeholders": {
+      "order_number": "",
+      "order_date": "",
+      "teachers": [],
+      "signatures": []
+    },
+    "framework": {
+      "goal": "Освоить основы Python",
+      "tasks": [],
+      "competencies": [
+        {
+          "ref": "C1",
+          "title": "Основы программирования",
+          "activity_kind": null,
+          "prof_standard": null,
+          "labor_functions": [],
+          "outcomes": [
+            {
+              "ref": "LO1.1",
+              "type": "knowledge",
+              "text": "Знает переменные и условия",
+              "bloom_level": null
+            },
+            {
+              "ref": "LO1.2",
+              "type": "skill",
+              "text": "Умеет писать простые программы",
+              "bloom_level": null
+            }
+          ]
+        }
+      ],
+      "modules": [
+        {
+          "ref": "M1",
+          "number": 1,
+          "title": "Python для начинающих",
+          "weight": 1.0,
+          "att_form": null,
+          "topics": [
+            {
+              "ref": "T1.1",
+              "title": "Переменные и условия",
+              "summary": null,
+              "workload": {
+                "lecture": 2,
+                "practice": 5,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.1"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            },
+            {
+              "ref": "T1.2",
+              "title": "Циклы и проект",
+              "summary": null,
+              "workload": {
+                "lecture": 2,
+                "practice": 5,
+                "lab": 0,
+                "self_study": 0,
+                "current_control": 0,
+                "distance": 0
+              },
+              "outcome_refs": [
+                "LO1.2"
+              ],
+              "control_form": null,
+              "complexity": 1,
+              "practicality": 0.5,
+              "weight": 1.0,
+              "locked": []
+            }
+          ]
+        }
+      ],
+      "final_attestation": {
+        "form": "защита проекта",
+        "hours": 2
+      },
+      "calendar": {
+        "weeks": 4,
+        "days": 8,
+        "days_per_week": 2,
+        "max_hours_per_day": 2,
+        "sessions": [
+          {
+            "seq": 1,
+            "week": 1,
+            "day": 1,
+            "topic_ref": "T1.1",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 2,
+            "week": 1,
+            "day": 2,
+            "topic_ref": "T1.1",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 3,
+            "week": 2,
+            "day": 3,
+            "topic_ref": "T1.1",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 4,
+            "week": 2,
+            "day": 4,
+            "topic_ref": "T1.1",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 5,
+            "week": 3,
+            "day": 5,
+            "topic_ref": "T1.2",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 6,
+            "week": 3,
+            "day": 6,
+            "topic_ref": "T1.2",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 7,
+            "week": 4,
+            "day": 7,
+            "topic_ref": "T1.2",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          },
+          {
+            "seq": 8,
+            "week": 4,
+            "day": 8,
+            "topic_ref": "T1.2",
+            "activity": "lecture",
+            "mode": "in_person",
+            "hours": 2
+          }
+        ]
+      },
+      "gaps": []
+    },
+    "content": {
+      "module_programs": [
+        {
+          "ref": "MP-M1",
+          "kind": "module_program",
+          "module_ref": "M1",
+          "topic_ref": null,
+          "body": {
+            "hours": 14,
+            "text": "Содержание модуля"
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "lecture_plans": [],
+      "slides": [],
+      "sections": [
+        {
+          "ref": "ANN-1",
+          "kind": "annotation",
+          "module_ref": null,
+          "topic_ref": null,
+          "body": {
+            "text": "Курс для школьников."
+          },
+          "generated_by": null,
+          "stale": false
+        },
+        {
+          "ref": "SEC-3.2",
+          "kind": "template_section",
+          "module_ref": null,
+          "topic_ref": null,
+          "body": {
+            "text": "Методические материалы"
+          },
+          "generated_by": null,
+          "stale": false
+        },
+        {
+          "ref": "SEC-3.3",
+          "kind": "template_section",
+          "module_ref": null,
+          "topic_ref": null,
+          "body": {
+            "text": "МТО"
+          },
+          "generated_by": null,
+          "stale": false
+        }
+      ],
+      "assessments": [
+        {
+          "ref": "Q-001",
+          "kind": "test_question",
+          "topic_ref": "T1.1",
+          "module_ref": null,
+          "stem": "Вопрос Q-001",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "Q-002",
+          "kind": "test_question",
+          "topic_ref": "T1.1",
+          "module_ref": null,
+          "stem": "Вопрос Q-002",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.1"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "Q-003",
+          "kind": "test_question",
+          "topic_ref": "T1.2",
+          "module_ref": null,
+          "stem": "Вопрос Q-003",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.2"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "Q-004",
+          "kind": "test_question",
+          "topic_ref": "T1.2",
+          "module_ref": null,
+          "stem": "Вопрос Q-004",
+          "qtype": "single",
+          "options": [
+            {
+              "id": "a",
+              "text": "Верно"
+            },
+            {
+              "id": "b",
+              "text": "Неверно"
+            }
+          ],
+          "answer_key": {
+            "correct": [
+              "a"
+            ],
+            "explanation": "Пояснение"
+          },
+          "rubric": [],
+          "outcome_refs": [
+            "LO1.2"
+          ],
+          "difficulty": null
+        },
+        {
+          "ref": "FP-01",
+          "kind": "final_project",
+          "topic_ref": null,
+          "module_ref": "M1",
+          "stem": "Защита учебного проекта",
+          "qtype": null,
+          "options": [],
+          "answer_key": null,
+          "rubric": [
+            {
+              "criterion": "Работоспособность",
+              "max_points": 5.0,
+              "levels": [
+                "зачтено"
+              ]
+            }
+          ],
+          "outcome_refs": [
+            "LO1.2"
+          ],
+          "difficulty": null
+        }
+      ],
+      "sources": [
+        {
+          "ref": "SRC-01",
+          "section": "main",
+          "citation": "Учебник по Python для школьников",
+          "url": null,
+          "isbn": null,
+          "normative_act_ref": null,
+          "topic_refs": [],
+          "status": "verified",
+          "evidence": {
+            "isbn_checked": true
+          }
+        }
+      ]
+    },
+    "assumptions": [],
+    "report": null,
+    "usage": null
+  }
+}

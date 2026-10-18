@@ -1,0 +1,23 @@
+{
+  "title": "S22 actualize",
+  "description": "Актуализация старой программы: было → предлагается (Д4 §5.10).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "old_program": {"type": "object"},
+      "S04": {"type": "object"},
+      "tools": {"type": "array", "items": {"type": "object"}},
+      "service_catalog": {"type": "array", "items": {"type": "object"}},
+      "snapshot_date": {"type": ["string", "null"]}
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "outdated": {"type": "array", "items": {"type": "object"}},
+      "proposals": {"type": "array", "items": {"type": "object"}},
+      "snapshot_date": {"type": "string"},
+      "notes": {"type": "string"}
+    }
+  }
+}

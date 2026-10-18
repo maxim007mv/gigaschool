@@ -1,0 +1,71 @@
+{
+  "title": "S08 hours_solver",
+  "description": "Детерминированное распределение часов (Д4 §5.4).",
+  "input": {
+    "type": "object",
+    "required": ["modules", "constraints"],
+    "properties": {
+      "modules": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["ref", "topics"],
+          "properties": {
+            "ref": {"type": "string"},
+            "weight": {"type": "number", "exclusiveMinimum": 0},
+            "topics": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["ref"],
+                "properties": {
+                  "ref": {"type": "string"},
+                  "weight": {"type": "number", "exclusiveMinimum": 0},
+                  "practicality": {"type": "number", "minimum": 0, "maximum": 1},
+                  "has_lab": {"type": "boolean"}
+                }
+              }
+            }
+          }
+        }
+      },
+      "constraints": {
+        "type": "object",
+        "properties": {
+          "total": {"type": "integer"},
+          "total_hours": {"type": "integer"},
+          "final_att": {"type": "integer"},
+          "unit": {"type": "integer", "minimum": 1, "maximum": 8},
+          "self_study_only": {"type": "boolean"},
+          "min_practice_share": {"type": "number", "minimum": 0, "maximum": 1},
+          "min_practice_share_pct": {"type": "number", "minimum": 0, "maximum": 100},
+          "self_study_share": {"type": "number", "minimum": 0, "maximum": 1},
+          "distance_share": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      },
+      "locked_cells": {"type": ["object", "null"]}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["rows", "distance", "module_of", "proof"],
+    "properties": {
+      "rows": {"type": "object", "additionalProperties": {"type": "object"}},
+      "distance": {"type": "object", "additionalProperties": {"type": "integer"}},
+      "module_of": {"type": "object", "additionalProperties": {"type": "string"}},
+      "proof": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["rule", "ok"],
+          "properties": {
+            "rule": {"type": "string"},
+            "ok": {"type": "boolean"},
+            "message": {"type": "string"}
+          }
+        }
+      },
+      "constraints": {"type": "object"}
+    }
+  }
+}

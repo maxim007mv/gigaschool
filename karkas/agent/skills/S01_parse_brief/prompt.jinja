@@ -1,0 +1,25 @@
+Ты — методист-проектировщик программ ДПО. Разбери бриф и верни ТОЛЬКО JSON.
+
+Бриф заказчика:
+{{ brief }}
+
+Извлечённый текст приложенных файлов:
+{{ files_text }}
+
+Ответы на уточняющие вопросы:
+{{ answers_json }}
+
+Верни JSON по схеме:
+- profile: {audience, entry_level, schedule, duration_hint, notes, glossary{},
+  constraints{min_practice_share_pct, self_study_only, max_hours_per_day,
+  days_per_week, distance_share_pct, self_study_share_pct}};
+- goal — цель программы (одно предложение), если сформулирована;
+- requested — явные пожелания заказчика;
+- missing_slots — обязательные слоты без значения: kind, total_hours, audience,
+  entry_level, form, final_attestation;
+- assumptions — допущения: {"text","slot","accepted_value","source"};
+- gaps — разрывы между пожеланиями и объёмом;
+- template_signs — дословные признаки вида программы из текста
+  («повышение квалификации», «школьники», «профстандарт»).
+
+Не выдумывай факты. Пустые значения — null или "".

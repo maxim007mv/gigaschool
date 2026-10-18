@@ -1,0 +1,114 @@
+# Шаблон ДПП ПК (по образцу АЦР, Д4 §5.12).
+# code — код раздела; title — название; required — обязателен ли раздел;
+# source — откуда берутся данные (для сообщений об ошибках);
+# filled_by — проверки заполненности, реализованные в validators/template.py.
+kind: dpp_pk
+title: "ДПП ПК — программа повышения квалификации (образец АЦР)"
+document: "удостоверение о повышении квалификации"
+normative_basis: "Приказ Минобрнауки России от 24.03.2025 № 266"
+sections:
+  - code: "title"
+    title: "Титульный лист (реквизиты организации, гриф «УТВЕРЖДЕНО приказом», вид и название, город, год)"
+    required: true
+    source: "program (вид, название), organization.requisites; поля приказа остаются пустыми"
+    filled_by: ["program_header"]
+  - code: "1.1"
+    title: "Аннотация"
+    required: true
+    source: "content_block(annotation)"
+    filled_by: ["annotation"]
+  - code: "1.2"
+    title: "Цель реализации программы"
+    required: true
+    source: "program.goal"
+    filled_by: ["goal"]
+  - code: "1.3"
+    title: "Планируемые результаты (виды деятельности, компетенции, практический опыт, умения, знания)"
+    required: true
+    source: "competency, learning_outcome"
+    filled_by: ["outcomes"]
+  - code: "1.4"
+    title: "Программа разработана на основе"
+    required: true
+    source: "normative_act, program.legal_basis"
+    filled_by: ["normative_basis"]
+  - code: "1.5"
+    title: "Перечень компетенций (коды трудовых функций)"
+    required: true
+    source: "prof_standard, labor_function"
+    filled_by: ["competencies", "prof_standards"]
+  - code: "1.6"
+    title: "Требования к слушателям (категория, входной уровень)"
+    required: true
+    source: "profile (аудитория, входной уровень)"
+    filled_by: ["entry_requirements"]
+  - code: "1.7"
+    title: "Форма обучения"
+    required: true
+    source: "program.form"
+    filled_by: ["program_header"]
+  - code: "1.8"
+    title: "Объём программы (контактная работа, СРС, итоговая аттестация, срок обучения)"
+    required: true
+    source: "v_program_hours, calendar"
+    filled_by: ["hours", "calendar"]
+  - code: "1.9"
+    title: "Выдаваемый документ"
+    required: true
+    source: "program.document"
+    filled_by: ["document"]
+  - code: "2.1"
+    title: "Учебный план"
+    required: true
+    source: "v_module_hours"
+    filled_by: ["modules", "hours"]
+  - code: "2.2"
+    title: "Учебно-тематический план"
+    required: true
+    source: "v_topic_hours"
+    filled_by: ["modules", "hours"]
+  - code: "2.3"
+    title: "Календарный учебный график"
+    required: true
+    source: "calendar_session (недели и дни без календарных дат)"
+    filled_by: ["calendar"]
+  - code: "2.4"
+    title: "Рабочая программа (по модулям и темам)"
+    required: true
+    source: "content_block(module_program) на каждый модуль"
+    filled_by: ["module_programs"]
+  - code: "2.5"
+    title: "Оценка качества освоения (формы аттестации, оценочные материалы, анализ удовлетворённости)"
+    required: true
+    source: "assessment_item, rubric"
+    filled_by: ["assessments"]
+  - code: "3.1"
+    title: "Материально-техническое обеспечение"
+    required: true
+    source: "content_block(template_section)"
+    filled_by: ["template_section:3.1"]
+  - code: "3.2"
+    title: "Учебно-методическое обеспечение (НПА, литература, интернет-ресурсы, ПО)"
+    required: true
+    source: "content_block(template_section), source по разделам"
+    filled_by: ["methodical_materials"]
+  - code: "3.3"
+    title: "Организация образовательного процесса"
+    required: true
+    source: "content_block(template_section)"
+    filled_by: ["template_section:3.3"]
+  - code: "3.4"
+    title: "Кадровое обеспечение"
+    required: true
+    source: "content_block(template_section); ФИО — пустые поля приказа"
+    filled_by: ["template_section:3.4"]
+  - code: "p1"
+    title: "Приложение 1. Текущий контроль (оценочные материалы текущей аттестации)"
+    required: true
+    source: "assessment_item (test_question, seminar_task, interview_question)"
+    filled_by: ["assessments:current_control"]
+  - code: "p2"
+    title: "Приложение 2. Итоговая аттестация (задание и критерии оценки)"
+    required: true
+    source: "assessment_item (final_project, exam_task, portfolio_item) с rubric"
+    filled_by: ["assessments:final"]

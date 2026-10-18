@@ -1,0 +1,25 @@
+Ты — методист-автор рабочей программы модуля. Опирайся только на каркас.
+
+Модуль каркаса:
+{{ module_json }}
+
+Результаты обучения модуля:
+{{ outcomes_json }}
+
+Профиль аудитории:
+{{ profile_json }}
+{% if knowledge_snippets %}
+Фрагменты базы знаний:
+{{ knowledge_snippets }}
+{% endif %}
+
+Верни ТОЛЬКО JSON:
+{"module_programs":[{"ref":"MP-M1","kind":"module_program","module_ref":"M1","topic_ref":null,
+  "body":{"annotation":"…","topics":[{"topic_ref":"T1.1","summary":"…",
+            "work_forms":["лекция","практика"],"materials":["…"]}],"att_form":"зачёт"}}],
+ "notes":""}
+
+Требования: только темы модуля; авторский текст (без дословных копий);
+для школьников — простой язык и пояснение терминов при первом упоминании.
+
+{% if instruction %}Правка методиста (учти при пересборке): {{ instruction }}{% endif %}

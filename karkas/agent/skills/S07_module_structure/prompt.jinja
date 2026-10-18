@@ -1,0 +1,18 @@
+Методист: модули и темы, только JSON.
+
+{{ total_hours }} ч. Профиль: {{ profile_json }}
+Компетенции/РО: {{ competencies_json }}
+
+Тема → outcome_refs (LO*); weight>0; practicality 0–1; complexity 1–5; has_lab при лабораторных.
+
+{% if missing_outcomes %}
+ВНИМАНИЕ: в прошлом ответе НЕ раскрыты РО: {{ missing_outcomes }}.
+Исправь структуру (верни её целиком): каждый из этих РО должен входить в outcome_refs хотя бы одной темы.
+Прошлый ответ:
+{{ previous_json }}
+{% endif %}
+Верни ТОЛЬКО JSON:
+{"modules":[{"ref":"M1","number":1,"title":"…","weight":1.0,"att_form":"зачёт",
+  "topics":[{"ref":"T1.1","title":"…","summary":"…","outcome_refs":["LO1.1"],
+             "complexity":1,"practicality":0.6,"weight":1.0,"has_lab":false}]}],
+ "gaps":["…"]}

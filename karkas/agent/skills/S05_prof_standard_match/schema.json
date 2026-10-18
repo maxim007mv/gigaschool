@@ -1,0 +1,40 @@
+{
+  "title": "S05 prof_standard_match",
+  "description": "Подбор профстандарта и ТФ строго из реестра (Д4 §5.3).",
+  "input": {
+    "type": "object",
+    "properties": {
+      "kind": {"enum": ["dpp_pk", "dop"]},
+      "profile": {"type": "object"},
+      "candidates": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["code"],
+          "properties": {
+            "code": {"type": "string", "pattern": "^\\d{2}\\.\\d{3}$"},
+            "title": {"type": "string"},
+            "status": {"enum": ["active", "replaced", "cancelled"]},
+            "labor_functions": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      },
+      "attached_ps": {"type": ["object", "null"]}
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "prof_standard": {
+        "oneOf": [
+          {"type": "null"},
+          {"type": "object", "required": ["code"], "properties": {"code": {"type": "string"}, "title": {"type": "string"}}}
+        ]
+      },
+      "labor_functions": {"type": "array", "items": {"type": "object"}},
+      "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+      "note": {"type": "string"},
+      "dropped_codes": {"type": "array", "items": {"type": "string"}}
+    }
+  }
+}

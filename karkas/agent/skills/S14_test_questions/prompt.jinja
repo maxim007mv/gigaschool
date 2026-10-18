@@ -1,0 +1,23 @@
+Ты — конструктор тестов. Составь тестовые вопросы с ключами по темам программы.
+
+Результаты обучения (привязка обязательна, только эти refs):
+{{ outcomes_json }}
+
+Темы:
+{{ topics_json }}
+
+Профиль аудитории:
+{{ profile_json }}
+
+Желаемое число вопросов: {{ count }}
+
+Верни ТОЛЬКО JSON:
+{"questions":[{"ref":"Q-001","kind":"test_question","topic_ref":"T1.1","module_ref":"M1",
+  "stem":"…","qtype":"single",
+  "options":[{"id":"a","text":"…"},{"id":"b","text":"…"}],
+  "answer_key":{"correct":["a"],"explanation":"почему верно"},
+  "outcome_refs":["LO1.1"],"difficulty":2}]}
+
+Каждый вопрос: ключ, пояснение, привязка к РО, 2–5 правдоподобных вариантов.
+
+{% if instruction %}Правка методиста (учти при пересборке): {{ instruction }}{% endif %}

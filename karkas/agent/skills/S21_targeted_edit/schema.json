@@ -1,0 +1,35 @@
+{
+  "title": "S21 targeted_edit",
+  "description": "Точечная правка: разбор инструкции + граф влияния (Д4 §5.9).",
+  "input": {
+    "type": "object",
+    "required": ["target_ref", "instruction"],
+    "properties": {
+      "target_ref": {"type": "string"},
+      "instruction": {"type": "string", "minLength": 3, "maxLength": 2000},
+      "kit": {"type": ["object", "null"]},
+      "dry_run": {"type": "boolean"},
+      "affected": {"type": ["array", "null"], "items": {"type": "string"}}
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["intent", "affected", "plan"],
+    "properties": {
+      "intent": {
+        "type": "object",
+        "properties": {
+          "action": {"type": "string"},
+          "target_ref": {"type": "string"},
+          "params": {"type": "object"},
+          "summary": {"type": "string"}
+        }
+      },
+      "affected": {"type": "array", "items": {"type": "string"}},
+      "stale_refs": {"type": "array", "items": {"type": "string"}},
+      "plan": {"type": "array", "items": {"type": "object"}},
+      "dry_run": {"type": "boolean"},
+      "kit": {"type": ["object", "null"]}
+    }
+  }
+}
