@@ -92,7 +92,7 @@ def test_kit_regenerate_core_updates_lecture_plan(api_env, monkeypatch) -> None:
                     body={"title": "Старый план"},
                 )
             ]
-            await framework_repo.save_kit(session, program_id, kit)
+            await framework_repo.save_kit(session, program_id, kit, solver_mode=True)
             await session.commit()
             await pipeline.kit_regenerate_core(
                 session,
