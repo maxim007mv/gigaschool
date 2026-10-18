@@ -209,8 +209,7 @@ def _ensure_prof_standard_gap_section(
     if kit.program.kind == "dop" or any(c.prof_standard for c in competencies):
         return sections
     if any(
-        b.kind == "template_section" and str(b.body.get("section_code") or "") in ("1.5", "SEC-1.5")
-        for b in sections
+        b.kind == "template_section" and str(b.body.get("section_code") or "") in ("1.5", "SEC-1.5") for b in sections
     ):
         return sections
     gap_line = next((g for g in kit.framework.gaps if "профстандарт" in g.lower()), None) or (
@@ -369,20 +368,14 @@ def _prof_link_for_program(kit: KitV1) -> tuple[str, str, str, str] | None:
             "06.026",
             "Системный администратор информационно-коммуникационных систем",
             "B/01.5",
-            (
-                "Выполнение работ по выявлению и устранению инцидентов "
-                "в информационно-коммуникационных системах"
-            ),
+            ("Выполнение работ по выявлению и устранению инцидентов в информационно-коммуникационных системах"),
         )
     if "большим данн" in blob or "big data" in blob:
         return (
             "06.042",
             "Специалист по большим данным",
             "A/03.6",
-            (
-                "Подготовка данных для проведения аналитических работ "
-                "по исследованию больших данных"
-            ),
+            ("Подготовка данных для проведения аналитических работ по исследованию больших данных"),
         )
     if "python" in blob or "анализ данных" in blob or "pandas" in blob or "банк" in blob:
         return (
@@ -592,9 +585,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     if kit.program.kind == "dop":
         competencies = [c.model_copy(update={"prof_standard": None, "labor_functions": []}) for c in competencies]
     elif (
-        competencies
-        and competencies[0].prof_standard
-        and not any(c.prof_standard for c in kit.framework.competencies)
+        competencies and competencies[0].prof_standard and not any(c.prof_standard for c in kit.framework.competencies)
     ):
         ps = competencies[0].prof_standard
         gaps = merge_gaps(

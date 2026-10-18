@@ -27,8 +27,16 @@ _REGISTRY_CANDIDATES = [
         "title": "Системный администратор информационно-коммуникационных систем",
         "status": "active",
         "labor_functions": [
-            {"code": "B/01.5", "title": "Выполнение работ по выявлению и устранению инцидентов в информационно-коммуникационных системах", "otf_code": "B"},
-            {"code": "C/03.6", "title": "Мониторинг событий, возникающих в процессе работы инфокоммуникационной системы", "otf_code": "C"},
+            {
+                "code": "B/01.5",
+                "title": "Выполнение работ по выявлению и устранению инцидентов в информационно-коммуникационных системах",
+                "otf_code": "B",
+            },
+            {
+                "code": "C/03.6",
+                "title": "Мониторинг событий, возникающих в процессе работы инфокоммуникационной системы",
+                "otf_code": "C",
+            },
         ],
     },
     {
@@ -36,7 +44,11 @@ _REGISTRY_CANDIDATES = [
         "title": "Специалист по большим данным",
         "status": "active",
         "labor_functions": [
-            {"code": "A/03.6", "title": "Подготовка данных для проведения аналитических работ по исследованию больших данных", "otf_code": "A"},
+            {
+                "code": "A/03.6",
+                "title": "Подготовка данных для проведения аналитических работ по исследованию больших данных",
+                "otf_code": "A",
+            },
         ],
     },
     {
@@ -44,7 +56,11 @@ _REGISTRY_CANDIDATES = [
         "title": "Программист",
         "status": "active",
         "labor_functions": [
-            {"code": "A/02.3", "title": "Написание программного кода с использованием языков программирования, определения и манипулирования данными в базах данных", "otf_code": "A"},
+            {
+                "code": "A/02.3",
+                "title": "Написание программного кода с использованием языков программирования, определения и манипулирования данными в базах данных",
+                "otf_code": "A",
+            },
         ],
     },
     {
@@ -141,11 +157,7 @@ def test_tk3_pick_prof_standard_and_framework_tpl01() -> None:
     kit = _minimal_kit("tk3", s05, _)
     assert any(c.prof_standard for c in kit.framework.competencies)
     report = run_validation(ValidationContext(kit=kit, stage="framework"))
-    tpl01 = [
-        i
-        for i in report.issues
-        if i.rule_code == "V-TPL-01" and (i.entity_ref or "").startswith("1.5")
-    ]
+    tpl01 = [i for i in report.issues if i.rule_code == "V-TPL-01" and (i.entity_ref or "").startswith("1.5")]
     assert not tpl01
 
 
@@ -155,9 +167,5 @@ def test_tk5_pick_prof_standard_and_framework_tpl01() -> None:
     kit = _minimal_kit("tk5", s05, _)
     assert kit.framework.competencies[0].prof_standard is not None
     report = run_validation(ValidationContext(kit=kit, stage="framework"))
-    tpl01 = [
-        i
-        for i in report.issues
-        if i.rule_code == "V-TPL-01" and (i.entity_ref or "").startswith("1.5")
-    ]
+    tpl01 = [i for i in report.issues if i.rule_code == "V-TPL-01" and (i.entity_ref or "").startswith("1.5")]
     assert not tpl01
