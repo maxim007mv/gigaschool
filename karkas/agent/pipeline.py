@@ -1114,16 +1114,27 @@ async def kit_core(
         gateway=gateway,
         extra={"registries": registries, "kit": kit_dump},
     )
+    topic_dicts = [t.model_dump(mode="json") for t in kit.iter_topics()]
+    s17 = (
+        await runner.run(
+            "S17",
+            {
+                "modules": [m.model_dump(mode="json") for m in kit.framework.modules],
+                "topics": topic_dicts,
+                "registries": registries,
+                "allowed_normative": [a["number"] for a in registries["normative_acts"]],
+            },
+            sources_ctx,
+            progress_cb,
+        )
+    ).output
     s18 = (
         await runner.run(
             "S18",
             {
-                "kit": kit_dump,
-                "modules": [m.model_dump(mode="json") for m in kit.framework.modules],
-                "topics": [t.model_dump(mode="json") for t in kit.iter_topics()],
-                "outcomes": outcomes_json,
+                "S17": s17,
+                "sources": s17.get("sources") or [],
                 "registries": registries,
-                "allowed_normative": [a["number"] for a in registries["normative_acts"]],
             },
             sources_ctx,
             progress_cb,

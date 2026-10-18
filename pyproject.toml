@@ -32,6 +32,9 @@ dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "hypothesis>=6.100",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
 ]
 
 [tool.pytest.ini_options]
@@ -45,6 +48,25 @@ markers = [
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["karkas.domain"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+# Полный strict — поэтапно (см. docs/CODE_REVIEW.md); CI не падает на legacy validators.
+disable_error_code = [
+    "type-arg",
+    "no-untyped-def",
+    "assignment",
+    "var-annotated",
+    "return-value",
+    "no-redef",
+]
 
 [tool.setuptools.packages.find]
 include = ["karkas*"]

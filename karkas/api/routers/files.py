@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import mimetypes
+from pathlib import PurePath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
@@ -70,7 +71,13 @@ async def upload_file(
     # Ограничение буферизации: читаем не больше лимита + 1 байт (раньше тело
     # читалось целиком до проверки размера — OOM-вектор на больших файлах).
     data = await file.read(settings.file_max_bytes + 1)
-    filename = file.filename or "file"
+    raw_name = file.filename or "file"
+    path = PurePath(raw_name)
+    if ".." in path.parts:
+        raise UnsupportedFile("Недопустимое имя файла")
+    filename = path.name
+    if not filename or filename in {".", ".."}:
+        raise UnsupportedFile("Недопустимое имя файла")
     try:
         mime, text, meta = ingest.extract(filename, data)
     except (UnsupportedFile, FileTooLarge):

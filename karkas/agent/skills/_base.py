@@ -246,9 +246,11 @@ def make_messages(user: str, system: str | None = None) -> list[dict[str, Any]]:
     return messages
 
 
-def to_json(value: Any) -> str:
-    """JSON для вставки в промпт (без падения на Decimal/date)."""
-    return json.dumps(value, ensure_ascii=False, indent=2, default=str, sort_keys=False)
+def to_json(value: Any, *, indent: int | None = None) -> str:
+    """JSON для вставки в промпт (компактный по умолчанию — экономия токенов)."""
+    if indent is None:
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+    return json.dumps(value, ensure_ascii=False, indent=indent, default=str)
 
 
 def clamp(value: float, low: float, high: float) -> float:

@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-18 — Бенчмарк токенов, make check, S17 в kit, code review
+
+### Проблема
+Нужны измеримые токены/₽ и время по шагам, единый lint/types/tests, вызов S17 перед верификацией источников, ревью безопасности.
+
+### Фикс
+- `karkas/eval/token_benchmark.py`, `scripts/benchmark_pipeline.py`, таблица в README.
+- Compact `to_json`, компактные S06/S07; лог `llm.usage` в gateway.
+- `kit_core`: шаг S17 → S18; upload: санитизация имени файла.
+- `Makefile`, `scripts/check.sh`, ruff/mypy/pre-commit, `.github/workflows/ci.yml`, `docs/CODE_REVIEW.md`.
+
+### Проверка
+`make test`; `.venv/bin/python scripts/benchmark_pipeline.py --json`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — .docx/.pptx только из GigaChat; экспортёры без шаблонов
 
 ### Проблема

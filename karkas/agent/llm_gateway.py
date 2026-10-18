@@ -39,7 +39,10 @@ from karkas.agent.skills._base import (
     NullMeter,
     maybe_await,
 )
+from karkas.logging_setup import get_logger
 from karkas.settings import Settings, get_settings
+
+logger = get_logger("karkas.llm")
 
 #: Классы задач, которые маршрутизируются на LLM (Д1 §7).
 ModelClass = Literal["struct", "bulk"]
@@ -405,6 +408,15 @@ class LlmGateway:
                 skill, model, prompt_tokens, completion_tokens, float(latency_ms), ok, cache_hit
             )
         )
+        if ok and not cache_hit and (prompt_tokens or completion_tokens):
+            logger.info(
+                "llm.usage",
+                skill=skill,
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=round(float(latency_ms), 1),
+            )
 
     async def _call_with_retries(
         self,
