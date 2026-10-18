@@ -42,6 +42,8 @@ import { ErrorState, PageSkeleton } from "../app/states";
 import { EditDrawer } from "../features/edits/EditDrawer";
 import { ExportMenu } from "../features/export/ExportMenu";
 import { ReportPanel } from "../features/report/ReportPanel";
+import { CoverageMatrix } from "../features/coverage/CoverageMatrix";
+import { iterOutcomes, iterTopics } from "../entities/kit";
 
 type Selection =
   | { kind: "block"; block: ContentBlock }
@@ -207,6 +209,24 @@ export function KitPage() {
         </section>
 
         <div className="flex flex-col gap-md">
+          <CoverageMatrix
+            outcomes={iterOutcomes(kit).map((o) => ({
+              ref: o.ref,
+              type: o.type,
+              text: o.text,
+            }))}
+            topics={iterTopics(kit).map((t) => ({
+              ref: t.ref,
+              title: t.title,
+              outcome_refs: t.outcome_refs,
+            }))}
+            assessments={kit.content.assessments}
+            showCounters
+            readOnly
+            onToggleLink={() => {
+              /* на экране комплекта связи только для просмотра */
+            }}
+          />
           <ReportPanel
             report={kit.report}
             onExportReport={async () => {
@@ -214,7 +234,7 @@ export function KitPage() {
               setExportId(result.export_id);
             }}
           />
-          <EffectPanel programId={id} />
+          <EffectPanel programId={id} totalHours={kit.program.total_hours} />
           <ExportMenu
             onExport={async (formats) => {
               const result = await exportMutation.mutateAsync(formats);
@@ -642,21 +662,26 @@ function FinalPreview({ kit }: { kit: KitV1 }) {
   );
 }
 
-/** Блок «Эффект» (Д3 §4.5): фактические токены, стоимость и экономия времени. */
-function EffectPanel({ programId }: { programId: string }) {
+/** Блок «Эффект» (Д3 §4.5): метрики для защиты — токены Cloud.ru и экономия методиста. */
+function EffectPanel({ programId, totalHours }: { programId: string; totalHours: number }) {
   const usage = useUsage(programId || null);
-  if (!usage.data) return null;
+  if (usage.isPending || !usage.data) return null;
   const data = usage.data;
+  const manualBaselineHours = 2 * 40 * 0.5;
   return (
     <section aria-label={T.kit.effect} className="flex flex-col gap-sm rounded-card border border-line bg-surface p-lg">
       <h2 className="text-base font-semibold text-ink">{T.kit.effect}</h2>
+      <p className="text-caption text-ink-muted">
+        Для защиты: стоимость генерации программы ({totalHours} ч) в токенах Cloud.ru и оценка экономии
+        времени методиста относительно ручной сборки (~2 нед. × 50% занятости).
+      </p>
       <dl className="grid grid-cols-2 gap-sm">
         <div>
-          <dt className="text-caption text-ink-muted">Токены</dt>
+          <dt className="text-caption text-ink-muted">Токены на программу</dt>
           <dd className="tnum text-base text-ink">{formatTokens(data.tokens)}</dd>
         </div>
         <div>
-          <dt className="text-caption text-ink-muted">Стоимость</dt>
+          <dt className="text-caption text-ink-muted">Стоимость Cloud.ru</dt>
           <dd className="tnum text-base text-ink">{formatRub(data.cost_rub)}</dd>
         </div>
         <div>
@@ -670,7 +695,9 @@ function EffectPanel({ programId }: { programId: string }) {
         {typeof data.savings_hours === "number" ? (
           <div className="col-span-2">
             <dt className="text-caption text-ink-muted">Экономия времени методиста</dt>
-            <dd className="tnum text-base text-ink">{data.savings_hours} ч</dd>
+            <dd className="tnum text-base text-ink">
+              {data.savings_hours} ч (база {manualBaselineHours} ч − активная проверка)
+            </dd>
           </div>
         ) : null}
       </dl>

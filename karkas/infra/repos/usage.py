@@ -11,6 +11,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from karkas.infra.sql_dialect import cache_hit_pct_expr, json_param, run_after_hours, uses_sqlite, uuid_param
+
 
 async def record_llm_call(
     session: AsyncSession,
@@ -27,12 +29,14 @@ async def record_llm_call(
     cost_rub: Decimal = Decimal("0"),
     cache_hit: bool = False,
 ) -> None:
+    pid = uuid_param("program_id")
+    jid = uuid_param("job_id")
     await session.execute(
         text(
-            """
+            f"""
             INSERT INTO llm_call (org_id, program_id, job_id, skill, model, prompt_tokens,
                                   completion_tokens, latency_ms, cost_rub, cache_hit, ok)
-            VALUES (:org_id, CAST(:program_id AS uuid), CAST(:job_id AS uuid), :skill, :model,
+            VALUES (:org_id, {pid}, {jid}, :skill, :model,
                     :pt, :ct, :latency, :cost, :cache_hit, :ok)
             """
         ),
@@ -46,16 +50,37 @@ async def record_llm_call(
             "ct": completion_tokens,
             "latency": latency_ms,
             "cost": cost_rub,
-            "cache_hit": cache_hit,
-            "ok": ok,
+            "cache_hit": 1 if cache_hit else 0 if uses_sqlite() else cache_hit,
+            "ok": 1 if ok else 0 if uses_sqlite() else ok,
         },
     )
 
 
 async def program_usage(session: AsyncSession, program_id: str) -> dict[str, Any] | None:
+    if uses_sqlite():
+        row = (
+            await session.execute(
+                text(
+                    f"""
+                    SELECT :pid AS program_id, count(*) AS calls,
+                           sum(prompt_tokens) AS prompt_tokens,
+                           sum(completion_tokens) AS completion_tokens,
+                           sum(cost_rub) AS cost_rub,
+                           {cache_hit_pct_expr()} AS cache_hit_pct,
+                           NULL AS p95_latency_ms
+                    FROM llm_call WHERE program_id = :pid
+                    """
+                ),
+                {"pid": program_id},
+            )
+        ).mappings().first()
+        if row is None or int(row["calls"] or 0) == 0:
+            return None
+        return dict(row)
+    pid = uuid_param("pid")
     row = (
         await session.execute(
-            text("SELECT * FROM v_program_usage WHERE program_id = CAST(:pid AS uuid)"),
+            text(f"SELECT * FROM v_program_usage WHERE program_id = {pid}"),
             {"pid": program_id},
         )
     ).mappings().first()
@@ -88,19 +113,24 @@ def cache_key(model: str, prompt_version: str, messages: list[dict[str, Any]], p
 
 
 async def cache_get(session: AsyncSession, key: bytes) -> dict[str, Any] | None:
+    now = "datetime('now')" if uses_sqlite() else "now()"
     row = (
         await session.execute(
             text(
-                """
+                f"""
                 UPDATE llm_cache SET hits = hits + 1
-                WHERE key_hash = :key AND expires_at > now()
+                WHERE key_hash = :key AND expires_at > {now}
                 RETURNING response
                 """
             ),
             {"key": key},
         )
     ).scalar_one_or_none()
-    return dict(row) if row else None
+    if row is None:
+        return None
+    if isinstance(row, str):
+        return json.loads(row)
+    return dict(row) if isinstance(row, dict) else json.loads(str(row))
 
 
 async def cache_put(
@@ -111,13 +141,15 @@ async def cache_put(
     response: dict[str, Any],
     ttl_hours: int,
 ) -> None:
+    resp = json_param("response")
+    expires = run_after_hours()
     await session.execute(
         text(
-            """
+            f"""
             INSERT INTO llm_cache (key_hash, model, response, expires_at)
-            VALUES (:key, :model, CAST(:response AS jsonb), now() + make_interval(hours => :ttl))
+            VALUES (:key, :model, {resp}, {expires})
             ON CONFLICT (key_hash) DO UPDATE
-            SET response = EXCLUDED.response, expires_at = EXCLUDED.expires_at
+            SET response = excluded.response, expires_at = excluded.expires_at
             """
         ),
         {"key": key, "model": model, "response": json.dumps(response, ensure_ascii=False), "ttl": ttl_hours},
@@ -125,7 +157,8 @@ async def cache_put(
 
 
 async def purge_expired_cache(session: AsyncSession) -> int:
-    result = await session.execute(text("DELETE FROM llm_cache WHERE expires_at <= now()"))
+    now = "datetime('now')" if uses_sqlite() else "now()"
+    result = await session.execute(text(f"DELETE FROM llm_cache WHERE expires_at <= {now}"))
     return int(result.rowcount or 0)
 
 

@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-18 — Сверка с кейсом: «Обязательно», ТК2–4, метрики защиты, lite-режим
+
+### Проблема
+Нужна явная сверка с официальным описанием кейса (оба шаблона АЦР, 16–500 ч, уточнения без «месяца» вместо часов, матрица покрытия на комплекте, метрики для защиты). Демо без PostgreSQL должно подниматься одной командой.
+
+### Фикс
+- `karkas/domain/intake_slots.py`, `clarify.py`, `pipeline.py` — отклонение «примерно месяц» без числа часов (ТК4-2).
+- `karkas/eval/checklists.py` — пункты ТК-2…ТК-4; `karkas/eval/mandatory_audit.py`, `scripts/case_mandatory_audit.py`.
+- `migrations/lite.py`, `karkas/infra/sql_dialect.py`, адаптация `usage`/`programs`/`jobs` под SQLite; `scripts/serve.sh` — `KARKAS_LITE` + миграции `--demo`.
+- `web/src/pages/KitPage.tsx` — матрица покрытия с числом оценочных средств; блок «Эффект» для защиты (токены и экономия методиста).
+
+### Проверка
+`.venv/bin/python scripts/case_mandatory_audit.py`; `.venv/bin/pytest tests/unit tests/eval -q`; `KARKAS_LITE=1 .venv/bin/python -m migrations.runner --demo`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Приёмка хакатона: UI «Связи», eval, порт 8000
 
 ### Проблема

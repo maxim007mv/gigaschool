@@ -71,6 +71,119 @@ def _check_validation_passed(kit: KitV1) -> CheckResult:
     )
 
 
+def _full_text_blob(kit: KitV1) -> str:
+    parts = [_topic_texts(kit)]
+    for comp in kit.framework.competencies:
+        for outcome in comp.outcomes:
+            parts.append(outcome.text or "")
+    for block in kit.content.module_programs:
+        body = block.body if isinstance(block.body, dict) else {}
+        parts.append(str(body.get("summary") or ""))
+    return " ".join(parts).lower()
+
+
+def _check_tk2_template_and_hours(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 36:
+        return CheckResult("TK-2", "TK2-1", True, "не 36 ч — пропуск ТК-2")
+    ok_kind = kit.program.kind == "dpp_pk"
+    ok_hours = _hours_grand(kit) == 36
+    return CheckResult(
+        "TK-2",
+        "TK2-1",
+        ok_kind and ok_hours,
+        f"шаблон={kit.program.kind}, итого {_hours_grand(kit)} ч",
+    )
+
+
+def _check_tk2_distance_split(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 36:
+        return CheckResult("TK-2", "TK2-2", True, "не ТК-2")
+    contact = sum(
+        t.workload.lecture + t.workload.practice + t.workload.lab
+        for m in kit.framework.modules
+        for t in m.topics
+    )
+    distance = sum(t.workload.distance for m in kit.framework.modules for t in m.topics)
+    ok = contact > 0 and distance >= 8
+    return CheckResult(
+        "TK-2",
+        "TK2-2",
+        ok,
+        f"контакт={contact}, дистанционно={distance} (ожид. ≥8)",
+    )
+
+
+def _check_tk2_ethics_topic(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 36:
+        return CheckResult("TK-2", "TK2-4", True, "не ТК-2")
+    blob = _full_text_blob(kit)
+    ok = any(k in blob for k in ("этик", "персональн", "защит", "риск"))
+    return CheckResult("TK-2", "TK2-4", ok, "тема этики/ПДн в текстах" if ok else "нет этики/ПДн в темах и РО")
+
+
+def _check_tk2_prof_standard(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 36:
+        return CheckResult("TK-2", "TK2-3", True, "не ТК-2")
+    linked = [c.ref for c in kit.framework.competencies if c.prof_standard]
+    return CheckResult(
+        "TK-2",
+        "TK2-3",
+        len(linked) > 0,
+        "компетенции с профстандартом: " + (", ".join(linked) if linked else "нет"),
+    )
+
+
+def _check_tk3_hours_calendar(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 72:
+        return CheckResult("TK-3", "TK3-1", True, "не 72 ч — пропуск ТК-3")
+    cal = kit.framework.calendar
+    ok_h = _hours_grand(kit) == 72
+    ok_cal = cal is not None and cal.weeks == 4
+    return CheckResult(
+        "TK-3",
+        "TK3-1",
+        ok_h and ok_cal,
+        f"итого {_hours_grand(kit)} ч, недель={cal.weeks if cal else '—'}",
+    )
+
+
+def _check_tk3_modules_stack(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 72:
+        return CheckResult("TK-3", "TK3-2", True, "не ТК-3")
+    blob = _full_text_blob(kit)
+    need = ("pandas", "sql")
+    missing = [k for k in need if k not in blob]
+    viz = "визуал" in blob or "matplotlib" in blob or "график" in blob
+    ok = len(missing) == 0 and viz
+    detail = "нет: " + ", ".join(missing) if missing else "pandas/sql есть"
+    if not viz:
+        detail += "; визуализация не найдена"
+    return CheckResult("TK-3", "TK3-2", ok, detail)
+
+
+def _check_tk3_python_intro(kit: KitV1) -> CheckResult:
+    if kit.program.total_hours != 72:
+        return CheckResult("TK-3", "TK3-3", True, "не ТК-3")
+    blob = _full_text_blob(kit)
+    ok = "python" in blob or "питон" in blob
+    return CheckResult("TK-3", "TK3-3", ok, "вводный Python" if ok else "нет вводного блока Python")
+
+
+def _check_tk4_hours_after_clarify(kit: KitV1) -> CheckResult:
+    """ТК4-5: после уточнений — ПК и ровно 72 ч (на готовом комплекте)."""
+    title = (kit.program.title or "").lower()
+    cyber = "кибер" in title or "кибер" in _full_text_blob(kit)
+    if not cyber and kit.program.total_hours != 72:
+        return CheckResult("TK-4", "TK4-5", True, "не сценарий ТК-4")
+    ok = kit.program.kind == "dpp_pk" and kit.program.total_hours == 72 and _hours_grand(kit) == 72
+    return CheckResult(
+        "TK-4",
+        "TK4-5",
+        ok,
+        f"шаблон={kit.program.kind}, Σ={_hours_grand(kit)}, заявлено {kit.program.total_hours}",
+    )
+
+
 def _check_dop_no_prof_standard(kit: KitV1) -> CheckResult:
     if kit.program.kind != "dop":
         return CheckResult("TK-1", "TK1-9", True, "не ДОП — пропуск")
@@ -163,6 +276,19 @@ _COMMON: tuple[Callable[[KitV1], CheckResult], ...] = (
 
 _BY_CASE: dict[str, tuple[Callable[[KitV1], CheckResult], ...]] = {
     "tk1": (_check_dop_no_prof_standard,),
+    "tk2": (
+        _check_tk2_template_and_hours,
+        _check_tk2_distance_split,
+        _check_tk2_prof_standard,
+        _check_tk2_ethics_topic,
+    ),
+    "tk3": (
+        _check_tk3_hours_calendar,
+        _check_tk3_modules_stack,
+        _check_tk3_python_intro,
+        lambda k: _check_keywords(k, "TK-3", "TK3-8", ["банк", "клиент", "задолжен"]),
+    ),
+    "tk4": (_check_tk4_hours_after_clarify,),
     "tk5": (
         _check_internship_self_study,
         _check_calendar_internship,

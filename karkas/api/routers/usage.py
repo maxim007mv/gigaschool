@@ -18,6 +18,7 @@ from karkas.api.deps import CurrentPrincipal, enforce_rate_limit
 from karkas.api.routers.programs import assert_access, get_program_or_404
 from karkas.infra.db import get_session
 from karkas.infra.repos import usage as usage_repo
+from karkas.infra.sql_dialect import uses_sqlite, uuid_param
 
 router = APIRouter(
     prefix="/programs", tags=["usage"], dependencies=[Depends(enforce_rate_limit)]
@@ -26,23 +27,46 @@ router = APIRouter(
 
 async def _active_hours(session: AsyncSession, program_id: str) -> float:
     """Активное время методиста: от первого события до последнего минус автосборка."""
-    row = (
-        await session.execute(
-            text(
-                """
-                SELECT
-                    EXTRACT(EPOCH FROM (max(created_at) - min(created_at))) / 3600.0 AS span_h,
-                    COALESCE((
-                        SELECT sum(EXTRACT(EPOCH FROM (COALESCE(finished_at, now()) - created_at))) / 3600.0
-                        FROM job WHERE program_id = CAST(:pid AS uuid) AND status = 'succeeded'
-                    ), 0) AS generation_h
-                FROM audit_log
-                WHERE program_id = CAST(:pid AS uuid)
-                """
-            ),
-            {"pid": program_id},
-        )
-    ).mappings().first()
+    if uses_sqlite():
+        row = (
+            await session.execute(
+                text(
+                    """
+                    SELECT
+                        (julianday(max(created_at)) - julianday(min(created_at))) * 24.0 AS span_h,
+                        COALESCE((
+                            SELECT sum(
+                                (julianday(COALESCE(finished_at, datetime('now')))
+                                 - julianday(created_at)) * 24.0
+                            )
+                            FROM job WHERE program_id = :pid AND status = 'succeeded'
+                        ), 0) AS generation_h
+                    FROM audit_log
+                    WHERE program_id = :pid
+                    """
+                ),
+                {"pid": program_id},
+            )
+        ).mappings().first()
+    else:
+        pid = uuid_param("pid")
+        row = (
+            await session.execute(
+                text(
+                    f"""
+                    SELECT
+                        EXTRACT(EPOCH FROM (max(created_at) - min(created_at))) / 3600.0 AS span_h,
+                        COALESCE((
+                            SELECT sum(EXTRACT(EPOCH FROM (COALESCE(finished_at, now()) - created_at))) / 3600.0
+                            FROM job WHERE program_id = {pid} AND status = 'succeeded'
+                        ), 0) AS generation_h
+                    FROM audit_log
+                    WHERE program_id = {pid}
+                    """
+                ),
+                {"pid": program_id},
+            )
+        ).mappings().first()
     if row is None or row["span_h"] is None:
         return 0.0
     return max(0.0, float(row["span_h"]) - float(row["generation_h"] or 0))
@@ -56,12 +80,11 @@ async def get_usage(
 ) -> schemas.UsageOut:
     program = await get_program_or_404(session, program_id, principal)
     assert_access(principal, program)
-    usage = await usage_repo.program_usage(session, program_id)
-    if usage is None:
-        return schemas.UsageOut(program_id=program_id)
-
     active_hours = await _active_hours(session, program_id)
     savings = usage_repo.compute_savings_hours(active_hours=active_hours)
+    usage = await usage_repo.program_usage(session, program_id)
+    if usage is None:
+        return schemas.UsageOut(program_id=program_id, savings_hours=savings)
 
     prompt_tokens = int(usage.get("prompt_tokens") or 0)
     completion_tokens = int(usage.get("completion_tokens") or 0)

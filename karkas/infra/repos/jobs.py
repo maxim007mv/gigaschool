@@ -12,6 +12,15 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from karkas.infra.sql_dialect import (
+    interval_24h,
+    json_param,
+    now_expr,
+    run_after_delay,
+    uses_sqlite,
+    uuid_param,
+)
+
 CLAIM_SQL = """
 WITH next AS (
     SELECT id FROM job
@@ -26,6 +35,22 @@ FROM next
 WHERE j.id = next.id
 RETURNING j.id, j.program_id, j.kind, j.priority, j.payload, j.progress, j.attempts, j.max_attempts
 """
+
+CLAIM_SQL_SQLITE = """
+UPDATE job
+SET status = 'running', locked_by = :worker_id, locked_at = datetime('now'), attempts = attempts + 1
+WHERE id = (
+    SELECT id FROM job
+    WHERE status IN ('queued', 'retry_wait') AND run_after <= datetime('now')
+    ORDER BY priority, run_after
+    LIMIT 1
+) AND status IN ('queued', 'retry_wait')
+RETURNING id, program_id, kind, priority, payload, progress, attempts, max_attempts
+"""
+
+
+def _claim_sql() -> str:
+    return CLAIM_SQL_SQLITE if uses_sqlite() else CLAIM_SQL
 
 
 async def enqueue(
@@ -44,18 +69,25 @@ async def enqueue(
     попытки невозможно — вызывающий код обязан генерировать уникальный ключ на
     попытку (дедупликацию двойных кликов обеспечивает has_active/HTTP-ключ).
     """
+    run_after = run_after_delay() if uses_sqlite() else "now() + make_interval(secs => :delay)"
+    payload_expr = json_param("payload")
+    pid_expr = uuid_param("pid")
+    job_id = str(uuid.uuid4())
+    id_col = ", id" if uses_sqlite() else ""
+    id_val = ", :jid" if uses_sqlite() else ""
     row = (
         await session.execute(
             text(
-                """
-                INSERT INTO job (program_id, kind, priority, payload, idempotency_key, run_after)
-                VALUES (CAST(:pid AS uuid), :kind, :priority, CAST(:payload AS jsonb), :idem,
-                        now() + make_interval(secs => :delay))
+                f"""
+                INSERT INTO job ({f"id, " if uses_sqlite() else ""}program_id, kind, priority, payload, idempotency_key, run_after)
+                VALUES ({f":jid, " if uses_sqlite() else ""}{pid_expr}, :kind, :priority, {payload_expr}, :idem,
+                        {run_after})
                 ON CONFLICT (idempotency_key) DO NOTHING
                 RETURNING id
                 """
             ),
             {
+                "jid": job_id,
                 "pid": program_id,
                 "kind": kind,
                 "priority": priority,
@@ -69,7 +101,8 @@ async def enqueue(
         from karkas.infra.metrics import jobs_enqueued_total
 
         jobs_enqueued_total.labels(kind=kind).inc()
-        await session.execute(text("NOTIFY job_ready"))
+        if not uses_sqlite():
+            await session.execute(text("NOTIFY job_ready"))
         return str(row)
     existing = (
         await session.execute(
@@ -88,10 +121,10 @@ async def find_by_idempotency(
     При передаче org_id результат ограничивается программами этой организации —
     чужой ключ не может раскрыть метаданные другого тенанта.
     """
-    sql = """
+    sql = f"""
         SELECT j.*, p.status AS program_status, p.title AS program_title
         FROM job j LEFT JOIN program p ON p.id = j.program_id
-        WHERE j.idempotency_key = :idem AND j.created_at > now() - interval '24 hours'
+        WHERE j.idempotency_key = :idem AND j.created_at > {interval_24h()}
     """
     params: dict[str, Any] = {"idem": idempotency_key}
     if org_id is not None:
@@ -103,18 +136,19 @@ async def find_by_idempotency(
 
 async def claim(session: AsyncSession, worker_id: str) -> dict[str, Any] | None:
     """Конкурентно-безопасный захват следующей задачи."""
-    row = (await session.execute(text(CLAIM_SQL), {"worker_id": worker_id})).mappings().first()
+    row = (await session.execute(text(_claim_sql()), {"worker_id": worker_id})).mappings().first()
     return dict(row) if row else None
 
 
 async def get_job(session: AsyncSession, job_id: str) -> dict[str, Any] | None:
+    jid = uuid_param("jid")
     row = (
         await session.execute(
             text(
-                """
+                f"""
                 SELECT j.*, p.org_id AS program_org_id FROM job j
                 LEFT JOIN program p ON p.id = j.program_id
-                WHERE j.id = CAST(:jid AS uuid)
+                WHERE j.id = {jid}
                 """
             ),
             {"jid": job_id},
@@ -124,18 +158,21 @@ async def get_job(session: AsyncSession, job_id: str) -> dict[str, Any] | None:
 
 
 async def set_progress(session: AsyncSession, job_id: str, progress: dict[str, Any]) -> None:
+    prog = json_param("progress")
+    jid = uuid_param("jid")
     await session.execute(
-        text("UPDATE job SET progress = CAST(:progress AS jsonb) WHERE id = CAST(:jid AS uuid)"),
+        text(f"UPDATE job SET progress = {prog} WHERE id = {jid}"),
         {"jid": job_id, "progress": json.dumps(progress, ensure_ascii=False)},
     )
 
 
 async def succeed(session: AsyncSession, job_id: str) -> None:
+    jid = uuid_param("jid")
     await session.execute(
         text(
-            """
-            UPDATE job SET status = 'succeeded', finished_at = now(), locked_by = NULL, locked_at = NULL
-            WHERE id = CAST(:jid AS uuid)
+            f"""
+            UPDATE job SET status = 'succeeded', finished_at = {now_expr()}, locked_by = NULL, locked_at = NULL
+            WHERE id = {jid}
             """
         ),
         {"jid": job_id},
@@ -143,12 +180,14 @@ async def succeed(session: AsyncSession, job_id: str) -> None:
 
 
 async def fail(session: AsyncSession, job_id: str, error: dict[str, Any]) -> None:
+    err = json_param("error")
+    jid = uuid_param("jid")
     await session.execute(
         text(
-            """
-            UPDATE job SET status = 'failed', error = CAST(:error AS jsonb),
-                           finished_at = now(), locked_by = NULL, locked_at = NULL
-            WHERE id = CAST(:jid AS uuid)
+            f"""
+            UPDATE job SET status = 'failed', error = {err},
+                           finished_at = {now_expr()}, locked_by = NULL, locked_at = NULL
+            WHERE id = {jid}
             """
         ),
         {"jid": job_id, "error": json.dumps(error, ensure_ascii=False, default=str)},
@@ -156,13 +195,16 @@ async def fail(session: AsyncSession, job_id: str, error: dict[str, Any]) -> Non
 
 
 async def retry(session: AsyncSession, job_id: str, *, delay_s: float, error: dict[str, Any]) -> None:
+    err = json_param("error")
+    jid = uuid_param("jid")
+    run_after = run_after_delay()
     await session.execute(
         text(
-            """
-            UPDATE job SET status = 'retry_wait', error = CAST(:error AS jsonb),
-                           run_after = now() + make_interval(secs => :delay),
+            f"""
+            UPDATE job SET status = 'retry_wait', error = {err},
+                           run_after = {run_after},
                            locked_by = NULL, locked_at = NULL
-            WHERE id = CAST(:jid AS uuid)
+            WHERE id = {jid}
             """
         ),
         {"jid": job_id, "delay": delay_s, "error": json.dumps(error, ensure_ascii=False, default=str)},
@@ -170,12 +212,13 @@ async def retry(session: AsyncSession, job_id: str, *, delay_s: float, error: di
 
 
 async def cancel(session: AsyncSession, job_id: str) -> bool:
+    jid = uuid_param("jid")
     row = (
         await session.execute(
             text(
-                """
-                UPDATE job SET status = 'cancelled', finished_at = now()
-                WHERE id = CAST(:jid AS uuid) AND status IN ('queued', 'retry_wait', 'running')
+                f"""
+                UPDATE job SET status = 'cancelled', finished_at = {now_expr()}
+                WHERE id = {jid} AND status IN ('queued', 'retry_wait', 'running')
                 RETURNING id
                 """
             ),
@@ -212,6 +255,61 @@ async def recover_stuck(session: AsyncSession, *, kind_timeouts: dict[str, int] 
     Возвращает (возвращено_в_очередь, помечено_failed).
     """
     timeouts = {**KIND_STUCK_SECONDS, **(kind_timeouts or {})}
+    if uses_sqlite():
+        recovered = 0
+        failed = 0
+        for kind, age_seconds in timeouts.items():
+            result = await session.execute(
+                text(
+                    """
+                    UPDATE job SET status = 'retry_wait', locked_by = NULL, locked_at = NULL,
+                                   run_after = datetime('now')
+                    WHERE status = 'running' AND kind = :kind AND attempts < max_attempts
+                      AND locked_at < datetime('now', '-' || :age || ' seconds')
+                    """
+                ),
+                {"kind": kind, "age": age_seconds},
+            )
+            recovered += int(result.rowcount or 0)
+            exhausted = await session.execute(
+                text(
+                    """
+                    UPDATE job SET status = 'failed', finished_at = datetime('now'),
+                                   locked_by = NULL, locked_at = NULL,
+                                   error = :err
+                    WHERE status = 'running' AND kind = :kind AND attempts >= max_attempts
+                      AND locked_at < datetime('now', '-' || :age || ' seconds')
+                    RETURNING program_id, payload
+                    """
+                ),
+                {
+                    "kind": kind,
+                    "age": age_seconds,
+                    "err": json.dumps(
+                        {
+                            "code": "STUCK",
+                            "detail": "Задача потеряла воркер, попытки исчерпаны — поставьте её заново",
+                            "transient": False,
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
+            )
+            for row in exhausted.mappings().all():
+                failed += 1
+                expected = _GENERATING_STATUSES.get(kind)
+                payload = row["payload"] or {}
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                prev_status = payload.get("prev_status")
+                if expected and prev_status and row["program_id"]:
+                    await restore_program_status(
+                        session,
+                        program_id=str(row["program_id"]),
+                        prev_status=str(prev_status),
+                        expected_current=expected,
+                    )
+        return recovered, failed
     recovered = 0
     failed = 0
     for kind, age_seconds in timeouts.items():
@@ -268,26 +366,41 @@ async def restore_program_status(
     Возвращает True, если статус был откатан. Откат выполняется только если
     программа всё ещё в ожидаемом «техническом» статусе.
     """
-    result = await session.execute(
-        text(
-            """
-            UPDATE program SET status = CAST(:prev AS program_status)
-            WHERE id = CAST(:pid AS uuid) AND status = ANY(:expected)
-            """
-        ),
-        {"pid": program_id, "prev": prev_status, "expected": list(expected_current)},
-    )
+    if uses_sqlite():
+        placeholders = ", ".join(f":e{i}" for i in range(len(expected_current)))
+        params = {"pid": program_id, "prev": prev_status}
+        params.update({f"e{i}": s for i, s in enumerate(expected_current)})
+        result = await session.execute(
+            text(
+                f"""
+                UPDATE program SET status = :prev
+                WHERE id = :pid AND status IN ({placeholders})
+                """
+            ),
+            params,
+        )
+    else:
+        result = await session.execute(
+            text(
+                """
+                UPDATE program SET status = CAST(:prev AS program_status)
+                WHERE id = CAST(:pid AS uuid) AND status = ANY(:expected)
+                """
+            ),
+            {"pid": program_id, "prev": prev_status, "expected": list(expected_current)},
+        )
     return bool(result.rowcount)
 
 
 async def has_active(session: AsyncSession, *, program_id: str, kind: str) -> bool:
     """Есть ли уже выполняемая/ожидающая задача того же типа по программе (409 JOB_IN_PROGRESS)."""
+    pid = uuid_param("pid")
     count = (
         await session.execute(
             text(
-                """
+                f"""
                 SELECT count(*) FROM job
-                WHERE program_id = CAST(:pid AS uuid) AND kind = :kind
+                WHERE program_id = {pid} AND kind = :kind
                   AND status IN ('queued', 'running', 'retry_wait')
                 """
             ),

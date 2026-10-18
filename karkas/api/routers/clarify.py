@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.api import schemas
 from karkas.api.deps import CurrentPrincipal, enforce_rate_limit, require_roles
-from karkas.api.errors import Forbidden, NotFound
+from karkas.api.errors import BadRequest, Forbidden, NotFound
+from karkas.domain.intake_slots import validate_clarification_answer
 from karkas.api.routers.programs import assert_access, get_program_or_404
 from karkas.infra.db import get_session
 from karkas.infra.repos import programs as programs_repo
@@ -116,6 +117,9 @@ async def submit_answers(
             await programs_repo.record_slot_default(session, program_id=program_id, slot=slot, value=value)
         else:
             value = (answer.value or "")[:1000]
+            err = validate_clarification_answer(slot, value)
+            if err:
+                raise BadRequest(err)
         answers[answer.id] = value
 
     await programs_repo.save_answers(

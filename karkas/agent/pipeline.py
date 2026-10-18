@@ -55,6 +55,7 @@ from karkas.domain.kit import (
     Topic,
     Workload,
 )
+from karkas.domain.intake_slots import parse_total_hours as _parse_hours
 from karkas.infra import ingest, storage
 from karkas.infra.db import get_session_factory
 from karkas.infra.repos import framework as framework_repo
@@ -417,15 +418,6 @@ async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
             for r in services
         ],
     }
-
-
-def _parse_hours(value: str | None) -> int | None:
-    if not value:
-        return None
-    match = re.search(r"\d{1,4}", value.replace(" ", ""))
-    if not match:
-        return None
-    return max(1, min(settings.total_hours_max, int(match.group(0))))
 
 
 def _map_form(value: str | None) -> str | None:

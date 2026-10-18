@@ -15,7 +15,19 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from karkas.infra.sql_dialect import json_param, uses_sqlite, uuid_param
+
 STATUS_GATE = ("framework_approved", "kit_generating", "kit_review", "kit_updating")
+
+
+def _coerce_json(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        return json.loads(value or "{}")
+    if isinstance(value, dict):
+        return value
+    return {}
 
 
 async def create_program(
@@ -31,12 +43,28 @@ async def create_program(
     profile_payload = dict(profile or {})
     if brief is not None:
         profile_payload.setdefault("brief", brief)
+    program_id = str(uuid.uuid4())
+    prof = json_param("profile")
+    if uses_sqlite():
+        sql = f"""
+            INSERT INTO program (id, org_id, owner_id, title, profile)
+            VALUES (:id, :org_id, :owner_id, :title, {prof})
+        """
+        params = {
+            "id": program_id,
+            "org_id": org_id,
+            "owner_id": owner_id,
+            "title": title,
+            "profile": json.dumps(profile_payload, ensure_ascii=False),
+        }
+        await session.execute(text(sql), params)
+        return program_id
     row = (
         await session.execute(
             text(
-                """
+                f"""
                 INSERT INTO program (org_id, owner_id, title, profile)
-                VALUES (:org_id, :owner_id, :title, CAST(:profile AS jsonb))
+                VALUES (:org_id, :owner_id, :title, {prof})
                 RETURNING id
                 """
             ),
@@ -62,7 +90,14 @@ async def get_program(session: AsyncSession, program_id: str, org_id: str | None
         sql += " AND p.org_id = :org_id"
         params["org_id"] = org_id
     row = (await session.execute(text(sql), params)).mappings().first()
-    return dict(row) if row else None
+    if not row:
+        return None
+    data = dict(row)
+    if "profile" in data:
+        data["profile"] = _coerce_json(data["profile"])
+    if "constraints" in data:
+        data["constraints"] = _coerce_json(data["constraints"])
+    return data
 
 
 async def list_programs(
@@ -89,10 +124,10 @@ async def list_programs(
     params: dict[str, Any] = {"org_id": org_id, "limit": limit}
     # UI шлёт status=all / kind=all как «без фильтра»; в enum такого значения нет.
     if status and status != "all":
-        sql += " AND status = CAST(:status AS program_status)"
+        sql += " AND status = :status" if uses_sqlite() else " AND status = CAST(:status AS program_status)"
         params["status"] = status
     if kind and kind != "all":
-        sql += " AND kind = CAST(:kind AS program_kind)"
+        sql += " AND kind = :kind" if uses_sqlite() else " AND kind = CAST(:kind AS program_kind)"
         params["kind"] = kind
     if cursor:
         cursor_ts, _, cursor_id = cursor.partition("|")
@@ -199,9 +234,38 @@ async def reopen(session: AsyncSession, *, program_id: str) -> int | None:
 
 async def hours_issues(session: AsyncSession, program_id: str) -> list[dict[str, str]]:
     """Нарушения часов программы (V-HRS-01..05) через функцию БД check_program_hours."""
+    if uses_sqlite():
+        from karkas.domain.validators import ValidationContext, run_validation
+        from karkas.infra.repos import framework as framework_repo
+
+        program = await get_program(session, program_id)
+        kit = await framework_repo.load_kit(session, program_id)
+        if program is None or kit is None:
+            return [{"rule_code": "V-HRS-01", "entity_ref": None, "message": "Каркас не найден"}]
+        issues: list[dict[str, str]] = []
+        if kit.grand_total() != int(program.get("total_hours") or 0):
+            issues.append(
+                {
+                    "rule_code": "V-HRS-01",
+                    "entity_ref": None,
+                    "message": f"Сумма {kit.grand_total()} из {program.get('total_hours')} ч",
+                }
+            )
+        report = run_validation(ValidationContext(kit=kit, stage="framework"))
+        for item in report.errors:
+            if item.rule_code.startswith("V-HRS"):
+                issues.append(
+                    {
+                        "rule_code": item.rule_code,
+                        "entity_ref": item.entity_ref,
+                        "message": item.message,
+                    }
+                )
+        return issues
+    pid = uuid_param("pid")
     rows = (
         await session.execute(
-            text("SELECT rule_code, entity_ref, message FROM check_program_hours(CAST(:pid AS uuid))"),
+            text(f"SELECT rule_code, entity_ref, message FROM check_program_hours({pid})"),
             {"pid": program_id},
         )
     ).mappings().all()
@@ -242,22 +306,42 @@ async def replace_questions(
         free_ord = next((ord_value for ord_value in range(1, 6) if ord_value not in used_ords), None)
         if free_ord is None:
             break
-        await session.execute(
-            text(
-                """
-                INSERT INTO clarification (program_id, slot, question, options, ord)
-                VALUES (:pid, :slot, :question, CAST(:options AS jsonb), :ord)
-                RETURNING id
-                """
-            ),
-            {
-                "pid": program_id,
-                "slot": slot,
-                "question": text_value,
-                "options": json.dumps(q.get("options", []), ensure_ascii=False),
-                "ord": free_ord,
-            },
-        )
+        qid = str(uuid.uuid4())
+        opts = json_param("options")
+        if uses_sqlite():
+            await session.execute(
+                text(
+                    f"""
+                    INSERT INTO clarification (id, program_id, slot, question, options, ord)
+                    VALUES (:qid, :pid, :slot, :question, {opts}, :ord)
+                    """
+                ),
+                {
+                    "qid": qid,
+                    "pid": program_id,
+                    "slot": slot,
+                    "question": text_value,
+                    "options": json.dumps(q.get("options", []), ensure_ascii=False),
+                    "ord": free_ord,
+                },
+            )
+        else:
+            await session.execute(
+                text(
+                    f"""
+                    INSERT INTO clarification (program_id, slot, question, options, ord)
+                    VALUES (:pid, :slot, :question, {opts}, :ord)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "pid": program_id,
+                    "slot": slot,
+                    "question": text_value,
+                    "options": json.dumps(q.get("options", []), ensure_ascii=False),
+                    "ord": free_ord,
+                },
+            )
         used_ords.add(free_ord)
         used_slots.add(slot)
 
@@ -329,16 +413,24 @@ async def required_slots_filled(session: AsyncSession, program_id: str) -> bool:
     program.profile.slot_defaults (и попадают в допущения отчёта, Д4 §5.2).
     """
     required = ("kind", "total_hours", "audience", "entry_level", "form", "final_attestation")
+    slot_filter = (
+        "slot IN ('kind','total_hours','audience','entry_level','form','final_attestation')"
+        if uses_sqlite()
+        else "slot = ANY(:slots)"
+    )
+    slot_params: dict[str, Any] = {"pid": program_id}
+    if not uses_sqlite():
+        slot_params["slots"] = list(required)
     answered = set(
         (
             await session.execute(
                 text(
-                    """
+                    f"""
                     SELECT slot FROM clarification
-                    WHERE program_id = :pid AND answer IS NOT NULL AND slot = ANY(:slots)
+                    WHERE program_id = :pid AND answer IS NOT NULL AND {slot_filter}
                     """
                 ),
-                {"pid": program_id, "slots": list(required)},
+                slot_params,
             )
         ).scalars().all()
     )
@@ -346,23 +438,24 @@ async def required_slots_filled(session: AsyncSession, program_id: str) -> bool:
         (
             await session.execute(
                 text(
-                    """
+                    f"""
                     SELECT count(*) FROM clarification
-                    WHERE program_id = :pid AND answer IS NULL AND slot = ANY(:slots)
+                    WHERE program_id = :pid AND answer IS NULL AND {slot_filter}
                     """
                 ),
-                {"pid": program_id, "slots": list(required)},
+                slot_params,
             )
         ).scalar_one()
     )
     if unanswered:
         return False
-    profile = (
+    profile_raw = (
         await session.execute(
             text("SELECT profile FROM program WHERE id = :pid"), {"pid": program_id}
         )
     ).scalar_one_or_none()
-    defaults = set((profile or {}).get("slot_defaults", {}).keys())
+    profile = _coerce_json(profile_raw)
+    defaults = set(profile.get("slot_defaults", {}).keys())
     return set(required).issubset(answered | defaults)
 
 
@@ -370,12 +463,28 @@ async def record_slot_default(
     session: AsyncSession, *, program_id: str, slot: str, value: str
 ) -> None:
     """Зафиксировать значение по умолчанию для слота («на ваше усмотрение»)."""
+    if uses_sqlite():
+        profile_raw = (
+            await session.execute(
+                text("SELECT profile FROM program WHERE id = :pid"), {"pid": program_id}
+            )
+        ).scalar_one_or_none()
+        profile = _coerce_json(profile_raw)
+        slot_defaults = dict(profile.get("slot_defaults") or {})
+        slot_defaults[slot] = value
+        profile["slot_defaults"] = slot_defaults
+        await session.execute(
+            text("UPDATE program SET profile = :profile WHERE id = :pid"),
+            {"pid": program_id, "profile": json.dumps(profile, ensure_ascii=False)},
+        )
+        return
+    entry = json_param("entry")
     await session.execute(
         text(
-            """
+            f"""
             UPDATE program
-            SET profile = jsonb_set(profile, '{slot_defaults}', 
-                                    coalesce(profile->'slot_defaults', '{}'::jsonb) || CAST(:entry AS jsonb), true)
+            SET profile = jsonb_set(profile, '{{slot_defaults}}',
+                                    coalesce(profile->'slot_defaults', '{{}}'::jsonb) || {entry}, true)
             WHERE id = :pid
             """
         ),

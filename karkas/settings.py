@@ -32,8 +32,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("FM_BASE_URL", "OPENAI_BASE_URL"),
     )
     fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY", "OPENAI_API_KEY"))
-    model_struct: str = ""  # GigaChat3.5-432B-A28B (ai-sage) — каркас, компетенции, смысловые проверки
-    model_bulk: str = ""    # Qwen3.6-35B-A3B — массовая генерация содержания
+    model_struct: str = "GigaChat/GigaChat-3-Pro"  # экономичная структурная модель (хакатон)
+    model_bulk: str = "GigaChat/GigaChat-3-Pro"  # тот же класс — кэш шлюза, меньше сюрпризов по биллингу
     model_embed: str = ""   # Qwen3-Embedding-0.6B — RAG
     model_rerank: str = ""  # Qwen3-Reranker-0.6B
     model_struct_backup: str = ""  # резервная структурная модель (Д1 §7)
@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     files_per_program_max: int = 10
 
     # --- БД ---------------------------------------------------------------
+    karkas_lite: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("KARKAS_LITE", "karkas_lite"),
+    )
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/karkas"
     db_pool_size: int = Field(default=10, ge=1)
     db_pool_mode: Literal["default", "null"] = "default"  # null — для тестов (нет кросс-loop пула)
@@ -128,9 +132,15 @@ class Settings(BaseSettings):
             "rerank": self.model_rerank,
         }[model_class]
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def uses_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
+
     @model_validator(mode="after")
-    def _require_prod_secrets(self) -> "Settings":
-        """Fail-fast в проде: дефолтный JWT-секрет — прямой путь к подделке токенов."""
+    def _apply_lite_and_prod(self) -> "Settings":
+        if self.karkas_lite and not self.database_url.startswith("sqlite"):
+            self.database_url = "sqlite+aiosqlite:///./var/karkas.db"
         if self.environment == "prod" and self.jwt_secret in ("", "change-me"):
             raise ValueError("JWT_SECRET обязателен в проде (environment=prod)")
         return self

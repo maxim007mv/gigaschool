@@ -109,8 +109,13 @@ def main() -> None:
     parser.add_argument("--demo", action="store_true", help="включить демо-данные (900_*.sql)")
     args = parser.parse_args()
 
-    dsn = args.db_url or dsn_from_settings(settings.database_url)
-    applied = asyncio.run(apply_migrations(dsn, include_demo=args.demo))
+    if settings.database_url.startswith("sqlite"):
+        from migrations.lite import apply_lite
+
+        applied = asyncio.run(apply_lite(settings.database_url, include_demo=args.demo))
+    else:
+        dsn = args.db_url or dsn_from_settings(settings.database_url)
+        applied = asyncio.run(apply_migrations(dsn, include_demo=args.demo))
     if applied:
         print("Применены миграции:", ", ".join(applied))
     else:
