@@ -31,6 +31,7 @@ EXPECTED_ENDPOINTS: list[tuple[str, str]] = [
     ("post", "/api/v1/programs/{program_id}/framework:approve"),
     ("post", "/api/v1/programs/{program_id}/framework:reopen"),
     ("post", "/api/v1/programs/{program_id}/kit:generate"),
+    ("post", "/api/v1/programs/{program_id}/kit:regenerate"),
     ("get", "/api/v1/programs/{program_id}/kit"),
     ("get", "/api/v1/programs/{program_id}/kit/items/{ref}"),
     ("post", "/api/v1/programs/{program_id}/edits"),

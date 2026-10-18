@@ -64,9 +64,6 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
         return _empty(1.0, DOP_NOTE)
 
     candidates = _active_candidates(inputs.get("candidates"))
-    verified = {code: row for code, row in candidates.items() if row.get("file_verified")}
-    if verified:
-        candidates = verified
     if not candidates:
         return _empty(0.0, NOT_FOUND_NOTE)
 

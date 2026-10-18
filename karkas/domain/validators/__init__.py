@@ -95,6 +95,7 @@ def run_validation(ctx: ValidationContext) -> Report:
     """Полный прогон правил V-*; возвращает отчёт (S10 для каркаса, S19 для комплекта)."""
     from karkas.domain.validators import (
         acr_export,
+        content_quality,
         coverage,
         hours,
         language,
@@ -122,6 +123,7 @@ def run_validation(ctx: ValidationContext) -> Report:
         ("request", request),
         ("sample", sample),
         ("acr_export", acr_export),
+        ("content_quality", content_quality),
     ):
         result = module.validate(ctx)
         groups[name] = result

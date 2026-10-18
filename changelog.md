@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-18 — Качество артефактов, kit:regenerate, гейт уточнений
+
+### Проблема
+Нужны согласованный гейт ТК-4 (API = воркер), полный реестр ПС в S05, проверки качества слайдов/тестов/заданий, точечная пересборка без правки каркаса и round-trip LMS.
+
+### Фикс
+- `clarification_allows_framework` + интеграционный тест `test_framework_clarification_gate.py`.
+- S05 снова видит весь реестр БД; непроверенные коды помечаются в note.
+- `validators/content_quality.py` (V-CNT-01..05) с `fix_hint` → `kit:regenerate`.
+- `POST /kit:regenerate`, `kit_regenerate_core`, UI-кнопка «Пересобрать материал».
+- `gift_parse.py` + тесты round-trip; уточнён эталонный kit в validation suite.
+
+### Проверка
+`.venv/bin/pytest tests -q`; `cd web && npx tsc --noEmit`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Eval-матрица объёмов, ТК-4/5, verified-реестр, параллельный kit
 
 ### Проблема

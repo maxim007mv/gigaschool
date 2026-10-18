@@ -29,6 +29,7 @@ import {
   useFramework,
   useGenerateKit,
   useKit,
+  useRegenerateKitPart,
   useProgramEvents,
   useUsage,
 } from "../shared/api/queries";
@@ -62,6 +63,7 @@ export function KitPage() {
   const frameworkQuery = useFramework(id || null);
   const generateKit = useGenerateKit(id);
   const createEdit = useCreateEdit(id);
+  const regeneratePart = useRegenerateKitPart(id);
   const exportMutation = useExport(id);
 
   const [selection, setSelection] = useState<Selection>(null);
@@ -109,9 +111,22 @@ export function KitPage() {
 
   const editTargetRef = useMemo(() => {
     if (!selection) return null;
-    if (selection.kind === "block") return selection.block.ref;
+    if (selection.kind === "block") {
+      const block = selection.block;
+      if (block.topic_ref) return block.topic_ref;
+      if (block.module_ref && block.kind === "module_program") return block.module_ref;
+      return block.ref;
+    }
     if (selection.kind === "assessments") return selection.moduleRef;
     return null;
+  }, [selection]);
+
+  const regenerateParts = useMemo((): Array<"slides" | "tests" | "lecture_plan" | "module_program" | "tasks"> => {
+    if (!selection || selection.kind !== "block") return ["slides", "tests", "lecture_plan"];
+    if (selection.block.kind === "slides") return ["slides"];
+    if (selection.block.kind === "lecture_plan") return ["lecture_plan"];
+    if (selection.block.kind === "module_program") return ["module_program"];
+    return ["slides", "tests", "lecture_plan"];
   }, [selection]);
 
   if (kitQuery.isPending) return <PageSkeleton />;
@@ -195,6 +210,26 @@ export function KitPage() {
             disabledReason={!selection ? "Сначала выберите материал слева" : undefined}
           >
             {T.kit.edit}
+          </Button>
+          <Button
+            variant="secondary"
+            title={T.kit.regenerateHint}
+            disabled={!editTargetRef || regeneratePart.isPending}
+            disabledReason={!editTargetRef ? "Сначала выберите тему или модуль" : undefined}
+            onClick={async () => {
+              if (!editTargetRef) return;
+              try {
+                await regeneratePart.mutateAsync({
+                  targetRef: editTargetRef,
+                  parts: regenerateParts,
+                });
+                toast.show("success", T.kit.regenerateStarted);
+              } catch (err) {
+                toast.show("error", err instanceof ApiError ? err.message : T.app.error);
+              }
+            }}
+          >
+            {T.kit.regenerate}
           </Button>
         </div>
       </header>

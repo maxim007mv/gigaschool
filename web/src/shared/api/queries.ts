@@ -565,6 +565,31 @@ export function useGenerateKit(programId: string) {
   });
 }
 
+export function useRegenerateKitPart(programId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      targetRef: string;
+      parts: Array<"module_program" | "lecture_plan" | "slides" | "tests" | "tasks">;
+    }): Promise<{ job_id: string }> => {
+      if (USE_MOCKS) {
+        await mocks.mockDelay(300);
+        return { job_id: "job-regen-mock" };
+      }
+      return (
+        await apiFetch<{ job_id: string }>(`/programs/${programId}/kit:regenerate`, {
+          method: "POST",
+          body: { target_ref: vars.targetRef, parts: vars.parts },
+        })
+      ).data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.kit(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.report(programId) });
+    },
+  });
+}
+
 export function useCreateEdit(programId: string) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -168,6 +168,44 @@ async def get_report(
     return schemas.ReportOut(**report.model_dump())
 
 
+@router.post("/{program_id}/kit:regenerate", response_model=schemas.KitRegenerateOut, status_code=202)
+async def regenerate_kit_part(
+    program_id: str,
+    payload: schemas.KitRegenerateIn,
+    response: Response,
+    principal: Annotated[CurrentPrincipal, Depends(require_roles("methodist", "admin"))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> schemas.KitRegenerateOut:
+    """Пересобрать выбранные части комплекта (тема/модуль) без изменения утверждённого каркаса."""
+    program = await get_program_or_404(session, program_id, principal)
+    assert_access(principal, program)
+    if program["status"] not in KIT_OK_STATUSES:
+        raise GateNotPassed()
+    if await jobs_repo.has_active(session, program_id=program_id, kind="kit_regenerate"):
+        raise JobInProgress("Пересборка комплекта уже выполняется")
+    job_id = await jobs_repo.enqueue(
+        session,
+        kind="kit_regenerate",
+        program_id=program_id,
+        priority=4,
+        payload={"target_ref": payload.target_ref, "parts": payload.parts},
+        idempotency_key=f"kit_regen:{program_id}:{payload.target_ref}:{':'.join(payload.parts)}:{program['lock_version']}",
+    )
+    if program["status"] == "kit_review":
+        await programs_repo.set_status(session, program_id=program_id, status="kit_updating")
+    await programs_repo.audit(
+        session,
+        org_id=program["org_id"],
+        action="kit.regenerate",
+        actor_id=principal.user_id,
+        program_id=program_id,
+        details={"job_id": job_id, "target_ref": payload.target_ref, "parts": payload.parts},
+    )
+    await session.commit()
+    response.headers["Location"] = f"/api/v1/jobs/{job_id}"
+    return schemas.KitRegenerateOut(job_id=job_id)
+
+
 # --- Точечные правки -----------------------------------------------------------
 
 

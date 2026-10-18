@@ -204,6 +204,18 @@ class EditOut(BaseModel):
     job_id: str | None = None
 
 
+KitRegeneratePart = Literal["module_program", "lecture_plan", "slides", "tests", "tasks"]
+
+
+class KitRegenerateIn(BaseModel):
+    target_ref: str = Field(min_length=1, max_length=100)
+    parts: list[KitRegeneratePart] = Field(min_length=1, max_length=5)
+
+
+class KitRegenerateOut(BaseModel):
+    job_id: str
+
+
 class ExportIn(BaseModel):
     formats: list[ArtifactFormat] = Field(min_length=1)
 

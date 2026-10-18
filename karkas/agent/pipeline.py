@@ -820,7 +820,7 @@ async def framework_core(
     progress_cb: ProgressCallback = None,
 ) -> dict[str, Any]:
     """S04–S10: собрать каркас, сохранить снимок и отчёт, вернуть на проверку."""
-    if await programs_repo.open_questions_count(session, program_id):
+    if not await programs_repo.clarification_allows_framework(session, program_id):
         raise ValueError("CLARIFICATION_REQUIRED: есть неотвеченные уточнения — каркас не собираем (ТК-4)")
     program = await _load_program(session, program_id)
     brief_text = await _brief_of(program)
@@ -1219,6 +1219,7 @@ async def _regenerate_affected(
     registries: dict[str, Any],
     gateway: Any,
     progress_cb: ProgressCallback,
+    parts: set[str] | None = None,
 ) -> dict[str, int]:
     """Пересобрать только затронутые элементы комплекта (Д4 §5.9, таблица 4.7).
 
@@ -1232,10 +1233,11 @@ async def _regenerate_affected(
     outcomes_json = [o.model_dump(mode="json") for o in kit.iter_outcomes()]
     kit_dump = kit.model_dump(mode="json")
     regenerated = {"topics": 0, "modules": 0}
+    want = parts or {"module_program", "lecture_plan", "slides", "tests", "tasks"}
 
     # 1) Рабочие программы модулей, затронутые правкой (MP-Mx).
     for module in kit.framework.modules:
-        if f"MP-{module.ref}" not in affected_set:
+        if f"MP-{module.ref}" not in affected_set or "module_program" not in want:
             continue
         module_ctx = await _seeded_context(
             program_id,
@@ -1288,38 +1290,55 @@ async def _regenerate_affected(
             "instruction": instruction,
         }
 
-        s12 = (await runner.run("S12", common, topic_ctx, progress_cb)).output
-        new_plans = [ContentBlock(**block) for block in (s12.get("lecture_plans") or [])]
-        if new_plans:
-            kit.content.lecture_plans = [
-                b for b in kit.content.lecture_plans if b.topic_ref != topic.ref
-            ] + new_plans
+        if "lecture_plan" in want:
+            s12 = (await runner.run("S12", common, topic_ctx, progress_cb)).output
+            new_plans = [ContentBlock(**block) for block in (s12.get("lecture_plans") or [])]
+            if new_plans:
+                kit.content.lecture_plans = [
+                    b for b in kit.content.lecture_plans if b.topic_ref != topic.ref
+                ] + new_plans
 
         had_slides = any(b.topic_ref == topic.ref for b in kit.content.slides)
-        if had_slides:
+        if had_slides and "slides" in want:
             s13 = (await runner.run("S13", common, topic_ctx, progress_cb)).output
             new_slides = [ContentBlock(**block) for block in (s13.get("slides") or [])]
             if new_slides:
                 kit.content.slides = [b for b in kit.content.slides if b.topic_ref != topic.ref] + new_slides
 
-        s14 = (await runner.run("S14", {**common, "count": 3}, topic_ctx, progress_cb)).output
-        old_questions = [a for a in kit.content.assessments if a.topic_ref == topic.ref and a.kind == "test_question"]
-        new_questions = _assessments_with_reused_refs(
-            old_questions,
-            [item for item in (s14.get("questions") or [])],
-            prefix=f"Q-{topic.ref}",
-        )
-        s15 = (await runner.run("S15", common, topic_ctx, progress_cb)).output
-        old_tasks = [a for a in kit.content.assessments if a.topic_ref == topic.ref and a.kind == "seminar_task"]
-        new_tasks = _assessments_with_reused_refs(
-            old_tasks,
-            [item for item in (s15.get("tasks") or [])],
-            prefix=f"ST-{topic.ref}",
-        )
-        kit.content.assessments = [
-            a for a in kit.content.assessments if a.topic_ref != topic.ref
-        ] + new_questions + new_tasks
-        regenerated["topics"] += 1
+        new_questions: list[Assessment] = []
+        new_tasks: list[Assessment] = []
+        if "tests" in want:
+            s14 = (await runner.run("S14", {**common, "count": 3}, topic_ctx, progress_cb)).output
+            old_questions = [a for a in kit.content.assessments if a.topic_ref == topic.ref and a.kind == "test_question"]
+            new_questions = _assessments_with_reused_refs(
+                old_questions,
+                [item for item in (s14.get("questions") or [])],
+                prefix=f"Q-{topic.ref}",
+            )
+        if "tasks" in want:
+            s15 = (await runner.run("S15", common, topic_ctx, progress_cb)).output
+            old_tasks = [a for a in kit.content.assessments if a.topic_ref == topic.ref and a.kind == "seminar_task"]
+            new_tasks = _assessments_with_reused_refs(
+                old_tasks,
+                [item for item in (s15.get("tasks") or [])],
+                prefix=f"ST-{topic.ref}",
+            )
+        if new_questions or new_tasks:
+
+            def _keep_assessment(item: Assessment) -> bool:
+                if item.topic_ref != topic.ref:
+                    return True
+                if item.kind == "test_question":
+                    return "tests" not in want
+                if item.kind == "seminar_task":
+                    return "tasks" not in want
+                return True
+
+            kit.content.assessments = [
+                a for a in kit.content.assessments if _keep_assessment(a)
+            ] + new_questions + new_tasks
+        if any(p in want for p in ("lecture_plan", "slides", "tests", "tasks")):
+            regenerated["topics"] += 1
 
     return regenerated
 
@@ -1467,6 +1486,91 @@ async def edit_core(
         {"edit_id": edit_id, "version": version, "changed_refs": affected},
     )
     return {"kit": patched_kit, "version": version, "report": report, "s21": s21, "regenerated": regenerated}
+
+
+def _resolve_regenerate_targets(kit: KitV1, target_ref: str, parts: set[str]) -> list[str]:
+    """Список ref для _regenerate_affected: тема и/или MP-модуль."""
+    affected: list[str] = []
+    for module in kit.framework.modules:
+        if module.ref == target_ref:
+            if "module_program" in parts:
+                affected.append(f"MP-{module.ref}")
+            if parts & {"lecture_plan", "slides", "tests", "tasks"}:
+                affected.extend(t.ref for t in module.topics)
+            return affected
+        for topic in module.topics:
+            if topic.ref == target_ref:
+                affected.append(topic.ref)
+                return affected
+    raise ValueError(f"kit:regenerate: элемент {target_ref} не найден")
+
+
+async def kit_regenerate_core(
+    session: AsyncSession,
+    program_id: str,
+    *,
+    target_ref: str,
+    parts: list[str],
+    gateway: Any = None,
+    progress_cb: ProgressCallback = None,
+) -> dict[str, Any]:
+    """Точечная пересборка частей комплекта без правки каркаса (часы не меняются)."""
+    program = await _load_program(session, program_id)
+    if program["status"] not in ("kit_review", "kit_updating", "framework_approved"):
+        raise ValueError("kit:regenerate: комплект ещё не собран или недоступен")
+    kit = await framework_repo.load_kit(session, program_id)
+    if kit is None:
+        raise ValueError("kit:regenerate: комплект не найден")
+    allowed = {"module_program", "lecture_plan", "slides", "tests", "tasks"}
+    part_set = {p for p in parts if p in allowed}
+    if not part_set:
+        raise ValueError("kit:regenerate: укажите parts (lecture_plan, slides, tests, tasks, …)")
+    affected = _resolve_regenerate_targets(kit, target_ref, part_set)
+    registries = await _registries_for_inputs(session)
+    gateway = gateway or make_gateway(program_id, str(program["org_id"]))
+    scope_id = programs_repo.new_uuid()
+    regenerated = await _regenerate_affected(
+        session,
+        program_id=program_id,
+        kit=kit,
+        edit_id=scope_id,
+        instruction="Пересобрать материал: устранить замечания качества (пустые блоки, слабые дистракторы).",
+        affected=affected,
+        registries=registries,
+        gateway=gateway,
+        progress_cb=progress_cb,
+        parts=part_set,
+    )
+    await framework_repo.save_kit(session, program_id, kit, update_header=False, solver_mode=True)
+    version = await programs_repo.save_version(
+        session,
+        program_id=program_id,
+        reason=f"kit_regenerate:{target_ref}",
+        snapshot=kit.model_dump(mode="json"),
+        created_by=program.get("owner_id"),
+    )
+    runner = make_runner()
+    validate_ctx = await _seeded_context(
+        program_id,
+        f"kit_regen:{scope_id}",
+        {"S18": {}, "S16": {}},
+        gateway=gateway,
+        extra={"registries": registries},
+    )
+    s19 = (
+        await runner.run(
+            "S19",
+            {"kit": kit.model_dump(mode="json"), "registries": registries},
+            validate_ctx,
+            progress_cb,
+        )
+    ).output
+    report = Report.model_validate(s19["report"]) if s19.get("report") else None
+    if report is not None:
+        await framework_repo.save_report(session, program_id, version, report)
+    await programs_repo.set_status(session, program_id=program_id, status="kit_review")
+    await _publish(program_id, "kit_regenerated", {"target_ref": target_ref, "version": version, "parts": list(part_set)})
+    return {"kit": kit, "version": version, "report": report, "regenerated": regenerated}
 
 
 async def _save_artifacts(
@@ -1836,8 +1940,7 @@ async def dispatch_job(job: dict[str, Any], *, on_progress: ProgressFn | None = 
             raise ValueError("framework: задача без программы")
         started = time.monotonic()
         async with factory() as session:
-            open_count = await programs_repo.open_questions_count(session, program_id)
-            if open_count:
+            if not await programs_repo.clarification_allows_framework(session, program_id):
                 raise ValueError(
                     "CLARIFICATION_REQUIRED: есть неотвеченные уточнения — каркас не собираем (ТК-4)"
                 )
@@ -1858,6 +1961,20 @@ async def dispatch_job(job: dict[str, Any], *, on_progress: ProgressFn | None = 
         from karkas.infra.metrics import kit_seconds
 
         kit_seconds.observe(time.monotonic() - started)
+        return
+
+    if kind == "kit_regenerate":
+        if program_id is None:
+            raise ValueError("kit_regenerate: задача без программы")
+        async with factory() as session:
+            await kit_regenerate_core(
+                session,
+                program_id,
+                target_ref=str(payload["target_ref"]),
+                parts=list(payload.get("parts") or []),
+                progress_cb=progress_cb,
+            )
+            await session.commit()
         return
 
     if kind == "edit":

@@ -394,6 +394,13 @@ async def save_answers(
         )
 
 
+async def clarification_allows_framework(session: AsyncSession, program_id: str) -> bool:
+    """ТК-4: каркас только при заполненных слотах и без открытых вопросов."""
+    if not await required_slots_filled(session, program_id):
+        return False
+    return await open_questions_count(session, program_id) == 0
+
+
 async def open_questions_count(session: AsyncSession, program_id: str) -> int:
     return int(
         (

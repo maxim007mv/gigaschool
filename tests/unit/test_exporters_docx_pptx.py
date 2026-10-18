@@ -47,6 +47,15 @@ def _find_plan_table(document: DocxDocument) -> Table:
     raise AssertionError("таблица учебного плана не найдена")
 
 
+def test_pptx_export_has_title_and_structure(kit: KitV1) -> None:
+    """Слайды: титул программы и содержательные слайды по темам."""
+    data = export_pptx_slides(kit, module_refs=["M1"])
+    presentation = Presentation(io.BytesIO(data))
+    assert len(presentation.slides) >= 2
+    titles = _pptx_text(presentation)
+    assert "Python" in titles or "Введение" in titles
+
+
 def _pptx_text(presentation: Presentation) -> str:
     parts: list[str] = []
     for slide in presentation.slides:

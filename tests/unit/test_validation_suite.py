@@ -14,6 +14,7 @@ import pytest
 from karkas.domain.kit import (
     AnswerKey,
     Assessment,
+    AssessmentOption,
     Calendar,
     CalendarSession,
     Competency,
@@ -61,8 +62,14 @@ def _question(ref: str, outcomes: list[str], topic_ref: str) -> Assessment:
         ref=ref,
         kind="test_question",
         topic_ref=topic_ref,
-        stem=f"Вопрос {ref}: выберите верный вариант ответа",
+        stem=f"Вопрос {ref}: выберите верный вариант ответа по теме",
         qtype="single",
+        options=[
+            AssessmentOption(id="a", text="Верный ответ"),
+            AssessmentOption(id="b", text="Неверный вариант 1"),
+            AssessmentOption(id="c", text="Неверный вариант 2"),
+            AssessmentOption(id="d", text="Неверный вариант 3"),
+        ],
         answer_key=AnswerKey(correct=["a"], explanation="Пояснение"),
         outcome_refs=outcomes,
     )

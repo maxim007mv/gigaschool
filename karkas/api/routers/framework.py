@@ -65,7 +65,7 @@ async def generate_framework(
     if program["status"] in ("kit_generating", "kit_review", "kit_updating"):
         raise Forbidden("Комплект уже сгенерирован; верните каркас на доработку для пересборки")
 
-    if not await programs_repo.required_slots_filled(session, program_id):
+    if not await programs_repo.clarification_allows_framework(session, program_id):
         raise ClarificationRequired()
     if await jobs_repo.has_active(session, program_id=program_id, kind="framework"):
         raise JobInProgress("Задача сборки каркаса уже в очереди")
