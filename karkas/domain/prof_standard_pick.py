@@ -103,13 +103,14 @@ def pick_prof_standard(
 
     functions: list[dict[str, str]] = []
     if best_lf:
-        functions.append(
-            {
-                "code": str(best_lf["code"]),
-                "title": str(best_lf.get("title") or ""),
-                "otf_code": str(best_lf.get("otf_code") or "") or None,
-            }
-        )
+        entry: dict[str, str] = {
+            "code": str(best_lf["code"]),
+            "title": str(best_lf.get("title") or ""),
+        }
+        otf = str(best_lf.get("otf_code") or "").strip()
+        if otf:
+            entry["otf_code"] = otf
+        functions.append(entry)
 
     gap_note = (
         f"Профстандарт {code} «{ps_title}» подобран автоматически по сходству с брифом "
