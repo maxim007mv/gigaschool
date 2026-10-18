@@ -379,7 +379,10 @@ def _prof_link_for_program(kit: KitV1) -> tuple[str, str, str, str] | None:
             "06.042",
             "Специалист по большим данным",
             "A/03.6",
-            "Подготовка данных для проведения аналитических работ по исследованию больших данных",
+            (
+                "Подготовка данных для проведения аналитических работ "
+                "по исследованию больших данных"
+            ),
         )
     if "python" in blob or "анализ данных" in blob or "pandas" in blob or "банк" in blob:
         return (
@@ -415,7 +418,15 @@ def _ensure_competency_prof(kit: KitV1, competencies: list) -> list:
     code, ps_title, lf_code, lf_title = link
     ps = ProfStandardRef(code=code, title=ps_title, status="active")
     lf = LaborFunctionRef(code=lf_code, title=lf_title)
-    return [c.model_copy(update={"prof_standard": ps, "labor_functions": [lf]}) for c in competencies]
+    return [
+        c.model_copy(
+            update={
+                "prof_standard": ps,
+                "labor_functions": [lf],
+            }
+        )
+        for c in competencies
+    ]
 
 
 def _ensure_school_glossary(kit: KitV1) -> dict[str, str]:
@@ -580,6 +591,19 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     competencies = _ensure_competency_prof(kit, list(kit.framework.competencies))
     if kit.program.kind == "dop":
         competencies = [c.model_copy(update={"prof_standard": None, "labor_functions": []}) for c in competencies]
+    elif (
+        competencies
+        and competencies[0].prof_standard
+        and not any(c.prof_standard for c in kit.framework.competencies)
+    ):
+        ps = competencies[0].prof_standard
+        gaps = merge_gaps(
+            gaps,
+            [
+                f"Профстандарт {ps.code} «{ps.title}» привязан эвристикой kit_fixup "
+                "(частично проверено) — уточните методистом.",
+            ],
+        )
 
     lecture_plans = [_ensure_lecture_structure(b) for b in kit.content.lecture_plans]
     slides = _ensure_slide_blocks(_attach_module_refs(kit, list(kit.content.slides)))

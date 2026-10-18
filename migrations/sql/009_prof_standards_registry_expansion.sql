@@ -29,12 +29,7 @@ ON CONFLICT (code) DO UPDATE SET
     order_date = EXCLUDED.order_date,
     source = EXCLUDED.source;
 
--- Удалить ошибочную ТФ B/01.2 (не из приказа 680н для 06.026).
-DELETE FROM labor_function lf
-USING prof_standard ps
-WHERE lf.prof_standard_id = ps.id AND ps.code = '06.026' AND lf.code = 'B/01.2';
-
--- 06.026 — трудовые функции (приказ 680н).
+-- 06.026 — трудовые функции (приказ 680н). Устаревшую B/01.2 не удаляем (FK competency).
 INSERT INTO labor_function (prof_standard_id, otf_code, code, title, qual_level)
 SELECT ps.id, v.otf, v.code, v.title, v.qual
 FROM prof_standard ps

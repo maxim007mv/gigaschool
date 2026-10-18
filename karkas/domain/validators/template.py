@@ -107,7 +107,7 @@ def _has_prof_standards_filled(kit: KitV1) -> bool:
         if block.kind != "template_section":
             continue
         code = str(block.body.get("section_code") or block.ref or "")
-        if code == "1.5" or code.endswith("1.5"):
+        if code in ("1.5", "SEC-1.5"):
             text = str(block.body.get("text") or block.body.get("content") or "").strip()
             if len(text) >= 40:
                 return True
