@@ -39,7 +39,7 @@ def _psql(*args: str) -> subprocess.CompletedProcess:
     )
 
 
-def _seed_program_api(*, status: str = "kit_review") -> str:
+def _seed_program_api(*, status: str = "framework_approved") -> str:
     program_id = str(uuid.uuid4())
     approved = status in ("framework_approved", "kit_generating", "kit_review", "kit_updating")
     approved_by = f"'{API_USER}'" if approved else "NULL"
@@ -69,7 +69,7 @@ def test_kit_regenerate_core_updates_lecture_plan(api_env, monkeypatch) -> None:
     gateway = FakeGateway(FAKE_RESPONSES)
     monkeypatch.setattr(pipeline, "make_gateway", lambda *args, **kwargs: gateway)
 
-    program_id = _seed_program_api(status="kit_review")
+    program_id = _seed_program_api(status="framework_approved")
 
     async def run() -> str:
         from karkas.domain.kit import ContentBlock, Outcome
