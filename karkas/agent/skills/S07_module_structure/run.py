@@ -191,9 +191,10 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     )
     brief = str(inputs.get("brief") or "").strip()
     constraints = inputs.get("constraints") if isinstance(inputs.get("constraints"), dict) else {}
-    internship = bool(constraints.get("self_study_only")) or str(
-        inputs.get("form") or profile.get("form") or ""
-    ).casefold() == "internship"
+    internship = (
+        bool(constraints.get("self_study_only"))
+        or str(inputs.get("form") or profile.get("form") or "").casefold() == "internship"
+    )
     module_att = extract_module_current_control(brief) or ("собеседование" if internship else None)
     modules, gaps = normalize_structure(payload.modules, known)
     missing = uncovered_outcomes(modules, known) if known else []

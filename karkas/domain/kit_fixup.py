@@ -337,9 +337,7 @@ def _ensure_internship_interviews(kit: KitV1, assessments: list[Assessment]) -> 
         if not module.topics:
             continue
         topic_refs = {t.ref for t in module.topics}
-        has_interview = any(
-            item.kind == "interview_question" and item.topic_ref in topic_refs for item in result
-        )
+        has_interview = any(item.kind == "interview_question" and item.topic_ref in topic_refs for item in result)
         if has_interview:
             continue
         topic = module.topics[0]
