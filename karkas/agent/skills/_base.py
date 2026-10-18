@@ -20,6 +20,7 @@ import copy
 import inspect
 import json
 import time
+from functools import lru_cache
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
@@ -224,9 +225,16 @@ def _jinja_env() -> Environment:
     return _JINJA_ENV
 
 
-def render_prompt(skill_dir: str, **variables: Any) -> str:
-    """Отрендерить ``<skill_dir>/prompt.jinja`` с переменными навыка."""
+@lru_cache(maxsize=256)
+def _render_prompt_cached(skill_dir: str, variables_json: str) -> str:
+    variables = json.loads(variables_json)
     return _jinja_env().get_template(f"{skill_dir}/prompt.jinja").render(**variables)
+
+
+def render_prompt(skill_dir: str, **variables: Any) -> str:
+    """Отрендерить ``<skill_dir>/prompt.jinja`` с переменными навыка (кэш по содержимому)."""
+    variables_json = json.dumps(variables, ensure_ascii=False, sort_keys=True, default=str)
+    return _render_prompt_cached(skill_dir, variables_json)
 
 
 def make_messages(user: str, system: str | None = None) -> list[dict[str, Any]]:

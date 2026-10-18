@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-18 — Eval-матрица объёмов, ТК-4/5, verified-реестр, параллельный kit
+
+### Проблема
+Скрытый eval требовал детерминированных каркасов 16–500 ч; ТК-4 — не генерировать до ответов; ТК-5 — СРС-only и флаг противоречий в брифе; коды ПС/ТФ и источники — только из локального реестра; kit — уложиться в SLO при concurrency 2.
+
+### Фикс
+- `karkas/domain/framework_skeleton.py` + `tests/unit/test_framework_skeleton_volumes.py` (ДОП/ДПП ПК, календарь, стажировка 256 ч).
+- `data/registries/verified.json`, `verified_registry.py`; S05 и pipeline помечают непроверенное «требует проверки».
+- `detect_hour_total_conflicts`, gate framework job при открытых вопросах; S03 ≤5 вопросов (тест).
+- `kit_core`: `asyncio.gather` по темам + `Semaphore(llm_concurrency)`; кэш `render_prompt`.
+
+### Проверка
+`.venv/bin/pytest tests -q --ignore=tests/payments_audit`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Eval live, бриф-трассировка, порт .docx, UX прогресса
 
 ### Проблема

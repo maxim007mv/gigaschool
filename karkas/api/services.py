@@ -6,13 +6,16 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.domain.hours import Constraints, ModuleIn, Plan, TopicIn
+from karkas.domain.verified_registry import merge_registry_bundle_prof_standards
 from karkas.domain.kit import ACTIVITIES, KitV1, Report
 from karkas.domain.validators import (
     LaborFunction,
@@ -58,6 +61,30 @@ async def build_registries(session: AsyncSession) -> RegistryBundle:
             text("SELECT name, available_ru, lifecycle, latest_version FROM service_catalog")
         )
     ).mappings().all()
+    prof_standards = merge_registry_bundle_prof_standards(
+        [ProfStandard(code=r["code"], title=r["title"] or "", status=r["status"]) for r in ps_rows]
+    )
+    labor_functions = [
+        LaborFunction(prof_standard_code=r["ps_code"], code=r["lf_code"], title=r["lf_title"] or "")
+        for r in lf_rows
+    ]
+    known = {(lf.prof_standard_code, lf.code) for lf in labor_functions}
+    from karkas.domain.verified_registry import VERIFIED_JSON, load_file_verified
+
+    load_file_verified()
+    raw: dict[str, Any] = {}
+    if VERIFIED_JSON.is_file():
+        try:
+            raw = json.loads(VERIFIED_JSON.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            raw = {}
+    for item in raw.get("labor_functions") or []:
+        key = (str(item.get("prof_standard_code") or "").strip(), str(item.get("code") or "").strip())
+        if key[0] and key[1] and key not in known:
+            labor_functions.append(
+                LaborFunction(prof_standard_code=key[0], code=key[1], title=str(item.get("title") or ""))
+            )
+            known.add(key)
     return RegistryBundle(
         normative_acts=[
             NormativeAct(
@@ -66,13 +93,8 @@ async def build_registries(session: AsyncSession) -> RegistryBundle:
             )
             for r in act_rows
         ],
-        prof_standards=[
-            ProfStandard(code=r["code"], title=r["title"] or "", status=r["status"]) for r in ps_rows
-        ],
-        labor_functions=[
-            LaborFunction(prof_standard_code=r["ps_code"], code=r["lf_code"], title=r["lf_title"] or "")
-            for r in lf_rows
-        ],
+        prof_standards=prof_standards,
+        labor_functions=labor_functions,
         services=[
             ServiceRecord(
                 name=r["name"], available_ru=r["available_ru"], lifecycle=r["lifecycle"],

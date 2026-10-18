@@ -29,6 +29,14 @@ from karkas.agent.skill_runner import SkillRunner
 from karkas.agent.skills import SKILLS, SkillContext
 from karkas.agent.skills._base import InMemoryCheckpointStore
 from karkas.api.sse import bus
+from karkas.domain.intake_slots import detect_hour_total_conflicts
+from karkas.domain.verified_registry import (
+    annotate_registries_dict,
+    apply_source_verification_flags,
+    merge_file_prof_standards,
+    verification_assumptions_for_competencies,
+)
+from karkas.settings import settings
 from karkas.domain.kit import (
     ACTIVITIES,
     AnswerKey,
@@ -381,7 +389,7 @@ async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
         lf_by_ps.setdefault(row["ps_code"], []).append(
             {"code": row["lf_code"], "title": row["lf_title"] or "", "otf_code": row["otf_code"]}
         )
-    return {
+    payload: dict[str, Any] = {
         "normative_acts": [
             {
                 "issuer": r["issuer"],
@@ -418,6 +426,8 @@ async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
             for r in services
         ],
     }
+    payload["prof_standards"] = merge_file_prof_standards(payload["prof_standards"])
+    return annotate_registries_dict(payload)
 
 
 def _map_form(value: str | None) -> str | None:
@@ -450,21 +460,45 @@ def guess_title(brief: str) -> str:
     return "Новая программа"
 
 
+def _sample_declared_totals_from_errors(errors: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Итоги образца из S04 (для V-SMP-01), без копирования в каркас."""
+    if not errors:
+        return None
+    declared: dict[str, Any] = {}
+    for item in errors:
+        kind = str(item.get("kind") or "")
+        if kind != "hours_mismatch":
+            continue
+        evidence = str(item.get("evidence") or item.get("description") or "")
+        for key, label in (("self_study", "срс"), ("total", "всего"), ("content_total", "раздел")):
+            if label in evidence.lower():
+                nums = [int(n) for n in re.findall(r"\d{2,3}", evidence)]
+                if nums:
+                    declared[key] = nums[0]
+    return declared or None
+
+
 def _constraints_dict(program: dict[str, Any], answers: dict[str, str]) -> dict[str, Any]:
     constraints = dict(program.get("constraints") or {})
     total = program.get("total_hours") or _parse_hours(answers.get("total_hours"))
     if not total:
         raise ValueError("CLARIFICATION_REQUIRED: не задан объём программы в часах")
     final_att = int(program.get("final_att_hours") or 2)
+    form = program.get("form") or _map_form(answers.get("form"))
+    self_study_only = bool(constraints.get("self_study_only", False))
+    max_hpd = int(constraints.get("max_hours_per_day") or 8)
+    if form == "internship":
+        self_study_only = True
+        max_hpd = min(max_hpd, 4)
     return {
         "total": int(total),
         "final_att": final_att,
         "unit": int(constraints.get("unit_hours") or 1),
-        "self_study_only": bool(constraints.get("self_study_only", False)),
+        "self_study_only": self_study_only,
         "min_practice_share_pct": float(constraints.get("min_practice_share_pct") or 0),
         "self_study_share_pct": float(constraints.get("self_study_share_pct") or 0),
         "distance_share_pct": float(constraints.get("distance_share_pct") or 0),
-        "max_hours_per_day": int(constraints.get("max_hours_per_day") or 8),
+        "max_hours_per_day": max_hpd,
         "days_per_week": int(constraints.get("days_per_week") or 5),
     }
 
@@ -529,6 +563,8 @@ async def intake_core(
             "assumptions": [
                 *(profile_json.get("assumptions") or []),
                 *(a.get("text") for a in (s01.get("assumptions") or []) if a.get("text")),
+                *detect_hour_total_conflicts(brief_text),
+                *(a.get("text") for a in (s03.get("assumptions") or []) if a.get("text")),
             ],
         }
     )
@@ -755,6 +791,7 @@ def _assemble_kit(
         *(s01.get("gaps") or []),
         *(s06.get("gaps") or []),
         *(s07.get("gaps") or []),
+        *verification_assumptions_for_competencies(competencies),
     ]
     # Задачи программы (раздел шаблона 1.2) выводим из компетенций детерминированно:
     # отдельного поля «задачи» навыки S01–S07 не формируют.
@@ -783,6 +820,8 @@ async def framework_core(
     progress_cb: ProgressCallback = None,
 ) -> dict[str, Any]:
     """S04–S10: собрать каркас, сохранить снимок и отчёт, вернуть на проверку."""
+    if await programs_repo.open_questions_count(session, program_id):
+        raise ValueError("CLARIFICATION_REQUIRED: есть неотвеченные уточнения — каркас не собираем (ТК-4)")
     program = await _load_program(session, program_id)
     brief_text = await _brief_of(program)
     if not brief_text:
@@ -831,8 +870,19 @@ async def framework_core(
 
     kit = _assemble_kit(program, answers, s01, s02, s04, s05, s06, s07, s08, s09)
     kit_dump = kit.model_dump(mode="json")
+    sample_declared = _sample_declared_totals_from_errors(s04.get("sample_errors") or [])
     s10 = (
-        await runner.run("S10", {**inputs, "kit": kit_dump}, ctx, progress_cb)
+        await runner.run(
+            "S10",
+            {
+                **inputs,
+                "kit": kit_dump,
+                "declared_totals": sample_declared,
+                "reference_texts": inputs.get("reference_texts") or [],
+            },
+            ctx,
+            progress_cb,
+        )
     ).output
 
     await framework_repo.save_kit(session, program_id, kit)
@@ -955,6 +1005,49 @@ async def kit_core(
     questions: list[dict[str, Any]] = []
     tasks: list[dict[str, Any]] = []
 
+    llm_sem = asyncio.Semaphore(settings.llm_concurrency)
+
+    async def _topic_bundle(
+        module: Module,
+        module_dump: dict[str, Any],
+        module_scope: str,
+        s11: dict[str, Any],
+        topic: Topic,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        topic_dump = topic.model_dump(mode="json")
+        topic_ctx = await _seeded_context(
+            program_id,
+            f"{module_scope}:{topic.ref}",
+            {"S11": s11},
+            gateway=gateway,
+            extra={"registries": registries, "kit": kit_dump},
+        )
+        common = {
+            "kit": kit_dump,
+            "topic": topic_dump,
+            "module_ref": module.ref,
+            "topics": [topic_dump],
+            "outcomes": outcomes_json,
+            "profile": profile_json,
+            "registries": registries,
+        }
+        content_common = {**common, "outcomes": _topic_outcomes(outcomes_json, topic.outcome_refs)}
+        lectures: list[dict[str, Any]] = []
+        slide_blocks: list[dict[str, Any]] = []
+        question_blocks: list[dict[str, Any]] = []
+        task_blocks: list[dict[str, Any]] = []
+        async with llm_sem:
+            s12 = (await runner.run("S12", content_common, topic_ctx, progress_cb)).output
+            lectures.extend(s12.get("lecture_plans") or [])
+            if module.ref in slides_modules:
+                s13 = (await runner.run("S13", content_common, topic_ctx, progress_cb)).output
+                slide_blocks.extend(s13.get("slides") or [])
+            s14 = (await runner.run("S14", {**common, "count": per_topic_questions}, topic_ctx, progress_cb)).output
+            question_blocks.extend(s14.get("questions") or [])
+            s15 = (await runner.run("S15", common, topic_ctx, progress_cb)).output
+            task_blocks.extend(s15.get("tasks") or [])
+        return lectures, slide_blocks, question_blocks, task_blocks
+
     for module in kit.framework.modules:
         module_dump = module.model_dump(mode="json")
         module_scope = f"kit:{version}:{module.ref}"
@@ -981,37 +1074,14 @@ async def kit_core(
         ).output
         module_programs.extend(s11.get("module_programs") or [])
 
-        for topic in module.topics:
-            topic_dump = topic.model_dump(mode="json")
-            topic_ctx = await _seeded_context(
-                program_id,
-                f"{module_scope}:{topic.ref}",
-                {"S11": s11},
-                gateway=gateway,
-                extra={"registries": registries, "kit": kit_dump},
-            )
-            common = {
-                "kit": kit_dump,
-                "topic": topic_dump,
-                "module_ref": module.ref,
-                "topics": [topic_dump],
-                "outcomes": outcomes_json,
-                "profile": profile_json,
-                "registries": registries,
-            }
-            # S12/S13 — только содержание: в промпт идут РО темы (экономия токенов).
-            # S14/S15 создают оценочные средства, которые считает покрытие РО (V-COV-02),
-            # поэтому им остаётся полный список.
-            content_common = {**common, "outcomes": _topic_outcomes(outcomes_json, topic.outcome_refs)}
-            s12 = (await runner.run("S12", content_common, topic_ctx, progress_cb)).output
-            lecture_plans.extend(s12.get("lecture_plans") or [])
-            if module.ref in slides_modules:
-                s13 = (await runner.run("S13", content_common, topic_ctx, progress_cb)).output
-                slides.extend(s13.get("slides") or [])
-            s14 = (await runner.run("S14", {**common, "count": per_topic_questions}, topic_ctx, progress_cb)).output
-            questions.extend(s14.get("questions") or [])
-            s15 = (await runner.run("S15", common, topic_ctx, progress_cb)).output
-            tasks.extend(s15.get("tasks") or [])
+        topic_results = await asyncio.gather(
+            *(_topic_bundle(module, module_dump, module_scope, s11, topic) for topic in module.topics)
+        )
+        for lectures, slide_blocks, question_blocks, task_blocks in topic_results:
+            lecture_plans.extend(lectures)
+            slides.extend(slide_blocks)
+            questions.extend(question_blocks)
+            tasks.extend(task_blocks)
 
     # Итоговая аттестация (S16) и источники (S17 → S18)
     assessment_ctx = await _seeded_context(
@@ -1066,13 +1136,14 @@ async def kit_core(
         if (assessment := _assessment_from(item)) is not None
     ]
     assessments = _dedupe_assessment_refs(assessments)
+    raw_sources = [Source(**source) for source in (s18.get("sources") or [])]
     kit.content = Content(
         module_programs=[ContentBlock(**block) for block in module_programs],
         lecture_plans=[ContentBlock(**block) for block in lecture_plans],
         slides=[ContentBlock(**block) for block in slides],
         sections=list(kit.content.sections),
         assessments=assessments,
-        sources=[Source(**source) for source in (s18.get("sources") or [])],
+        sources=apply_source_verification_flags(raw_sources),
     )
 
     # S19 — самопроверка комплекта (детерминированные правила, зависимости засеяны)
@@ -1765,6 +1836,11 @@ async def dispatch_job(job: dict[str, Any], *, on_progress: ProgressFn | None = 
             raise ValueError("framework: задача без программы")
         started = time.monotonic()
         async with factory() as session:
+            open_count = await programs_repo.open_questions_count(session, program_id)
+            if open_count:
+                raise ValueError(
+                    "CLARIFICATION_REQUIRED: есть неотвеченные уточнения — каркас не собираем (ТК-4)"
+                )
             await framework_core(session, program_id, progress_cb=progress_cb)
             await session.commit()
         from karkas.infra.metrics import framework_seconds

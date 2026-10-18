@@ -64,6 +64,9 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
         return _empty(1.0, DOP_NOTE)
 
     candidates = _active_candidates(inputs.get("candidates"))
+    verified = {code: row for code, row in candidates.items() if row.get("file_verified")}
+    if verified:
+        candidates = verified
     if not candidates:
         return _empty(0.0, NOT_FOUND_NOTE)
 
@@ -127,6 +130,8 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
         note = (note + " " if note else "") + "состав ТФ не выбран — требуется выбор методиста"
     elif not allowed:
         note = (note + " " if note else "") + "реестр не передал состав ТФ профстандарта"
+    if not candidate.get("file_verified"):
+        note = (note + " " if note else "") + "код профстандарта — требует проверки (нет в локальном реестре)"
     return {
         "prof_standard": {"code": code, "title": prof_standard.title.strip() or str(candidate.get("title") or "")},
         "labor_functions": functions,
