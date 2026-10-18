@@ -8,6 +8,18 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,12 +37,17 @@ jobs:
       - name: Mypy (domain)
         run: .venv/bin/mypy karkas/domain
       - name: Pytest
-        run: .venv/bin/pytest tests/unit tests/eval --ignore=tests/payments_audit -q
+        env:
+          PGUSER: postgres
+          KARKAS_TEST_DATABASE_URL: postgresql+asyncpg://postgres@127.0.0.1:5432/postgres
+        run: .venv/bin/pytest tests --ignore=tests/payments_audit -q
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Web typecheck
+      - name: Web lint, typecheck, tests
         working-directory: web
         run: |
           npm ci
+          npm run lint
           npm run typecheck
+          npm test

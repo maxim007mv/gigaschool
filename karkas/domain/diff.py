@@ -42,9 +42,7 @@ def diff_snapshots(left: dict[str, Any], right: dict[str, Any]) -> dict[str, lis
     """
     l_index = _collect(left)
     r_index = _collect(right)
-    changed = sorted(
-        key for key in l_index.keys() & r_index.keys() if l_index[key] != r_index[key]
-    )
+    changed = sorted(key for key in l_index.keys() & r_index.keys() if l_index[key] != r_index[key])
     added = sorted(r_index.keys() - l_index.keys())
     removed = sorted(l_index.keys() - r_index.keys())
     strip = lambda keys: [k.split(":", 1)[1] if ":" in k else k for k in keys]  # noqa: E731

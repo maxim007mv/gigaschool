@@ -11,6 +11,8 @@ from karkas.agent.skills._base import SkillContext, SkillSpec, complete_structur
 DIR = "S13_slides"
 METADATA = SkillSpec(code="S13", name="Слайды", dir=DIR, model_class="bulk", depends_on=("S12",))
 
+_LAYOUT_IDS = frozenset({"title_and_content", "title", "title_only", "content"})
+
 MAX_SLIDES = 12
 MAX_BULLETS = 8
 
@@ -44,6 +46,9 @@ def normalize_block(
     slides: list[dict[str, Any]] = []
     for slide in payload.body.slides:
         title = slide.title.strip()
+        if title.lower() in _LAYOUT_IDS:
+            bullets = [text.strip() for text in slide.bullets if text.strip()]
+            title = bullets[0][:120] if bullets else ""
         if not title:
             continue
         layout = (slide.layout or "title_and_content").strip().lower()

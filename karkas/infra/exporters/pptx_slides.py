@@ -10,7 +10,8 @@
 from __future__ import annotations
 
 import io
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 from pptx import Presentation
 from pptx.presentation import Presentation as PptxPresentation
@@ -26,9 +27,21 @@ MAX_CONTENT_SLIDES = 12
 SLIDES_MISSING_TITLE = "[Слайды не сформированы моделью]"
 
 
+def _module_ref_for_slide_block(kit: KitV1, block: ContentBlock) -> str | None:
+    if block.module_ref:
+        return block.module_ref
+    if block.topic_ref:
+        for module in kit.framework.modules:
+            if any(t.ref == block.topic_ref for t in module.topics):
+                return module.ref
+    return None
+
+
 def _selected_modules(kit: KitV1, module_refs: list[str] | None) -> list[Module]:
     if module_refs is None:
-        refs = {block.module_ref for block in kit.content.slides if block.module_ref}
+        refs = {ref for block in kit.content.slides for ref in (_module_ref_for_slide_block(kit, block),) if ref}
+        if not refs and not kit.content.slides:
+            return []
     else:
         refs = set(module_refs)
     return [module for module in kit.framework.modules if module.ref in refs]
@@ -60,11 +73,7 @@ def _slide_payloads(blocks: Iterable[ContentBlock]) -> list[tuple[str, list[str]
                     title = str(item.get("title") or "").strip()
                     if not title:
                         continue
-                    bullets = (
-                        _lines(item.get("bullets"))
-                        or _lines(item.get("lines"))
-                        or _lines(item.get("text"))
-                    )
+                    bullets = _lines(item.get("bullets")) or _lines(item.get("lines")) or _lines(item.get("text"))
                     notes = str(item.get("speaker_notes") or item.get("notes") or "").strip()
                     payloads.append((title, bullets, notes, _layout_index(item)))
             continue
@@ -122,11 +131,12 @@ def _add_missing_slide(presentation: PptxPresentation, kit: KitV1) -> None:
 def export_pptx_slides(kit: KitV1, module_refs: list[str] | None = None) -> bytes:
     """Собрать .pptx из content.slides (выход S13), без синтетических слайдов."""
     presentation = Presentation()
-    modules = _selected_modules(kit, module_refs)
+    has_slide_payloads = bool(_slide_payloads(kit.content.slides))
+    modules = _selected_modules(kit, module_refs) if has_slide_payloads else []
     if not modules:
         _add_missing_slide(presentation, kit)
     for module in modules:
-        blocks = [block for block in kit.content.slides if block.module_ref == module.ref]
+        blocks = [block for block in kit.content.slides if _module_ref_for_slide_block(kit, block) == module.ref]
         payloads = _slide_payloads(blocks)
         if not payloads:
             _add_slide(

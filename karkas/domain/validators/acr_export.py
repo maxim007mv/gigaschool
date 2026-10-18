@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from karkas.domain.acr_reference import expected_acr_headings
 from karkas.domain.acr_docx_text import docx_plain_text, missing_acr_headings
+from karkas.domain.acr_reference import expected_acr_headings
 from karkas.domain.docx_export import export_program_docx
 from karkas.domain.validators.base import GroupResult, issue, resolve_stage
 
@@ -57,8 +57,7 @@ def validate_acr_export(ctx: ValidationContext) -> GroupResult:
             issue(
                 "V-ACR-01",
                 "error",
-                "В .docx нет разделов эталона АЦР: " + "; ".join(missing[:8])
-                + ("…" if len(missing) > 8 else ""),
+                "В .docx нет разделов эталона АЦР: " + "; ".join(missing[:8]) + ("…" if len(missing) > 8 else ""),
                 entity_ref="acr_export",
                 fix_hint={"missing_headings": missing},
             )

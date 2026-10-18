@@ -82,10 +82,14 @@ def main() -> int:
         print()
         print(per_skill_table(reports[1]))
         print("\n### Экономия compact JSON в промптах\n")
-        print(f"- 16 ч: −{savings_16['prompt_tokens_saved']} prompt-токенов "
-              f"({savings_16['before']['cost_rub']} → {savings_16['after']['cost_rub']} ₽)")
-        print(f"- 72 ч: −{savings_72['prompt_tokens_saved']} prompt-токенов "
-              f"({savings_72['before']['cost_rub']} → {savings_72['after']['cost_rub']} ₽)")
+        print(
+            f"- 16 ч: −{savings_16['prompt_tokens_saved']} prompt-токенов "
+            f"({savings_16['before']['cost_rub']} → {savings_16['after']['cost_rub']} ₽)"
+        )
+        print(
+            f"- 72 ч: −{savings_72['prompt_tokens_saved']} prompt-токенов "
+            f"({savings_72['before']['cost_rub']} → {savings_72['after']['cost_rub']} ₽)"
+        )
         print("\n### Время (FakeGateway, concurrency=2)\n")
         print(json.dumps(timings, ensure_ascii=False, indent=2))
 

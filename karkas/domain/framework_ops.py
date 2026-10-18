@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from karkas.domain.kit import FinalAttestation, KitV1, Module, Topic, find_module, find_outcome, find_topic
+from karkas.domain.kit import FinalAttestation, KitV1, Topic, find_module, find_outcome, find_topic
 
 
 class OpError(ValueError):

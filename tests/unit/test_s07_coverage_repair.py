@@ -119,9 +119,14 @@ def test_sequence_clamps_complexity_to_non_decreasing_order() -> None:
 
 WORSE = {
     "modules": [
-        {"ref": "M1", "number": 1, "title": "Основы", "topics": [
-            {"ref": "T1", "title": "Тема А", "outcome_refs": ["LO1.1"]},
-        ]},
+        {
+            "ref": "M1",
+            "number": 1,
+            "title": "Основы",
+            "topics": [
+                {"ref": "T1", "title": "Тема А", "outcome_refs": ["LO1.1"]},
+            ],
+        },
     ],
     "gaps": [],
 }

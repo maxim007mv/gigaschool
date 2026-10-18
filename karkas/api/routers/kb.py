@@ -82,9 +82,10 @@ async def list_documents(
     if principal.is_service or not principal.org_id:
         raise Forbidden("База знаний доступна пользователю организации")
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT d.id, d.title, d.doc_role, d.applies_to, d.is_active, d.created_at,
                        f.filename, f.size_bytes,
                        (SELECT count(*) FROM kb_chunk c WHERE c.file_id = d.file_id) AS chunks
@@ -92,10 +93,13 @@ async def list_documents(
                 WHERE d.org_id = :org_id
                 ORDER BY d.created_at DESC
                 """
-            ),
-            {"org_id": principal.org_id},
+                ),
+                {"org_id": principal.org_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return {
         "items": [
             {

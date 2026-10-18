@@ -17,9 +17,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from karkas.domain.kit import (
+    AnswerKey,
     Assessment,
     AssessmentOption,
-    AnswerKey,
     Calendar,
     CalendarSession,
     Competency,
@@ -30,8 +30,6 @@ from karkas.domain.kit import (
     KitV1,
     Module,
     Outcome,
-    ProfStandardRef,
-    LaborFunctionRef,
     ProgramHeader,
     Source,
     Topic,
@@ -281,12 +279,18 @@ async def test_versions_are_immutable_and_listed(session, org_and_user) -> None:
     kit = _kit()
     await framework_repo.save_kit(session, program_id, kit)
     v1 = await programs_repo.save_version(
-        session, program_id=program_id, reason="framework_generated",
-        snapshot=kit.model_dump(mode="json"), created_by=user_id,
+        session,
+        program_id=program_id,
+        reason="framework_generated",
+        snapshot=kit.model_dump(mode="json"),
+        created_by=user_id,
     )
     v2 = await programs_repo.save_version(
-        session, program_id=program_id, reason="edit:test",
-        snapshot=kit.model_dump(mode="json"), created_by=user_id,
+        session,
+        program_id=program_id,
+        reason="edit:test",
+        snapshot=kit.model_dump(mode="json"),
+        created_by=user_id,
     )
     await session.commit()
     assert (v1, v2) == (1, 2)
@@ -337,7 +341,11 @@ async def test_questions_and_answers_flow(session, org_and_user) -> None:
         session,
         program_id=program_id,
         questions=[
-            {"slot": "kind", "text": "Какой это тип программы?", "options": ["Повышение квалификации", "Общеразвивающая"]},
+            {
+                "slot": "kind",
+                "text": "Какой это тип программы?",
+                "options": ["Повышение квалификации", "Общеразвивающая"],
+            },
             {"slot": "total_hours", "text": "Сколько часов?", "options": ["36", "72", "144"]},
         ],
     )

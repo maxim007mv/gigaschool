@@ -46,11 +46,18 @@ markers = [
 ]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501"]
+"karkas/eval/token_benchmark.py" = ["E501"]
+"karkas/infra/repos/framework.py" = ["E501"]
+"karkas/infra/repos/jobs.py" = ["E501"]
+"scripts/**" = ["E402"]
 
 [tool.mypy]
 python_version = "3.12"

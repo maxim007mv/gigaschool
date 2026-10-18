@@ -160,7 +160,17 @@ async def update_program(
     UPDATE выполняется только если версия не изменилась (иначе None → 412).
     Возвращает новый lock_version или None, если программа не найдена/версия устарела.
     """
-    allowed = {"title", "kind", "form", "total_hours", "final_att_hours", "final_att_form", "goal", "profile", "constraints"}
+    allowed = {
+        "title",
+        "kind",
+        "form",
+        "total_hours",
+        "final_att_hours",
+        "final_att_form",
+        "goal",
+        "profile",
+        "constraints",
+    }
     sets: list[str] = []
     params: dict[str, Any] = {"pid": program_id}
     for key, value in fields.items():
@@ -264,20 +274,22 @@ async def hours_issues(session: AsyncSession, program_id: str) -> list[dict[str,
         return issues
     pid = uuid_param("pid")
     rows = (
-        await session.execute(
-            text(f"SELECT rule_code, entity_ref, message FROM check_program_hours({pid})"),
-            {"pid": program_id},
+        (
+            await session.execute(
+                text(f"SELECT rule_code, entity_ref, message FROM check_program_hours({pid})"),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 
 # --- Уточнения ---------------------------------------------------------------
 
 
-async def replace_questions(
-    session: AsyncSession, *, program_id: str, questions: list[dict[str, Any]]
-) -> None:
+async def replace_questions(session: AsyncSession, *, program_id: str, questions: list[dict[str, Any]]) -> None:
     """Обновить уточняющие вопросы (≤ 5, ord 1..5).
 
     Отвеченные вопросы НЕ удаляются (ответы пользователя сохраняются при повторном
@@ -285,11 +297,15 @@ async def replace_questions(
     Принимает и `text`, и `question` (формат выхода S03).
     """
     rows = (
-        await session.execute(
-            text("SELECT slot, ord, answer FROM clarification WHERE program_id = :pid"),
-            {"pid": program_id},
+        (
+            await session.execute(
+                text("SELECT slot, ord, answer FROM clarification WHERE program_id = :pid"),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     answered_slots = {row["slot"] for row in rows if row["answer"] is not None}
     await session.execute(
         text("DELETE FROM clarification WHERE program_id = :pid AND answer IS NULL"), {"pid": program_id}
@@ -348,18 +364,22 @@ async def replace_questions(
 
 async def get_questions(session: AsyncSession, program_id: str) -> list[dict[str, Any]]:
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT c.*, c.options AS options
                 FROM clarification c
                 WHERE c.program_id = :pid
                 ORDER BY c.ord
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 
@@ -439,7 +459,9 @@ async def required_slots_filled(session: AsyncSession, program_id: str) -> bool:
                 ),
                 slot_params,
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     unanswered = int(
         (
@@ -457,24 +479,41 @@ async def required_slots_filled(session: AsyncSession, program_id: str) -> bool:
     if unanswered:
         return False
     profile_raw = (
-        await session.execute(
-            text("SELECT profile FROM program WHERE id = :pid"), {"pid": program_id}
-        )
+        await session.execute(text("SELECT profile FROM program WHERE id = :pid"), {"pid": program_id})
     ).scalar_one_or_none()
     profile = _coerce_json(profile_raw)
     defaults = set(profile.get("slot_defaults", {}).keys())
-    return set(required).issubset(answered | defaults)
+    prog_row = (
+        (
+            await session.execute(
+                text("SELECT kind, total_hours, form, final_att_form FROM program WHERE id = :pid"),
+                {"pid": program_id},
+            )
+        )
+        .mappings()
+        .first()
+    )
+    from_program: set[str] = set()
+    if prog_row:
+        if prog_row.get("kind"):
+            from_program.add("kind")
+        if prog_row.get("total_hours"):
+            from_program.add("total_hours")
+        if prog_row.get("form"):
+            from_program.add("form")
+        if prog_row.get("final_att_form"):
+            from_program.add("final_attestation")
+    for _slot in ("audience", "entry_level"):
+        if str(profile.get(_slot) or "").strip():
+            from_program.add(_slot)
+    return set(required).issubset(answered | defaults | from_program)
 
 
-async def record_slot_default(
-    session: AsyncSession, *, program_id: str, slot: str, value: str
-) -> None:
+async def record_slot_default(session: AsyncSession, *, program_id: str, slot: str, value: str) -> None:
     """Зафиксировать значение по умолчанию для слота («на ваше усмотрение»)."""
     if uses_sqlite():
         profile_raw = (
-            await session.execute(
-                text("SELECT profile FROM program WHERE id = :pid"), {"pid": program_id}
-            )
+            await session.execute(text("SELECT profile FROM program WHERE id = :pid"), {"pid": program_id})
         ).scalar_one_or_none()
         profile = _coerce_json(profile_raw)
         slot_defaults = dict(profile.get("slot_defaults") or {})
@@ -516,7 +555,9 @@ async def save_version(
     version = int(
         (
             await session.execute(
-                text("UPDATE program SET current_version = current_version + 1 WHERE id = :pid RETURNING current_version"),
+                text(
+                    "UPDATE program SET current_version = current_version + 1 WHERE id = :pid RETURNING current_version"
+                ),
                 {"pid": program_id},
             )
         ).scalar_one()
@@ -542,35 +583,43 @@ async def save_version(
 
 async def list_versions(session: AsyncSession, program_id: str, limit: int = 50) -> list[dict[str, Any]]:
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT version, reason, created_at, created_by
                 FROM program_version
                 WHERE program_id = :pid
                 ORDER BY version DESC
                 LIMIT :limit
                 """
-            ),
-            {"pid": program_id, "limit": limit},
+                ),
+                {"pid": program_id, "limit": limit},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 
 async def get_version(session: AsyncSession, program_id: str, version: int) -> dict[str, Any] | None:
     row = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT version, reason, snapshot, created_at, created_by
                 FROM program_version
                 WHERE program_id = :pid AND version = :version
                 """
-            ),
-            {"pid": program_id, "version": version},
+                ),
+                {"pid": program_id, "version": version},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     return dict(row) if row else None
 
 

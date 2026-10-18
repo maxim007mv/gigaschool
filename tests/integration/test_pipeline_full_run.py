@@ -79,7 +79,12 @@ FAKE_RESPONSES: dict[str, dict[str, Any]] = {
         "findings": [],
         "notes": "",
     },
-    "S05": {"prof_standard": None, "labor_functions": [], "confidence": 1.0, "note": "ДОП — без профстандартов"},
+    "S05": {
+        "prof_standard": None,
+        "labor_functions": [],
+        "confidence": 1.0,
+        "note": "ДОП — без профстандартов",
+    },
     "S06": {
         "competencies": [
             {
@@ -103,10 +108,34 @@ FAKE_RESPONSES: dict[str, dict[str, Any]] = {
                 "weight": 1.0,
                 "att_form": "тест",
                 "topics": [
-                    {"ref": "T1.1", "title": "Знакомство со средой", "outcome_refs": ["LO1.1"], "complexity": 1, "practicality": 0.9},
-                    {"ref": "T1.2", "title": "Переменные", "outcome_refs": ["LO1.1"], "complexity": 1, "practicality": 0.5},
-                    {"ref": "T1.3", "title": "Условия", "outcome_refs": ["LO1.2"], "complexity": 2, "practicality": 0.8},
-                    {"ref": "T1.4", "title": "Циклы", "outcome_refs": ["LO1.2"], "complexity": 2, "practicality": 0.7},
+                    {
+                        "ref": "T1.1",
+                        "title": "Знакомство со средой",
+                        "outcome_refs": ["LO1.1"],
+                        "complexity": 1,
+                        "practicality": 0.9,
+                    },
+                    {
+                        "ref": "T1.2",
+                        "title": "Переменные",
+                        "outcome_refs": ["LO1.1"],
+                        "complexity": 1,
+                        "practicality": 0.5,
+                    },
+                    {
+                        "ref": "T1.3",
+                        "title": "Условия",
+                        "outcome_refs": ["LO1.2"],
+                        "complexity": 2,
+                        "practicality": 0.8,
+                    },
+                    {
+                        "ref": "T1.4",
+                        "title": "Циклы",
+                        "outcome_refs": ["LO1.2"],
+                        "complexity": 2,
+                        "practicality": 0.7,
+                    },
                 ],
             },
             {
@@ -116,9 +145,27 @@ FAKE_RESPONSES: dict[str, dict[str, Any]] = {
                 "weight": 1.0,
                 "att_form": "защита проекта",
                 "topics": [
-                    {"ref": "T2.1", "title": "Функции", "outcome_refs": ["LO1.2"], "complexity": 3, "practicality": 0.6},
-                    {"ref": "T2.2", "title": "Списки", "outcome_refs": ["LO1.2"], "complexity": 3, "practicality": 0.4},
-                    {"ref": "T2.3", "title": "Работа над проектом", "outcome_refs": ["LO1.3"], "complexity": 4, "practicality": 0.9},
+                    {
+                        "ref": "T2.1",
+                        "title": "Функции",
+                        "outcome_refs": ["LO1.2"],
+                        "complexity": 3,
+                        "practicality": 0.6,
+                    },
+                    {
+                        "ref": "T2.2",
+                        "title": "Списки",
+                        "outcome_refs": ["LO1.2"],
+                        "complexity": 3,
+                        "practicality": 0.4,
+                    },
+                    {
+                        "ref": "T2.3",
+                        "title": "Работа над проектом",
+                        "outcome_refs": ["LO1.3"],
+                        "complexity": 4,
+                        "practicality": 0.9,
+                    },
                 ],
             },
         ],
@@ -131,13 +178,48 @@ FAKE_RESPONSES: dict[str, dict[str, Any]] = {
                     "annotation": "Модуль знакомит с базовыми конструкциями языка.",
                     "att_form": "тест",
                     "topics": [
-                        {"topic_ref": "T1.1", "summary": "Среда разработки и первая программа", "work_forms": ["практика"], "materials": ["слайды"]},
-                        {"topic_ref": "T1.2", "summary": "Переменные и типы", "work_forms": ["практика"], "materials": ["слайды"]},
-                        {"topic_ref": "T1.3", "summary": "Условия и ветвления", "work_forms": ["практика"], "materials": ["слайды"]},
-                        {"topic_ref": "T1.4", "summary": "Циклы", "work_forms": ["практика"], "materials": ["слайды"]},
-                        {"topic_ref": "T2.1", "summary": "Функции", "work_forms": ["практика"], "materials": ["слайды"]},
-                        {"topic_ref": "T2.2", "summary": "Списки", "work_forms": ["практика"], "materials": ["слайды"]},
-                        {"topic_ref": "T2.3", "summary": "Работа над проектом", "work_forms": ["проект"], "materials": ["примеры"]},
+                        {
+                            "topic_ref": "T1.1",
+                            "summary": "Среда разработки и первая программа",
+                            "work_forms": ["практика"],
+                            "materials": ["слайды"],
+                        },
+                        {
+                            "topic_ref": "T1.2",
+                            "summary": "Переменные и типы",
+                            "work_forms": ["практика"],
+                            "materials": ["слайды"],
+                        },
+                        {
+                            "topic_ref": "T1.3",
+                            "summary": "Условия и ветвления",
+                            "work_forms": ["практика"],
+                            "materials": ["слайды"],
+                        },
+                        {
+                            "topic_ref": "T1.4",
+                            "summary": "Циклы",
+                            "work_forms": ["практика"],
+                            "materials": ["слайды"],
+                        },
+                        {
+                            "topic_ref": "T2.1",
+                            "summary": "Функции",
+                            "work_forms": ["практика"],
+                            "materials": ["слайды"],
+                        },
+                        {
+                            "topic_ref": "T2.2",
+                            "summary": "Списки",
+                            "work_forms": ["практика"],
+                            "materials": ["слайды"],
+                        },
+                        {
+                            "topic_ref": "T2.3",
+                            "summary": "Работа над проектом",
+                            "work_forms": ["проект"],
+                            "materials": ["примеры"],
+                        },
                     ],
                 }
             }
@@ -207,7 +289,13 @@ FAKE_RESPONSES: dict[str, dict[str, Any]] = {
                 "ref": "FA-1",
                 "kind": "final_project",
                 "stem": "Защита мини-проекта на Python",
-                "rubric": [{"criterion": "Проект работает и объяснён", "max_points": 10, "levels": ["зачтено при ≥70%"]}],
+                "rubric": [
+                    {
+                        "criterion": "Проект работает и объяснён",
+                        "max_points": 10,
+                        "levels": ["зачтено при ≥70%"],
+                    }
+                ],
                 "outcome_refs": ["LO1.3"],
             }
         ],
@@ -357,9 +445,7 @@ async def _seed_program() -> tuple[str, str]:
     factory = db_module.get_session_factory()
     async with factory() as session:
         org_id = (
-            await session.execute(
-                text("INSERT INTO organization (name) VALUES ('АЦР Тест') RETURNING id")
-            )
+            await session.execute(text("INSERT INTO organization (name) VALUES ('АЦР Тест') RETURNING id"))
         ).scalar_one()
         user_id = (
             await session.execute(
@@ -493,12 +579,8 @@ def test_full_agent_run_end_to_end(pipeline_db, monkeypatch) -> None:
     async def _prepare() -> str:
         factory = db_module.get_session_factory()
         async with factory() as session:
-            org_id = (
-                await session.execute(text("SELECT id FROM organization LIMIT 1"))
-            ).scalar_one()
-            owner_id = (
-                await session.execute(text("SELECT id FROM app_user LIMIT 1"))
-            ).scalar_one()
+            org_id = (await session.execute(text("SELECT id FROM organization LIMIT 1"))).scalar_one()
+            owner_id = (await session.execute(text("SELECT id FROM app_user LIMIT 1"))).scalar_one()
             run = await pipeline.create_run(
                 session,
                 org_id=str(org_id),
@@ -537,7 +619,13 @@ def test_full_agent_run_end_to_end(pipeline_db, monkeypatch) -> None:
                         VALUES (CAST(:pid AS uuid), :slot, :question, '[]'::jsonb, :ord, :answer, now())
                         """
                     ),
-                    {"pid": run_program_id, "slot": slot, "question": slot, "ord": ord_value, "answer": answer},
+                    {
+                        "pid": run_program_id,
+                        "slot": slot,
+                        "question": slot,
+                        "ord": ord_value,
+                        "answer": answer,
+                    },
                 )
             await session.commit()
             return run["run_id"]

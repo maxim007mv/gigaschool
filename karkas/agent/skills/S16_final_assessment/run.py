@@ -37,9 +37,7 @@ class FinalOut(BaseModel):
     notes: str = ""
 
 
-def normalize_items(
-    items: list[ItemOut], known_outcomes: set[str]
-) -> tuple[list[dict[str, Any]], list[str]]:
+def normalize_items(items: list[ItemOut], known_outcomes: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
     """Постпроверка: rubric для проектов/экзаменов, РО для всех, refs FA-n."""
     normalized: list[dict[str, Any]] = []
     dropped: list[str] = []
@@ -69,9 +67,7 @@ def normalize_items(
         if kind in KINDS_REQUIRING_RUBRIC and not rubric:
             dropped.append(f"{ref}: {kind} без критериев оценки (rubric обязателен)")
             continue
-        normalized.append(
-            {"ref": ref, "kind": kind, "stem": stem, "rubric": rubric, "outcome_refs": refs}
-        )
+        normalized.append({"ref": ref, "kind": kind, "stem": stem, "rubric": rubric, "outcome_refs": refs})
     return normalized, dropped
 
 

@@ -14,11 +14,13 @@ export_ready, job_failed. Каждому событию присваиваетс
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, Awaitable
+from typing import Any
 
 from karkas.settings import settings
 
@@ -48,10 +50,8 @@ class _ProgramChannel:
         for queue in list(self.subscribers):
             if queue.full():
                 # Медленный клиент: роняем самое старое событие, а не копим память.
-                try:
+                with contextlib.suppress(asyncio.QueueEmpty):
                     queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
             queue.put_nowait(evt)
         return evt
 
@@ -118,10 +118,8 @@ class PgNotifyBridge:
             conn = self._conn
             self._conn = None
             if conn is not None:
-                try:
+                with contextlib.suppress(Exception):
                     conn.terminate()  # sync, безопасно из любого потока
-                except Exception:
-                    pass
             self._last_failure = time.monotonic()
 
     async def close(self) -> None:
@@ -129,10 +127,8 @@ class PgNotifyBridge:
         conn = self._conn
         self._conn = None
         if conn is not None:
-            try:
+            with contextlib.suppress(Exception):
                 conn.terminate()
-            except Exception:
-                pass
 
 
 class EventBus:
@@ -154,9 +150,7 @@ class EventBus:
         async with self._lock:
             self._channel(program_id).push(event, data)
         if self._remote_enabled:
-            await self._bridge.notify(
-                {"origin": self._origin, "program_id": program_id, "event": event, "data": data}
-            )
+            await self._bridge.notify({"origin": self._origin, "program_id": program_id, "event": event, "data": data})
 
     async def _on_remote(self, payload: dict[str, Any]) -> None:
         program_id = str(payload.get("program_id") or "")
@@ -167,9 +161,7 @@ class EventBus:
         async with self._lock:
             self._channel(program_id).push(event, data)
 
-    async def subscribe(
-        self, program_id: str, last_event_id: int | None = None
-    ) -> AsyncIterator[SseEvent]:
+    async def subscribe(self, program_id: str, last_event_id: int | None = None) -> AsyncIterator[SseEvent]:
         """Подписка: сначала догоняем пропущенное (Last-Event-ID), затем живые события."""
         queue: asyncio.Queue[SseEvent] = asyncio.Queue(maxsize=_ProgramChannel.QUEUE_LIMIT)
         async with self._lock:

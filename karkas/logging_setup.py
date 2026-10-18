@@ -27,9 +27,7 @@ class RedactSecretsFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003 — API logging
         try:
             if isinstance(record.args, tuple):
-                record.args = tuple(
-                    self._redact(item) if isinstance(item, str) else item for item in record.args
-                )
+                record.args = tuple(self._redact(item) if isinstance(item, str) else item for item in record.args)
             elif isinstance(record.args, dict):
                 record.args = {
                     key: (self._redact(value) if isinstance(value, str) else value)

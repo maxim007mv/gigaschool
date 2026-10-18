@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import io
 import json
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from docx import Document
 from docx.document import Document as DocxDocument

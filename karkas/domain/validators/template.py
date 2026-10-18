@@ -9,9 +9,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -85,7 +86,14 @@ def _has_normative_basis(kit: KitV1) -> bool:
 
 
 def _has_annotation(kit: KitV1) -> bool:
-    return any(b.kind == "annotation" and bool(b.body) for b in kit.content.sections)
+    for block in kit.content.sections:
+        if block.kind != "annotation":
+            continue
+        for key in ("text", "markdown", "content", "summary"):
+            value = block.body.get(key)
+            if isinstance(value, str) and value.strip():
+                return True
+    return False
 
 
 def _has_methodical_materials(kit: KitV1) -> bool:
@@ -106,11 +114,10 @@ FILL_CHECKS: dict[str, Callable[[KitV1], bool]] = {
     "entry_requirements": lambda kit: bool((kit.profile.entry_level or "").strip()),
     "module_programs": _all_modules_have_programs,
     "assessments": lambda kit: bool(kit.content.assessments),
-    "assessments:current_control": lambda kit: any(
-        a.kind in ("test_question", "seminar_task", "interview_question")
-        for a in kit.content.assessments
-    )
-    or any(t.control_form for t in kit.iter_topics()),
+    "assessments:current_control": lambda kit: (
+        any(a.kind in ("test_question", "seminar_task", "interview_question") for a in kit.content.assessments)
+        or any(t.control_form for t in kit.iter_topics())
+    ),
     "assessments:final": lambda kit: any(
         a.kind in ("final_project", "exam_task", "portfolio_item") for a in kit.content.assessments
     ),
@@ -149,7 +156,7 @@ def load_template(kind: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _tpl_01(ctx: "ValidationContext") -> tuple[list, dict]:
+def _tpl_01(ctx: ValidationContext) -> tuple[list, dict]:
     kit = ctx.kit
     stage = resolve_stage(ctx)
     template = load_template(kit.program.kind)
@@ -161,9 +168,7 @@ def _tpl_01(ctx: "ValidationContext") -> tuple[list, dict]:
         code = str(section.get("code", ""))
         title = str(section.get("title", code))
         keys = [str(k) for k in section.get("filled_by") or []]
-        if stage == "framework" and any(
-            k in CONTENT_CHECKS or k.startswith("template_section:") for k in keys
-        ):
+        if stage == "framework" and any(k in CONTENT_CHECKS or k.startswith("template_section:") for k in keys):
             deferred.append(code)
             continue
         if keys and all(_check_filled(kit, key) for key in keys):
@@ -175,8 +180,7 @@ def _tpl_01(ctx: "ValidationContext") -> tuple[list, dict]:
                 issue(
                     "V-TPL-01",
                     "error",
-                    f"Раздел шаблона «{title}» не заполнен — нет данных: "
-                    f"{section.get('source', 'не указан')}",
+                    f"Раздел шаблона «{title}» не заполнен — нет данных: {section.get('source', 'не указан')}",
                     entity_ref=code,
                     fix_hint={"endpoint": "kit:generate", "section": code},
                 )
@@ -245,10 +249,7 @@ def _tpl_03(kit: KitV1) -> list:
                 )
             )
     teachers = getattr(placeholders, "teachers", None) or []
-    if any(
-        any(str(getattr(t, attr, "") or "").strip() for attr in ("name", "position", "degree"))
-        for t in teachers
-    ):
+    if any(any(str(getattr(t, attr, "") or "").strip() for attr in ("name", "position", "degree")) for t in teachers):
         issues.append(
             issue(
                 "V-TPL-03",
@@ -259,10 +260,7 @@ def _tpl_03(kit: KitV1) -> list:
             )
         )
     signatures = getattr(placeholders, "signatures", None) or []
-    if any(
-        any(str(getattr(s, attr, "") or "").strip() for attr in ("name", "position"))
-        for s in signatures
-    ):
+    if any(any(str(getattr(s, attr, "") or "").strip() for attr in ("name", "position")) for s in signatures):
         issues.append(
             issue(
                 "V-TPL-03",
@@ -279,7 +277,7 @@ def _tpl_03(kit: KitV1) -> list:
 # ---------------------------------------------------------------------------
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Все правила группы «Шаблон»."""
     tpl_issues, meta = _tpl_01(ctx)
     issues = list(tpl_issues)

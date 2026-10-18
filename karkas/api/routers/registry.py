@@ -15,9 +15,7 @@ from karkas.api.errors import NotFound
 from karkas.infra.db import get_session
 from karkas.infra.repos import registry as registry_repo
 
-router = APIRouter(
-    prefix="/registry", tags=["registry"], dependencies=[Depends(enforce_rate_limit)]
-)
+router = APIRouter(prefix="/registry", tags=["registry"], dependencies=[Depends(enforce_rate_limit)])
 
 
 @router.get("/prof-standards")

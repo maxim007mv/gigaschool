@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from karkas.domain.kit import (
     AnswerKey,
@@ -192,7 +192,9 @@ def build_tk2_kit() -> KitV1:
             total_hours=36,
             document="удостоверение о повышении квалификации",
             final_attestation=FinalAttestation(form="зачёт по портфолио", hours=2),
-            legal_basis=[LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266", status="verified")],
+            legal_basis=[
+                LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266", status="verified")
+            ],
         ),
         profile=ProgramProfile(audience="учителя школ", entry_level="без навыков программирования"),
         framework=Framework(
@@ -233,7 +235,6 @@ def build_tk3_kit() -> KitV1:
         ("M3", "SQL для выгрузки данных", "T3.1", "SQL для банковских выгрузок"),
         ("M4", "Основы статистики", "T4.1", "Статистика оттока клиентов банка и задолженности"),
     ]
-    topics: list[Topic] = []
     modules: list[Module] = []
     hour_pairs = [(18, 0), (18, 0), (17, 0), (17, 0)]
     for idx, ((mref, mtitle, tref, ttitle), (lec, prac)) in enumerate(zip(mods, hour_pairs, strict=True), start=1):
@@ -252,7 +253,9 @@ def build_tk3_kit() -> KitV1:
             total_hours=72,
             document="удостоверение о повышении квалификации",
             final_attestation=FinalAttestation(form="защита проекта", hours=2),
-            legal_basis=[LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266", status="verified")],
+            legal_basis=[
+                LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266", status="verified")
+            ],
         ),
         profile=ProgramProfile(audience="сотрудники банков", entry_level="опыт работы в Excel"),
         framework=Framework(
@@ -278,18 +281,16 @@ def build_tk4_kit() -> KitV1:
     base = build_tk3_kit()
     return base.model_copy(
         update={
-            "program": base.program.model_copy(
-                update={"title": "Кибербезопасность для студентов колледжа"}
-            ),
+            "program": base.program.model_copy(update={"title": "Кибербезопасность для студентов колледжа"}),
             "framework": base.framework.model_copy(
                 update={
                     "modules": [
                         base.framework.modules[0].model_copy(
                             update={
                                 "topics": [
-                                    base.framework.modules[0].topics[0].model_copy(
-                                        update={"title": "Основы информационной безопасности"}
-                                    ),
+                                    base.framework.modules[0]
+                                    .topics[0]
+                                    .model_copy(update={"title": "Основы информационной безопасности"}),
                                     *base.framework.modules[0].topics[1:],
                                 ]
                             }
@@ -347,7 +348,9 @@ def build_tk5_kit() -> KitV1:
             total_hours=256,
             document="удостоверение о повышении квалификации",
             final_attestation=FinalAttestation(form="защита отчёта о стажировке", hours=2),
-            legal_basis=[LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266", status="verified")],
+            legal_basis=[
+                LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266", status="verified")
+            ],
         ),
         profile=ProgramProfile(audience="стажёры ИТ-компаний", entry_level="базовый Linux"),
         framework=Framework(

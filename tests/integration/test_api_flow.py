@@ -103,9 +103,8 @@ def _auth() -> dict[str, str]:
 
 async def _seed_kit(program_id: str, *, break_hours: bool = False) -> None:
     """Записать согласованный каркас в БД (эмуляция результата S04–S10)."""
-    from tests.integration.test_repos_roundtrip import _kit
-
     from karkas.infra.repos import framework as framework_repo
+    from tests.integration.test_repos_roundtrip import _kit
 
     factory = db_module.get_session_factory()
     async with factory() as session:
@@ -212,9 +211,7 @@ def test_full_api_flow(api_env) -> None:
         f"/api/v1/programs/{program_id}/framework:rebalance", headers=headers, json={"keep_locked": True}
     )
     assert rebalance.status_code == 200, rebalance.text
-    hours_issues = [
-        issue for issue in rebalance.json()["checks"]["issues"] if issue["rule_code"].startswith("V-HRS")
-    ]
+    hours_issues = [issue for issue in rebalance.json()["checks"]["issues"] if issue["rule_code"].startswith("V-HRS")]
     assert hours_issues == [], f"часы должны сойтись после rebalance: {hours_issues}"
 
     # 9. Утверждение каркаса (Human Gate) и запуск комплекта
@@ -273,9 +270,7 @@ def test_full_api_flow(api_env) -> None:
 def test_gate_blocks_kit_before_approval(api_env) -> None:
     client = _client()
     headers = _auth()
-    response = client.post(
-        "/api/v1/programs", headers=headers, json={"brief": "Курс по кибербезопасности, 72 часа"}
-    )
+    response = client.post("/api/v1/programs", headers=headers, json={"brief": "Курс по кибербезопасности, 72 часа"})
     program_id = response.json()["program_id"]
     asyncio.run(_seed_kit(program_id))
     asyncio.run(db_module.dispose_engine())

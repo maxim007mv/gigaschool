@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 
 from karkas.agent.llm_gateway import LlmGateway
 from karkas.agent.pipeline import _constraints_dict
-import pytest
-
 from karkas.settings import Settings
 
 

@@ -1,2 +1,1 @@
-"""Контрактные тесты API (tests/contract).
-"""
+"""Контрактные тесты API (tests/contract)."""

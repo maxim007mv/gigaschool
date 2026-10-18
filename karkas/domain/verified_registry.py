@@ -8,12 +8,12 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from karkas.domain.kit import Competency, LaborFunctionRef, ProfStandardRef, Source
+from karkas.domain.kit import Competency, Source
 
 VERIFIED_JSON = Path(__file__).resolve().parents[2] / "data" / "registries" / "verified.json"
 NEEDS_REVIEW = "требует проверки"
@@ -59,9 +59,7 @@ def load_file_verified() -> FileVerifiedRegistry:
     )
     acts = frozenset(str(item["number"]).strip() for item in raw.get("normative_acts") or [] if item.get("number"))
     cites = frozenset(
-        str(item["citation"]).strip().lower()
-        for item in raw.get("sources") or []
-        if item.get("citation")
+        str(item["citation"]).strip().lower() for item in raw.get("sources") or [] if item.get("citation")
     )
     return FileVerifiedRegistry(
         prof_standard_codes=ps,
@@ -85,9 +83,7 @@ def merge_file_prof_standards(existing: list[dict[str, Any]]) -> list[dict[str, 
             "title": item.get("title") or "",
             "status": item.get("status") or "active",
             "labor_functions": [
-                lf
-                for lf in raw.get("labor_functions") or []
-                if str(lf.get("prof_standard_code") or "").strip() == code
+                lf for lf in raw.get("labor_functions") or [] if str(lf.get("prof_standard_code") or "").strip() == code
             ],
         }
     return [annotate_prof_candidate(row, verified) for row in by_code.values()]
@@ -172,11 +168,14 @@ def apply_source_verification_flags(sources: list[Source]) -> list[Source]:
             updated.append(src)
             continue
         cite = (src.citation or "").strip().lower()
-        if cite and verified.source_citations:
-            if any(cite == known or known in cite or cite in known for known in verified.source_citations):
-                if src.status == "unverified":
-                    updated.append(src.model_copy(update={"status": "verified"}))
-                    continue
+        if (
+            cite
+            and verified.source_citations
+            and any(cite == known or known in cite or cite in known for known in verified.source_citations)
+            and src.status == "unverified"
+        ):
+            updated.append(src.model_copy(update={"status": "verified"}))
+            continue
         updated.append(src)
     return updated
 

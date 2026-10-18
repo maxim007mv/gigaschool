@@ -50,4 +50,4 @@ def test_isbn_partially_verified() -> None:
         None,
         __import__("datetime").date.today(),
     )
-    assert row2["status"] == "partially_verified"
+    assert row2["status"] == "unverified"

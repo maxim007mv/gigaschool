@@ -19,11 +19,11 @@ from karkas.domain.validators.base import GroupResult, issue
 if TYPE_CHECKING:  # pragma: no cover - только для аннотаций
     from karkas.domain.validators import ValidationContext
 
-EXPERIENCE_MAX_HOURS = 72     # порог объёма для результата «практический опыт»
-OUTCOMES_PER_HOUR = 0.5       # не более 1 РО на каждые 2 часа
+EXPERIENCE_MAX_HOURS = 72  # порог объёма для результата «практический опыт»
+OUTCOMES_PER_HOUR = 0.5  # не более 1 РО на каждые 2 часа
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Проверки реалистичности объёма и результатов."""
     kit = ctx.kit
     total = kit.program.total_hours

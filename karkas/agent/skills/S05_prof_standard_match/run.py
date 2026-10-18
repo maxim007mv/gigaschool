@@ -130,7 +130,10 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     if not candidate.get("file_verified"):
         note = (note + " " if note else "") + "код профстандарта — требует проверки (нет в локальном реестре)"
     return {
-        "prof_standard": {"code": code, "title": prof_standard.title.strip() or str(candidate.get("title") or "")},
+        "prof_standard": {
+            "code": code,
+            "title": prof_standard.title.strip() or str(candidate.get("title") or ""),
+        },
         "labor_functions": functions,
         "confidence": max(0.0, min(1.0, payload.confidence)),
         "note": note,

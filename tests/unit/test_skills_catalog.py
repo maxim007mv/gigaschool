@@ -15,9 +15,14 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from karkas.agent.skills import SKILLS, SKILL_DIRS, load_skill
-from karkas.agent.skills._base import SKILLS_DIR, InMemoryCheckpointStore, SkillContext, SkillSpec
-from karkas.agent.skills._base import render_prompt
+from karkas.agent.skills import SKILL_DIRS, SKILLS, load_skill
+from karkas.agent.skills._base import (
+    SKILLS_DIR,
+    InMemoryCheckpointStore,
+    SkillContext,
+    SkillSpec,
+    render_prompt,
+)
 from karkas.domain.hours import Plan
 from karkas.domain.kit import Report
 from karkas.settings import Settings
@@ -422,7 +427,11 @@ async def test_s08_hours_solver_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(module, "solve", fake_solve)
     inputs = {
         "modules": [
-            {"ref": "M1", "weight": 1.0, "topics": [{"ref": "T1.1", "weight": 1.0, "practicality": 0.8, "has_lab": False}]}
+            {
+                "ref": "M1",
+                "weight": 1.0,
+                "topics": [{"ref": "T1.1", "weight": 1.0, "practicality": 0.8, "has_lab": False}],
+            }
         ],
         "constraints": {"total": 16, "final_att": 2, "unit": 1},
     }
@@ -540,11 +549,26 @@ async def test_s18_isbn_check_digits() -> None:
 async def test_s18_verifies_sources_and_summary() -> None:
     module = skill_module("S18")
     sources = [
-        {"ref": "SRC-01", "section": "normative", "citation": "Приказ № 499", "normative_act_ref": "Минобрнауки 499"},
-        {"ref": "SRC-02", "section": "normative", "citation": "Старый приказ", "normative_act_ref": "Минобрнауки 100"},
+        {
+            "ref": "SRC-01",
+            "section": "normative",
+            "citation": "Приказ № 499",
+            "normative_act_ref": "Минобрнауки 499",
+        },
+        {
+            "ref": "SRC-02",
+            "section": "normative",
+            "citation": "Старый приказ",
+            "normative_act_ref": "Минобрнауки 100",
+        },
         {"ref": "SRC-03", "section": "main", "citation": "Книга", "isbn": "978-5-4461-1234-0"},
         {"ref": "SRC-04", "section": "main", "citation": "Книга с опечаткой", "isbn": "978-5-4461-1234-1"},
-        {"ref": "SRC-05", "section": "internet", "citation": "Документация", "url": "https://docs.python.org/3/"},
+        {
+            "ref": "SRC-05",
+            "section": "internet",
+            "citation": "Документация",
+            "url": "https://docs.python.org/3/",
+        },
         {"ref": "SRC-06", "section": "software", "citation": "Python 3.13", "url": None},
         {"ref": "SRC-07", "section": "additional", "citation": "Книга без ISBN", "isbn": None},
     ]
@@ -562,16 +586,16 @@ async def test_s18_verifies_sources_and_summary() -> None:
     statuses = {source["ref"]: source["status"] for source in result["sources"]}
     assert statuses["SRC-01"] == "verified"
     assert statuses["SRC-02"] == "outdated"
-    assert statuses["SRC-03"] == "partially_verified"
+    assert statuses["SRC-03"] == "unverified"
     assert statuses["SRC-04"] == "not_found"
     assert statuses["SRC-05"] == "verified"
     assert statuses["SRC-06"] == "verified"
     assert statuses["SRC-07"] == "unverified"
     assert result["summary"]["verified"] == 3
-    assert result["summary"]["partially_verified"] == 1
+    assert result["summary"]["partially_verified"] == 0
     assert result["summary"]["not_found"] == 1
     assert result["summary"]["outdated"] == 1
-    assert result["summary"]["unverified"] == 1
+    assert result["summary"]["unverified"] == 2
     assert "SRC-05" not in result["unconfirmed"]
     assert result["sources"][4]["evidence"]["http_checked"] is False
 

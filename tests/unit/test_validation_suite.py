@@ -35,7 +35,6 @@ from karkas.domain.kit import (
 )
 from karkas.domain.validators import ValidationContext, run_validation
 
-
 # ---------------------------------------------------------------------------
 # Минимальный корректный KitV1: ДОП 80 ч (78 ч тем + 2 ч ИА), школьники.
 # Намеренно без единого замечания — эталон для «испорченных копий».
@@ -43,12 +42,9 @@ from karkas.domain.validators import ValidationContext, run_validation
 
 
 def _calendar_80h() -> Calendar:
-    sessions = [
-        CalendarSession(seq=i + 1, week=(i // 4) + 1, day=i + 1, topic_ref="T1.1", hours=4) for i in range(10)
-    ]
+    sessions = [CalendarSession(seq=i + 1, week=(i // 4) + 1, day=i + 1, topic_ref="T1.1", hours=4) for i in range(10)]
     sessions += [
-        CalendarSession(seq=11 + i, week=(10 + i) // 4 + 1, day=11 + i, topic_ref="T1.2", hours=4)
-        for i in range(9)
+        CalendarSession(seq=11 + i, week=(10 + i) // 4 + 1, day=11 + i, topic_ref="T1.2", hours=4) for i in range(9)
     ]
     sessions += [
         CalendarSession(seq=20, week=5, day=20, topic_ref="T1.2", hours=2),
@@ -301,8 +297,7 @@ def test_plg_01_skipped_without_references():
 
 def rea_kit(total: int, outcome_types: list[str]) -> KitV1:
     outcomes = [
-        Outcome(ref=f"LO1.{i + 1}", type=kind, text=f"Результат {i + 1}")
-        for i, kind in enumerate(outcome_types)
+        Outcome(ref=f"LO1.{i + 1}", type=kind, text=f"Результат {i + 1}") for i, kind in enumerate(outcome_types)
     ]
     header = ProgramHeader(
         kind="dop",

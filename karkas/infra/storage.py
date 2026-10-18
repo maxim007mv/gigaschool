@@ -25,7 +25,7 @@ class ObjectStorage(Protocol):
 def local_presign_signature(bucket: str, key: str, exp: int) -> str:
     """HMAC-подпись для локального HTTP-presign (без boto3)."""
     secret = (settings.jwt_secret or "dev").encode("utf-8")
-    payload = f"{bucket}\n{key}\n{exp}".encode("utf-8")
+    payload = f"{bucket}\n{key}\n{exp}".encode()
     return hmac.new(secret, payload, hashlib.sha256).hexdigest()
 
 
@@ -63,10 +63,7 @@ class LocalStorage:
         exp = int(time.time()) + max(1, int(ttl_s))
         sig = local_presign_signature(bucket, key, exp)
         base = (settings.public_api_base or "http://127.0.0.1:8000").rstrip("/")
-        return (
-            f"{base}/api/v1/local-storage/{quote(bucket, safe='')}/"
-            f"{quote(key, safe='/')}?exp={exp}&sig={sig}"
-        )
+        return f"{base}/api/v1/local-storage/{quote(bucket, safe='')}/{quote(key, safe='/')}?exp={exp}&sig={sig}"
 
 
 class S3Storage:
@@ -90,9 +87,7 @@ class S3Storage:
         return self._client.get_object(Bucket=bucket, Key=key)["Body"].read()
 
     def presign(self, bucket: str, key: str, ttl_s: int = 900) -> str:
-        return self._client.generate_presigned_url(
-            "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=ttl_s
-        )
+        return self._client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=ttl_s)
 
 
 def get_storage() -> ObjectStorage:

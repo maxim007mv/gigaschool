@@ -113,9 +113,7 @@ def test_moodle_tags_bind_questions_to_outcomes(kit: KitV1) -> None:
         question = _question_by_ref(root, ref)
         tags = [tag.findtext("text") for tag in question.findall("tags/tag")]
         assert tags == outcome_refs
-    assert "ST-T1.1-1" not in {
-        question.findtext("idnumber") for question in root.findall("question")
-    }
+    assert "ST-T1.1-1" not in {question.findtext("idnumber") for question in root.findall("question")}
 
 
 def test_moodle_empty_quiz_without_questions() -> None:
@@ -237,9 +235,7 @@ def test_csv_multiple_question_quotes_delimiter(kit: KitV1) -> None:
     """Значение с ';' экранируется и разбирается csv.reader как одна ячейка."""
     text = export_tests_csv(kit)
     rows = {row[0]: row for row in _csv_rows(text)[1:]}
-    expected_stem = (
-        "Какие методы дают обзор таблицы? Выберите все верные; верных может быть несколько."
-    )
+    expected_stem = "Какие методы дают обзор таблицы? Выберите все верные; верных может быть несколько."
     assert rows["Q-002"][5] == expected_stem
     assert rows["Q-002"][10] == "df.head() | df.describe()"
 

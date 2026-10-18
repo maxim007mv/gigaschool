@@ -58,7 +58,7 @@ class _Response:
 
 
 class _FakeCompletions:
-    def __init__(self, client: "FakeClient") -> None:
+    def __init__(self, client: FakeClient) -> None:
         self._client = client
 
     async def create(
@@ -74,7 +74,7 @@ class _FakeCompletions:
 
 
 class _FakeChat:
-    def __init__(self, client: "FakeClient") -> None:
+    def __init__(self, client: FakeClient) -> None:
         self.completions = _FakeCompletions(client)
 
 
@@ -221,9 +221,7 @@ async def test_temperature_by_class_and_override() -> None:
     gateway = make_gateway(client)
     await gateway.complete_json("S01", "struct", [{"role": "user", "content": "1"}], Out)
     await gateway.complete_json("S11", "bulk", [{"role": "user", "content": "2"}], Out)
-    await gateway.complete_json(
-        "S11", "bulk", [{"role": "user", "content": "3"}], Out, temperature=0.9
-    )
+    await gateway.complete_json("S11", "bulk", [{"role": "user", "content": "3"}], Out, temperature=0.9)
     assert client.calls[0]["model"] == "model-struct"
     assert client.calls[1]["model"] == "model-bulk"
     assert client.calls[0]["temperature"] == pytest.approx(0.15)
@@ -454,10 +452,7 @@ async def test_parallelism_limited_by_semaphore() -> None:
         sleep=noop_sleep,
     )
     await asyncio.gather(
-        *(
-            gateway.complete_json("S01", "struct", [{"role": "user", "content": f"q{i}"}], Out)
-            for i in range(10)
-        )
+        *(gateway.complete_json("S01", "struct", [{"role": "user", "content": f"q{i}"}], Out) for i in range(10))
     )
     assert client.max_active <= 3
     assert client.max_active >= 2

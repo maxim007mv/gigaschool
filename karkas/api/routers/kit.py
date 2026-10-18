@@ -20,9 +20,7 @@ from karkas.infra.repos import jobs as jobs_repo
 from karkas.infra.repos import programs as programs_repo
 from karkas.settings import settings
 
-router = APIRouter(
-    prefix="/programs", tags=["kit"], dependencies=[Depends(enforce_rate_limit)]
-)
+router = APIRouter(prefix="/programs", tags=["kit"], dependencies=[Depends(enforce_rate_limit)])
 
 KIT_OK_STATUSES = ("framework_approved", "kit_review", "kit_updating")
 
@@ -44,7 +42,10 @@ async def generate_kit(
         raise JobInProgress("Сборка комплекта уже выполняется")
 
     job_id = await jobs_repo.enqueue(
-        session, kind="kit", program_id=program_id, priority=5,
+        session,
+        kind="kit",
+        program_id=program_id,
+        priority=5,
         payload={
             "slides": payload.slides,
             "tests": payload.tests,
@@ -57,8 +58,12 @@ async def generate_kit(
     )
     await programs_repo.set_status(session, program_id=program_id, status="kit_generating")
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="kit.generate",
-        actor_id=principal.user_id, program_id=program_id, details={"job_id": job_id},
+        session,
+        org_id=program["org_id"],
+        action="kit.generate",
+        actor_id=principal.user_id,
+        program_id=program_id,
+        details={"job_id": job_id},
     )
     await session.commit()
     response.headers["Location"] = f"/api/v1/jobs/{job_id}"
@@ -237,7 +242,9 @@ async def create_edit(
     await session.execute(
         text(
             """
-            INSERT INTO edit_request (id, program_id, author_id, target_ref, instruction, affected_refs, status, base_version)
+            INSERT INTO edit_request (
+                id, program_id, author_id, target_ref, instruction, affected_refs, status, base_version
+            )
             VALUES (CAST(:eid AS uuid), CAST(:pid AS uuid), CAST(:author AS uuid), :target, :instruction,
                     :affected, :status, :base)
             """
@@ -261,7 +268,11 @@ async def create_edit(
             kind="edit",
             program_id=program_id,
             priority=3,
-            payload={"edit_id": edit_id, "target_ref": payload.target_ref, "instruction": payload.instruction},
+            payload={
+                "edit_id": edit_id,
+                "target_ref": payload.target_ref,
+                "instruction": payload.instruction,
+            },
         )
     await session.commit()
     if job_id:
@@ -285,16 +296,20 @@ async def get_edit(
     program = await get_program_or_404(session, program_id, principal)
     assert_access(principal, program)
     row = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT * FROM edit_request
                 WHERE id = CAST(:eid AS uuid) AND program_id = CAST(:pid AS uuid)
                 """
-            ),
-            {"eid": edit_id, "pid": program_id},
+                ),
+                {"eid": edit_id, "pid": program_id},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if row is None:
         raise NotFound("Правка не найдена")
     return {
@@ -331,8 +346,11 @@ async def create_export(
         payload={"formats": payload.formats},
     )
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="export.create",
-        actor_id=principal.user_id, program_id=program_id,
+        session,
+        org_id=program["org_id"],
+        action="export.create",
+        actor_id=principal.user_id,
+        program_id=program_id,
         details={"formats": payload.formats, "job_id": job_id},
     )
     await session.commit()
@@ -357,31 +375,39 @@ async def _export_status(
 
     # Файлы ИМЕННО этой выгрузки (artifact.export_id), а не последние по программе.
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT a.kind, a.s3_key, a.version FROM artifact a
                 WHERE a.export_id = CAST(:eid AS uuid)
                 ORDER BY a.created_at DESC LIMIT 20
                 """
-            ),
-            {"eid": export_id},
+                ),
+                {"eid": export_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     if not rows:
         # Совместимость: выгрузки, сделанные до миграции 004 (без export_id).
         rows = (
-            await session.execute(
-                text(
-                    """
+            (
+                await session.execute(
+                    text(
+                        """
                     SELECT a.kind, a.s3_key, a.version FROM artifact a
                     WHERE a.program_id = CAST(:pid AS uuid)
                     ORDER BY a.created_at DESC LIMIT 20
                     """
-                ),
-                {"pid": job["program_id"]},
+                    ),
+                    {"pid": job["program_id"]},
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
     storage_obj = storage.get_storage()
     files = [
@@ -398,9 +424,7 @@ async def _export_status(
 
 
 #: Роутер выгрузок с путём /exports/{id} (Д4 §6.2).
-exports_router = APIRouter(
-    prefix="/exports", tags=["kit"], dependencies=[Depends(enforce_rate_limit)]
-)
+exports_router = APIRouter(prefix="/exports", tags=["kit"], dependencies=[Depends(enforce_rate_limit)])
 
 
 @exports_router.get("/{export_id}", response_model=schemas.ExportOut)
@@ -443,17 +467,22 @@ async def actualize_program(
         file_row = await files_repo.get_file(session, file_id, program["org_id"])
         if file_row is None:
             raise NotFound(f"Файл {file_id} не найден в организации")
-        await files_repo.attach_to_program(
-            session, program_id=program_id, file_id=file_id, role="old_program"
-        )
+        await files_repo.attach_to_program(session, program_id=program_id, file_id=file_id, role="old_program")
 
     job_id = await jobs_repo.enqueue(
-        session, kind="actualize", program_id=program_id, priority=5,
+        session,
+        kind="actualize",
+        program_id=program_id,
+        priority=5,
         payload={"old_program_files": file_ids},
     )
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="program.actualize",
-        actor_id=principal.user_id, program_id=program_id, details={"job_id": job_id},
+        session,
+        org_id=program["org_id"],
+        action="program.actualize",
+        actor_id=principal.user_id,
+        program_id=program_id,
+        details={"job_id": job_id},
     )
     await session.commit()
     response.headers["Location"] = f"/api/v1/jobs/{job_id}"
@@ -482,7 +511,10 @@ async def adapt_program(
     if await jobs_repo.has_active(session, program_id=program_id, kind="adapt"):
         raise JobInProgress("Адаптация уже выполняется")
     job_id = await jobs_repo.enqueue(
-        session, kind="adapt", program_id=program_id, priority=5,
+        session,
+        kind="adapt",
+        program_id=program_id,
+        priority=5,
         payload={
             "audience": payload.get("audience"),
             "total_hours": int(target_hours) if target_hours else None,
@@ -490,8 +522,12 @@ async def adapt_program(
         },
     )
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="program.adapt",
-        actor_id=principal.user_id, program_id=program_id, details={"job_id": job_id},
+        session,
+        org_id=program["org_id"],
+        action="program.adapt",
+        actor_id=principal.user_id,
+        program_id=program_id,
+        details={"job_id": job_id},
     )
     await session.commit()
     response.headers["Location"] = f"/api/v1/jobs/{job_id}"

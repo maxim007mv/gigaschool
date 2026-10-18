@@ -117,6 +117,15 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
         ),
     )
     competencies, gaps = normalize_competencies(payload.competencies, allowed_lf, kind)
+    try:
+        total_hours = int(inputs.get("total_hours") or profile.get("total_hours") or 0)
+    except (TypeError, ValueError):
+        total_hours = 0
+    if 0 < total_hours <= 72:
+        for comp in competencies:
+            for outcome in comp["outcomes"]:
+                if outcome["type"] == "experience":
+                    outcome["type"] = "skill"
     if not competencies:
         raise ValueError("S06: после постпроверки не осталось валидных компетенций")
     return {

@@ -39,12 +39,12 @@ def test_extract_docx_keeps_tables_and_headings() -> None:
 
 
 def test_extract_txt_and_md() -> None:
-    mime, text, meta = ingest.extract("notes.txt", "Бриф: курс на 72 часа".encode("utf-8"))
+    mime, text, meta = ingest.extract("notes.txt", "Бриф: курс на 72 часа".encode())
     assert mime == "text/plain"
     assert "72" in text
     assert meta["lines"] == 1
 
-    mime_md, text_md, _ = ingest.extract("readme.md", "# Заголовок\nтекст".encode("utf-8"))
+    mime_md, text_md, _ = ingest.extract("readme.md", "# Заголовок\nтекст".encode())
     assert mime_md == "text/markdown"
     assert "Заголовок" in text_md
 
@@ -84,6 +84,6 @@ def test_size_limits() -> None:
 
 
 def test_control_chars_stripped() -> None:
-    _, text, _ = ingest.extract("weird.txt", "текст\x07с\x08мусором".encode("utf-8"))
+    _, text, _ = ingest.extract("weird.txt", "текст\x07с\x08мусором".encode())
     assert "\x07" not in text and "\x08" not in text
     assert "текст" in text and "мусором" in text

@@ -9,13 +9,12 @@
 
 from __future__ import annotations
 
-import karkas.infra.exporters.bootstrap  # noqa: F401 — V-ACR в run_checklist
-
 import argparse
 import json
 import sys
 from pathlib import Path
 
+import karkas.infra.exporters.bootstrap  # noqa: F401 — V-ACR в run_checklist
 from karkas.domain.kit import KitV1
 from karkas.eval.checklists import format_report, run_checklist
 from karkas.eval.official_cases import OFFICIAL_CASES

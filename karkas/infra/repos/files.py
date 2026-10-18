@@ -75,11 +75,15 @@ async def get_file(session: AsyncSession, file_id: str, org_id: str | None = Non
 async def find_by_sha(session: AsyncSession, org_id: str, sha256: bytes) -> dict[str, Any] | None:
     """Найти уже загруженный файл по содержимому (дедупликация до записи в S3)."""
     row = (
-        await session.execute(
-            text("SELECT * FROM file_object WHERE org_id = :org_id AND sha256 = :sha"),
-            {"org_id": org_id, "sha": sha256},
+        (
+            await session.execute(
+                text("SELECT * FROM file_object WHERE org_id = :org_id AND sha256 = :sha"),
+                {"org_id": org_id, "sha": sha256},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     return dict(row) if row else None
 
 
@@ -104,18 +108,22 @@ async def attach_to_program(
 
 async def program_files(session: AsyncSession, program_id: str) -> list[dict[str, Any]]:
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT pf.role, fo.id, fo.filename, fo.mime_type, fo.extracted_text IS NOT NULL AS has_text
                 FROM program_file pf JOIN file_object fo ON fo.id = pf.file_id
                 WHERE pf.program_id = CAST(:pid AS uuid)
                 ORDER BY fo.filename
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 

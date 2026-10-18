@@ -84,7 +84,9 @@ def normalize_questions(
             if not correct:
                 dropped.append(f"{ref}: правильный вариант не найден среди options")
                 continue
-        difficulty = question.difficulty if isinstance(question.difficulty, int) and 1 <= question.difficulty <= 5 else None
+        difficulty = (
+            question.difficulty if isinstance(question.difficulty, int) and 1 <= question.difficulty <= 5 else None
+        )
         questions.append(
             {
                 "ref": ref,

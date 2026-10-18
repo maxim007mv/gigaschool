@@ -7,9 +7,11 @@ import subprocess
 
 import pytest
 
-from migrations.runner import apply_migrations, applied_migrations
+from migrations.runner import MIGRATIONS_DIR, applied_migrations, apply_migrations, migration_files
 
-MIGRATIONS_EXIST = (__import__("pathlib").Path(__file__).resolve().parents[2] / "migrations" / "sql" / "001_init.sql").exists()
+MIGRATIONS_EXIST = (
+    __import__("pathlib").Path(__file__).resolve().parents[2] / "migrations" / "sql" / "001_init.sql"
+).exists()
 
 
 def _psql(*args: str) -> subprocess.CompletedProcess:
@@ -42,13 +44,9 @@ async def test_runner_applies_and_is_idempotent() -> None:
     assert _psql("-c", f"CREATE DATABASE {db}").returncode == 0
     dsn = f"postgresql://{__import__('os').environ.get('USER', 'postgres')}@127.0.0.1:5432/{db}"
     try:
+        expected = [p.name for p in migration_files(MIGRATIONS_DIR, include_demo=False)]
         applied = await apply_migrations(dsn)
-        assert applied == [
-            "001_init.sql",
-            "002_indexes_views.sql",
-            "003_seed_registry.sql",
-            "004_review_fixes.sql",
-        ]
+        assert applied == expected
 
         # повторный запуск — no-op
         assert await apply_migrations(dsn) == []

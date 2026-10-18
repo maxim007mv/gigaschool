@@ -48,8 +48,7 @@ def _slide_issues(kit: KitV1, notes: str) -> list:
                 issue(
                     "V-REQ-01",
                     "error",
-                    "Бриф просит слайды, но ни одного блока слайдов нет — слайды обязательны "
-                    "минимум для одного модуля",
+                    "Бриф просит слайды, но ни одного блока слайдов нет — слайды обязательны минимум для одного модуля",
                 )
             )
         return issues
@@ -76,7 +75,7 @@ def _slide_issues(kit: KitV1, notes: str) -> list:
     return issues
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Проверка явных пожеланий запроса."""
     kit = ctx.kit
     issues = []

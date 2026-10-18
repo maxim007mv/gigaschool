@@ -6,13 +6,14 @@
 
 from __future__ import annotations
 
-import os
+pytest_plugins = ["tests.integration.test_api_flow"]
 
-import pytest
+import os  # noqa: E402
 
-import karkas.infra.exporters.bootstrap  # noqa: F401 — V-ACR / export_program_docx в тестах
+import pytest  # noqa: E402
 
-from karkas.domain.kit import (
+import karkas.infra.exporters.bootstrap  # noqa: F401, E402 — V-ACR / export_program_docx в тестах
+from karkas.domain.kit import (  # noqa: E402
     Competency,
     Content,
     FinalAttestation,

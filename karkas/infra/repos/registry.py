@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy import text
@@ -14,9 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def search_prof_standards(session: AsyncSession, q: str, *, limit: int = 10) -> list[dict[str, Any]]:
     """Поиск действующих профстандартов: pg_trgm по названию + код."""
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT code, title, order_number, order_date, reg_number,
                        round(similarity(title_trgm, lower(:q))::numeric, 2) AS sim
                 FROM prof_standard
@@ -25,38 +27,49 @@ async def search_prof_standards(session: AsyncSession, q: str, *, limit: int = 1
                 ORDER BY sim DESC NULLS LAST, code
                 LIMIT :limit
                 """
-            ),
-            {"q": q, "q_like": f"%{q}%", "limit": limit},
+                ),
+                {"q": q, "q_like": f"%{q}%", "limit": limit},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 
 async def get_prof_standard(session: AsyncSession, code: str) -> dict[str, Any] | None:
     row = (
-        await session.execute(
-            text("SELECT * FROM prof_standard WHERE code = :code"),
-            {"code": code},
+        (
+            await session.execute(
+                text("SELECT * FROM prof_standard WHERE code = :code"),
+                {"code": code},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     return dict(row) if row else None
 
 
 async def labor_functions(session: AsyncSession, prof_standard_code: str) -> list[dict[str, Any]]:
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT lf.code, lf.title, lf.otf_code, lf.qual_level, lf.actions, lf.skills, lf.knowledge
                 FROM labor_function lf
                 JOIN prof_standard ps ON ps.id = lf.prof_standard_id
                 WHERE ps.code = :code
                 ORDER BY lf.code
                 """
-            ),
-            {"code": prof_standard_code},
+                ),
+                {"code": prof_standard_code},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]
 
 
@@ -85,9 +98,7 @@ async def normative_acts(
     return [dict(r) for r in rows]
 
 
-async def get_labor_function_id(
-    session: AsyncSession, *, prof_standard_code: str, lf_code: str
-) -> str | None:
+async def get_labor_function_id(session: AsyncSession, *, prof_standard_code: str, lf_code: str) -> str | None:
     row = (
         await session.execute(
             text(
@@ -105,16 +116,20 @@ async def get_labor_function_id(
 
 async def search_services(session: AsyncSession, q: str, *, limit: int = 10) -> list[dict[str, Any]]:
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT name, category, available_ru, lifecycle, latest_version, checked_on, evidence_url
                 FROM service_catalog
                 WHERE name ILIKE :q_like
                 ORDER BY name LIMIT :limit
                 """
-            ),
-            {"q_like": f"%{q}%", "limit": limit},
+                ),
+                {"q_like": f"%{q}%", "limit": limit},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     return [dict(r) for r in rows]

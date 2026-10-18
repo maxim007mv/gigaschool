@@ -32,7 +32,7 @@ def _iter_slide_dicts(kit: KitV1) -> list[tuple[str, dict]]:
     for block in kit.content.slides:
         raw = block.body.get("slides")
         if isinstance(raw, list):
-            for index, item in enumerate(raw):
+            for _index, item in enumerate(raw):
                 if isinstance(item, dict):
                     rows.append((block.topic_ref or block.ref, item))
         elif block.body.get("title") or block.body.get("bullets"):
@@ -40,7 +40,7 @@ def _iter_slide_dicts(kit: KitV1) -> list[tuple[str, dict]]:
     return rows
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     if resolve_stage(ctx) != "kit":
         return GroupResult(skipped=["V-CNT-01", "V-CNT-02", "V-CNT-03", "V-CNT-04", "V-CNT-05"])
     kit = ctx.kit
@@ -179,17 +179,18 @@ def validate(ctx: "ValidationContext") -> GroupResult:
                 )
             else:
                 seen_stems[stem_norm] = assessment.ref
-        if assessment.kind == "seminar_task":
-            if not assessment.rubric or not any(c.criterion.strip() for c in assessment.rubric):
-                issues.append(
-                    issue(
-                        "V-CNT-03",
-                        "error",
-                        f"{assessment.ref}: задание семинара без критериев оценки (rubric)",
-                        entity_ref=assessment.ref,
-                        fix_hint=_regen_hint(assessment.topic_ref or assessment.ref, ["tasks"]),
-                    )
+        if assessment.kind == "seminar_task" and (
+            not assessment.rubric or not any(c.criterion.strip() for c in assessment.rubric)
+        ):
+            issues.append(
+                issue(
+                    "V-CNT-03",
+                    "error",
+                    f"{assessment.ref}: задание семинара без критериев оценки (rubric)",
+                    entity_ref=assessment.ref,
+                    fix_hint=_regen_hint(assessment.topic_ref or assessment.ref, ["tasks"]),
                 )
+            )
 
     for comp in kit.framework.competencies:
         if comp.labor_functions and comp.prof_standard is None:

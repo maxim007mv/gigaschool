@@ -15,14 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from karkas.api import schemas
 from karkas.api.deps import CurrentPrincipal, enforce_rate_limit, require_roles
 from karkas.api.errors import BadRequest, Forbidden, NotFound
-from karkas.domain.intake_slots import validate_clarification_answer
 from karkas.api.routers.programs import assert_access, get_program_or_404
+from karkas.domain.intake_slots import validate_clarification_answer
 from karkas.infra.db import get_session
 from karkas.infra.repos import programs as programs_repo
 
-router = APIRouter(
-    prefix="/programs", tags=["clarify"], dependencies=[Depends(enforce_rate_limit)]
-)
+router = APIRouter(prefix="/programs", tags=["clarify"], dependencies=[Depends(enforce_rate_limit)])
 
 REQUIRED_SLOTS = ("kind", "total_hours", "audience", "entry_level", "form", "final_attestation")
 
@@ -112,6 +110,10 @@ async def submit_answers(
         slot = questions[answer.id]["slot"]
         if answer.use_default or answer.value is None:
             value = DEFAULTS.get(slot, "Значение по умолчанию")
+            if slot == "total_hours" and program.get("total_hours"):
+                value = str(program["total_hours"])
+            elif slot == "kind" and program.get("kind"):
+                value = "Общеразвивающая (ДОП)" if program["kind"] == "dop" else "Повышение квалификации (ДПП ПК)"
             use_default.add(answer.id)
             assumptions.append(f"«{slot}»: принято значение по умолчанию — {value}")
             await programs_repo.record_slot_default(session, program_id=program_id, slot=slot, value=value)
@@ -131,9 +133,7 @@ async def submit_answers(
     )
 
     all_rows = await programs_repo.get_questions(session, program_id)
-    required_answered = all(
-        r["answer"] is not None for r in all_rows if r["slot"] in REQUIRED_SLOTS
-    )
+    required_answered = all(r["answer"] is not None for r in all_rows if r["slot"] in REQUIRED_SLOTS)
     ready = required_answered and all(r["answer"] is not None for r in all_rows)
 
     if ready and program["status"] == "clarifying":

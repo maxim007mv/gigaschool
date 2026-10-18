@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from jinja2 import meta
 
-from karkas.agent.skills import SKILLS, SKILL_DIRS
+from karkas.agent.skills import SKILL_DIRS, SKILLS
 from karkas.agent.skills._base import (
-    SKILLS_DIR,
     _jinja_env,
     make_messages,
     render_prompt,
@@ -164,9 +163,7 @@ def _variable_bundle(scale: ProgramScale) -> dict[str, Any]:
         "references_text": "Раздел 1. Аннотация. Раздел 2. Учебный план.",
         "labor_functions_json": to_json([]),
         "knowledge": "",
-        "competencies_json": to_json(
-            [{"ref": "C1", "title": "Компетенция", "outcomes": scale.outcomes[:3]}]
-        ),
+        "competencies_json": to_json([{"ref": "C1", "title": "Компетенция", "outcomes": scale.outcomes[:3]}]),
         "candidates_json": to_json([]),
         "references_json": to_json([]),
         "instruction": "",
@@ -200,10 +197,8 @@ def _render_skill_prompt(code: str, scale: ProgramScale, *, compact: bool) -> st
     if not compact:
         for key, value in list(render_vars.items()):
             if key.endswith("_json") and isinstance(value, str):
-                try:
+                with contextlib.suppress(json.JSONDecodeError):
                     render_vars[key] = to_json(json.loads(value), indent=2)
-                except json.JSONDecodeError:
-                    pass
     return render_prompt(skill_dir, **render_vars)
 
 
@@ -301,7 +296,6 @@ def per_skill_table(report: PipelineTokenReport) -> str:
         if not row.llm and row.calls == 0:
             continue
         lines.append(
-            f"| {row.code} | {row.calls} | {row.prompt_tokens:,} | "
-            f"{row.completion_tokens:,} | {row.total_tokens:,} |"
+            f"| {row.code} | {row.calls} | {row.prompt_tokens:,} | {row.completion_tokens:,} | {row.total_tokens:,} |"
         )
     return "\n".join(lines)

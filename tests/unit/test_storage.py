@@ -7,13 +7,16 @@ from urllib.parse import parse_qs, urlparse
 from karkas.infra.storage import LocalStorage, content_sha256, verify_local_presign
 
 
-def test_local_storage_roundtrip(tmp_path) -> None:
+def test_local_storage_roundtrip(tmp_path, monkeypatch) -> None:
+    from karkas.settings import settings
+
+    monkeypatch.setattr(settings, "public_api_base", "http://test-storage.example")
     storage = LocalStorage(str(tmp_path))
     key = storage.put("karkas-src", "org/file.txt", b"payload", content_type="text/plain")
     assert key == "org/file.txt"
     assert storage.get("karkas-src", key) == b"payload"
     url = storage.presign("karkas-src", key)
-    assert url.startswith("http://")
+    assert url.startswith("http://test-storage.example")
     assert "/api/v1/local-storage/karkas-src/org/file.txt" in url
     query = parse_qs(urlparse(url).query)
     assert verify_local_presign("karkas-src", key, int(query["exp"][0]), query["sig"][0])

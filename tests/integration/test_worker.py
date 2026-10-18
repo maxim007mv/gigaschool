@@ -71,9 +71,7 @@ async def _seed_program() -> tuple[str, str]:
     async with factory() as session:
         org_id = (
             await session.execute(
-                __import__("sqlalchemy").text(
-                    "INSERT INTO organization (name) VALUES ('Тест-воркер') RETURNING id"
-                )
+                __import__("sqlalchemy").text("INSERT INTO organization (name) VALUES ('Тест-воркер') RETURNING id")
             )
         ).scalar_one()
         user_id = (
@@ -87,9 +85,7 @@ async def _seed_program() -> tuple[str, str]:
                 {"org": org_id},
             )
         ).scalar_one()
-        program_id = await programs_repo.create_program(
-            session, org_id=str(org_id), owner_id=str(user_id)
-        )
+        program_id = await programs_repo.create_program(session, org_id=str(org_id), owner_id=str(user_id))
         await session.commit()
     return str(program_id), str(org_id)
 
@@ -140,9 +136,7 @@ async def test_worker_transient_retry_then_fail(worker_db, monkeypatch) -> None:
 
     factory = db_module.get_session_factory()
     async with factory() as session:
-        job_id = await jobs_repo.enqueue(
-            session, kind="framework", program_id=program_id, priority=1
-        )
+        job_id = await jobs_repo.enqueue(session, kind="framework", program_id=program_id, priority=1)
         # max_attempts=2: первый прогон → retry_wait, второй → failed
         await session.execute(
             __import__("sqlalchemy").text(

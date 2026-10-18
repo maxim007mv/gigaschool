@@ -31,9 +31,10 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from docx import Document
 from docx.document import Document as DocxDocument
@@ -250,8 +251,7 @@ def _module_payload(module: Module) -> dict[str, Any]:
     payload["ref"] = module.ref
     payload["title"] = module.title
     payload["topics"] = [
-        {**_topic_item(topic), "ref": topic.ref, "outcome_refs": list(topic.outcome_refs)}
-        for topic in module.topics
+        {**_topic_item(topic), "ref": topic.ref, "outcome_refs": list(topic.outcome_refs)} for topic in module.topics
     ]
     return payload
 
@@ -290,7 +290,7 @@ def _template_context(kit: KitV1) -> dict[str, Any]:
         "kind_label": KIND_LABELS.get(header.kind, header.kind),
         "organization": header.organization or ORDER_PLACEHOLDER,
         "city": header.city or ORDER_PLACEHOLDER,
-        "year": header.year or datetime.now(timezone.utc).year,
+        "year": header.year or datetime.now(UTC).year,
         "form": header.form,
         "form_label": FORM_LABELS.get(header.form, header.form),
         "total_hours": header.total_hours,
@@ -507,7 +507,7 @@ def _add_title_page(document: DocxDocument, kit: KitV1) -> None:
     document.add_paragraph()
     footer = document.add_paragraph()
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} — {header.year or datetime.now(timezone.utc).year}")
+    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} — {header.year or datetime.now(UTC).year}")
     document.add_page_break()
 
 
@@ -583,8 +583,7 @@ def _add_section_1(document: DocxDocument, kit: KitV1) -> None:
     form_line = FORM_LABELS.get(header.form, header.form)
     if hours["distance"]:
         form_line += (
-            f"; из них {hours['distance']} ч контактной работы — "
-            "с применением дистанционных образовательных технологий"
+            f"; из них {hours['distance']} ч контактной работы — с применением дистанционных образовательных технологий"
         )
     _para(document, f"Форма обучения: {form_line}.")
 
@@ -596,10 +595,7 @@ def _add_section_1(document: DocxDocument, kit: KitV1) -> None:
     if hours["current_control"]:
         parts.append(f"текущий контроль — {hours['current_control']} ч")
     parts.append(f"самостоятельная работа — {hours['self_study']} ч")
-    parts.append(
-        f"итоговая аттестация — {hours['final_attestation']} ч "
-        f"({kit.framework.final_attestation.form})"
-    )
+    parts.append(f"итоговая аттестация — {hours['final_attestation']} ч ({kit.framework.final_attestation.form})")
     if hours["distance"]:
         parts.append(f"из них с применением ДОТ — {hours['distance']} ч")
     _para(document, "; ".join(parts) + ".")
@@ -726,11 +722,7 @@ def _add_section_3(document: DocxDocument, kit: KitV1) -> None:
 def _add_appendix_1(document: DocxDocument, kit: KitV1) -> None:
     document.add_page_break()
     document.add_heading("Приложение 1. Оценочные материалы текущего контроля", level=1)
-    current = [
-        a
-        for a in kit.content.assessments
-        if a.kind == "test_question" or a.kind == "seminar_task"
-    ]
+    current = [a for a in kit.content.assessments if a.kind == "test_question" or a.kind == "seminar_task"]
     if not current:
         _para(document, "Оценочные материалы текущего контроля в комплекте не сформированы.")
     for assessment in current:
@@ -800,7 +792,7 @@ def _add_dop_title_page(document: DocxDocument, kit: KitV1) -> None:
     document.add_paragraph()
     footer = document.add_paragraph()
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} {header.year or datetime.now(timezone.utc).year}")
+    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} {header.year or datetime.now(UTC).year}")
     document.add_page_break()
 
 
@@ -823,9 +815,7 @@ def _add_dop_part_1(document: DocxDocument, kit: KitV1) -> None:
     document.add_heading("1.2. Категории обучающихся", level=2)
     _para(
         document,
-        profile.audience
-        or _template_section_text(kit, "категор", "слушател")
-        or AI_SECTION_MISSING,
+        profile.audience or _template_section_text(kit, "категор", "слушател") or AI_SECTION_MISSING,
     )
     if profile.entry_level:
         _para(document, f"Входной уровень: {profile.entry_level}.")
@@ -977,7 +967,7 @@ def _add_internship_title_page(document: DocxDocument, kit: KitV1) -> None:
     document.add_paragraph()
     footer = document.add_paragraph()
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} — {header.year or datetime.now(timezone.utc).year}")
+    footer.add_run(f"{header.city or ORDER_PLACEHOLDER} — {header.year or datetime.now(UTC).year}")
     document.add_page_break()
 
 
@@ -1004,7 +994,10 @@ def _add_internship_section_1(document: DocxDocument, kit: KitV1) -> None:
     for competency in kit.framework.competencies:
         document.add_heading(f"{competency.ref}. {competency.title}", level=3)
         for outcome in competency.outcomes:
-            _para(document, f"{outcome.ref}. ({OUTCOME_TYPE_LABELS.get(outcome.type, outcome.type)}) {outcome.text}")
+            _para(
+                document,
+                f"{outcome.ref}. ({OUTCOME_TYPE_LABELS.get(outcome.type, outcome.type)}) {outcome.text}",
+            )
 
     document.add_heading("1.4. Программа разработана на основе", level=2)
     basis_lines: list[str] = []

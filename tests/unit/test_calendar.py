@@ -21,7 +21,6 @@ from karkas.domain.hours import (
     solve,
 )
 
-
 # --- Помощники ---------------------------------------------------------------
 
 
@@ -208,9 +207,7 @@ class TestFinalAttestation:
         assert sessions == [(1, 1, "ИА", 3)]
 
     def test_ia_on_empty_plan(self) -> None:
-        assert calendar(Plan(), Constraints(total=2, final_att=2), max_per_day=2) == [
-            (1, 1, "ИА", 2)
-        ]
+        assert calendar(Plan(), Constraints(total=2, final_att=2), max_per_day=2) == [(1, 1, "ИА", 2)]
 
 
 # --- Краевые случаи и инварианты ---------------------------------------------

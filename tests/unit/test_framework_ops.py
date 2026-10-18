@@ -60,7 +60,12 @@ def test_move_topic() -> None:
     from karkas.domain.kit import Module, Topic, Workload
 
     kit.framework.modules.append(
-        Module(ref="M2", number=2, title="Второй", topics=[Topic(ref="T2.1", title="Тема 2", workload=Workload(lecture=1))])
+        Module(
+            ref="M2",
+            number=2,
+            title="Второй",
+            topics=[Topic(ref="T2.1", title="Тема 2", workload=Workload(lecture=1))],
+        )
     )
     new_kit, changes = apply_ops(kit, [{"op": "move_topic", "topic_ref": "T2.1", "to_module": "M1", "position": 1}])
     assert [t.ref for t in new_kit.framework.modules[0].topics] == ["T2.1", "T1.1"]

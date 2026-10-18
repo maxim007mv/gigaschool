@@ -185,9 +185,7 @@ async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
     """Непредвиденные ошибки — тоже problem+json (RFC 9457), с логированием стектрейса."""
     from karkas.logging_setup import get_logger
 
-    get_logger("karkas.api").exception(
-        "api.unhandled_error", path=request.url.path, method=request.method
-    )
+    get_logger("karkas.api").exception("api.unhandled_error", path=request.url.path, method=request.method)
     return JSONResponse(
         status_code=500,
         content={

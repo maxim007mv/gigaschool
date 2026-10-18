@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.api import schemas
-from karkas.api.deps import CurrentPrincipal, enforce_rate_limit, parse_if_match, require_roles
+from karkas.api.deps import CurrentPrincipal, Principal, enforce_rate_limit, parse_if_match, require_roles
 from karkas.api.errors import BadRequest, Forbidden, JobInProgress, NotFound, Unauthorized, VersionConflict
 from karkas.api.sse import bus, format_sse
 from karkas.domain.diff import diff_snapshots
@@ -22,14 +22,10 @@ from karkas.infra.repos import framework as framework_repo
 from karkas.infra.repos import jobs as jobs_repo
 from karkas.infra.repos import programs as programs_repo
 
-router = APIRouter(
-    prefix="/programs", tags=["programs"], dependencies=[Depends(enforce_rate_limit)]
-)
+router = APIRouter(prefix="/programs", tags=["programs"], dependencies=[Depends(enforce_rate_limit)])
 
 
-async def get_program_or_404(
-    session: AsyncSession, program_id: str, principal: CurrentPrincipal
-) -> dict:
+async def get_program_or_404(session: AsyncSession, program_id: str, principal: CurrentPrincipal) -> dict:
     """Программа с проверкой доступа (org-scope; сервисный ключ — любой прогон)."""
     org_id = None if principal.is_service else principal.org_id
     program = await programs_repo.get_program(session, program_id, org_id)
@@ -118,9 +114,7 @@ async def create_program(
         session, org_id=org_id, owner_id=owner_id, profile={"brief": payload.brief}
     )
     for attach in payload.file_ids:
-        await files_repo.attach_to_program(
-            session, program_id=program_id, file_id=attach.file_id, role=attach.role
-        )
+        await files_repo.attach_to_program(session, program_id=program_id, file_id=attach.file_id, role=attach.role)
 
     job_id = await jobs_repo.enqueue(
         session,
@@ -129,9 +123,7 @@ async def create_program(
         payload={"brief": payload.brief, "auto_questions": payload.options.get("auto_questions", True)},
         priority=1,
         # Уникальный ключ на попытку: дедупликация повторов — выше (find_by_idempotency).
-        idempotency_key=(
-            f"http:{idempotency_key}:{program_id}" if idempotency_key else f"intake:{program_id}"
-        ),
+        idempotency_key=(f"http:{idempotency_key}:{program_id}" if idempotency_key else f"intake:{program_id}"),
     )
     await programs_repo.audit(
         session,
@@ -230,8 +222,7 @@ async def patch_program(
         fields["constraints"] = payload.constraints.model_dump()
 
     hours_changed = any(
-        key in fields
-        and fields[key] != program.get(key)
+        key in fields and fields[key] != program.get(key)
         for key in ("total_hours", "final_att_hours", "final_att_form")
     )
 
@@ -437,7 +428,7 @@ async def events(
 
 def _sse_principal(authorization: str | None, token: str | None) -> Principal:
     """Принципал для SSE: Bearer-заголовок или query-токен (EventSource)."""
-    from karkas.api.deps import Principal, decode_token
+    from karkas.api.deps import decode_token
 
     raw: str | None = None
     if authorization and authorization.lower().startswith("bearer "):

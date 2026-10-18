@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterator, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Literal
 
 from karkas.domain.kit import IssueSeverity, ReportIssue
 
@@ -21,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover - только для аннотаций
 Stage = Literal["framework", "kit"]
 
 CYRILLIC_MIN_SHARE = 0.6  # V-LNG-01: доля кириллицы в русском тексте
-_TOLERATED_LETTERS = 5    # тексты короче не проверяются (заголовки-аббревиатуры)
+_TOLERATED_LETTERS = 5  # тексты короче не проверяются (заголовки-аббревиатуры)
 
 _WORD_RE = re.compile(r"[А-Яа-яЁёA-Za-z]+")
 _CYR_RE = re.compile(r"[А-Яа-яЁё]")
@@ -61,7 +62,7 @@ def issue(
     )
 
 
-def resolve_stage(ctx: "ValidationContext") -> Stage:
+def resolve_stage(ctx: ValidationContext) -> Stage:
     """Стадия проверки: «framework» (S10, без содержания) или «kit» (S19).
 
     Значение `ctx.stage`:
@@ -136,7 +137,7 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
     """Косинусная близость двух векторов; 0.0 при пустых или нулевых векторах."""
     if not a or not b or len(a) != len(b):
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = sum(x * x for x in a) ** 0.5
     nb = sum(y * y for y in b) ** 0.5
     if na == 0.0 or nb == 0.0:
@@ -156,14 +157,16 @@ def _body_strings(value: Any, depth: int = 0) -> Iterator[str]:
     if isinstance(value, str):
         yield value
     elif isinstance(value, dict):
-        for item in value.values():
+        for key, item in value.items():
+            if key in ("layout", "layout_kind"):
+                continue
             yield from _body_strings(item, depth + 1)
     elif isinstance(value, (list, tuple)):
         for item in value:
             yield from _body_strings(item, depth + 1)
 
 
-def iter_text_units(kit: "KitV1") -> Iterator[tuple[str | None, str]]:
+def iter_text_units(kit: KitV1) -> Iterator[tuple[str | None, str]]:
     """Все текстовые единицы комплекта: (ref элемента, текст).
 
     Используется V-LNG-01 (язык) и V-PLG-01 (заимствования).
@@ -197,6 +200,7 @@ def iter_text_units(kit: "KitV1") -> Iterator[tuple[str | None, str]]:
             yield assessment.ref, assessment.answer_key.explanation
     for source in kit.content.sources:
         yield source.ref, source.citation
+    _layout_ids = frozenset({"title_and_content", "title", "title_only", "content"})
     for group in (
         kit.content.module_programs,
         kit.content.lecture_plans,
@@ -205,4 +209,6 @@ def iter_text_units(kit: "KitV1") -> Iterator[tuple[str | None, str]]:
     ):
         for block in group:
             for text in _body_strings(block.body):
+                if text.strip().lower() in _layout_ids:
+                    continue
                 yield block.ref, text

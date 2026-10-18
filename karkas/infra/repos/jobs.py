@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 from sqlalchemy import text
@@ -73,14 +74,14 @@ async def enqueue(
     payload_expr = json_param("payload")
     pid_expr = uuid_param("pid")
     job_id = str(uuid.uuid4())
-    id_col = ", id" if uses_sqlite() else ""
-    id_val = ", :jid" if uses_sqlite() else ""
+    ", id" if uses_sqlite() else ""
+    ", :jid" if uses_sqlite() else ""
     row = (
         await session.execute(
             text(
                 f"""
-                INSERT INTO job ({f"id, " if uses_sqlite() else ""}program_id, kind, priority, payload, idempotency_key, run_after)
-                VALUES ({f":jid, " if uses_sqlite() else ""}{pid_expr}, :kind, :priority, {payload_expr}, :idem,
+                INSERT INTO job ({"id, " if uses_sqlite() else ""}program_id, kind, priority, payload, idempotency_key, run_after)
+                VALUES ({":jid, " if uses_sqlite() else ""}{pid_expr}, :kind, :priority, {payload_expr}, :idem,
                         {run_after})
                 ON CONFLICT (idempotency_key) DO NOTHING
                 RETURNING id
@@ -143,17 +144,21 @@ async def claim(session: AsyncSession, worker_id: str) -> dict[str, Any] | None:
 async def get_job(session: AsyncSession, job_id: str) -> dict[str, Any] | None:
     jid = uuid_param("jid")
     row = (
-        await session.execute(
-            text(
-                f"""
+        (
+            await session.execute(
+                text(
+                    f"""
                 SELECT j.*, p.org_id AS program_org_id FROM job j
                 LEFT JOIN program p ON p.id = j.program_id
                 WHERE j.id = {jid}
                 """
-            ),
-            {"jid": job_id},
+                ),
+                {"jid": job_id},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     return dict(row) if row else None
 
 
@@ -413,8 +418,6 @@ async def has_active(session: AsyncSession, *, program_id: str, kind: str) -> bo
 async def queue_depth(session: AsyncSession) -> int:
     """Число задач, ожидающих обработки (для метрики karkas_queue_depth / HPA)."""
     count = (
-        await session.execute(
-            text("SELECT count(*) FROM job WHERE status IN ('queued', 'retry_wait')")
-        )
+        await session.execute(text("SELECT count(*) FROM job WHERE status IN ('queued', 'retry_wait')"))
     ).scalar_one()
     return int(count)

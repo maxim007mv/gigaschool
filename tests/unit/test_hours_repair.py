@@ -8,8 +8,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from karkas.domain.hours import Constraints, HoursInfeasible, ModuleIn, TopicIn, solve
 
 
@@ -61,9 +59,7 @@ def test_repair_never_silently_skips_feasible_cases() -> None:
         except HoursInfeasible as exc:  # допустимо только с понятной причиной
             raise AssertionError(f"total={total}: неожиданная HoursInfeasible: {exc}") from exc
 
-        practice_and_lab = sum(
-            row["practice"] + row["lab"] for row in plan.rows.values()
-        )
+        practice_and_lab = sum(row["practice"] + row["lab"] for row in plan.rows.values())
         need = -(-50 * total // 100)  # ceil(0.5 * total)
         assert practice_and_lab >= need, f"total={total}: практики {practice_and_lab} < {need}"
         assert sum(sum(row.values()) for row in plan.rows.values()) + 2 == total

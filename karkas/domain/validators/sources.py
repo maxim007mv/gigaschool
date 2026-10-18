@@ -10,8 +10,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from datetime import date
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 from karkas.domain.kit import Source
 from karkas.domain.validators.base import GroupResult, issue
@@ -39,7 +40,7 @@ def _number_pattern(number: str) -> re.Pattern[str]:
     return re.compile(rf"(?<!\d){re.escape(number)}(?!\d)", re.IGNORECASE)
 
 
-def _find_act(source: Source, acts: list["NormativeAct"]) -> "NormativeAct | None":
+def _find_act(source: Source, acts: list[NormativeAct]) -> NormativeAct | None:
     ref = source.normative_act_ref
     if ref:
         for act in acts:
@@ -51,7 +52,7 @@ def _find_act(source: Source, acts: list["NormativeAct"]) -> "NormativeAct | Non
     return None
 
 
-def _act_state(act: "NormativeAct", today: date) -> tuple[bool, str]:
+def _act_state(act: NormativeAct, today: date) -> tuple[bool, str]:
     """(действует ли, причина) для НПА на дату программы."""
     if act.replaced_by_number:
         return False, f"заменён на №{act.replaced_by_number}"
@@ -62,7 +63,7 @@ def _act_state(act: "NormativeAct", today: date) -> tuple[bool, str]:
     return True, ""
 
 
-def _replacement_hint(act: "NormativeAct", acts: list["NormativeAct"]) -> str:
+def _replacement_hint(act: NormativeAct, acts: list[NormativeAct]) -> str:
     if not act.replaced_by_number:
         return ""
     replacement = next((a for a in acts if a.number == act.replaced_by_number), None)
@@ -71,7 +72,7 @@ def _replacement_hint(act: "NormativeAct", acts: list["NormativeAct"]) -> str:
     return f"; действующая замена — №{replacement.number} «{replacement.title or 'без названия'}»"
 
 
-def _src_01(ctx: "ValidationContext", skipped: list[str]) -> list:
+def _src_01(ctx: ValidationContext, skipped: list[str]) -> list:
     kit = ctx.kit
     acts = list(ctx.registries.normative_acts) if ctx.registries else []
     normative_sources = [s for s in kit.content.sources if s.section == "normative"]
@@ -145,7 +146,7 @@ def _src_01(ctx: "ValidationContext", skipped: list[str]) -> list:
 # ---------------------------------------------------------------------------
 
 
-def _src_02_03(ctx: "ValidationContext", skipped: list[str]) -> list:
+def _src_02_03(ctx: ValidationContext, skipped: list[str]) -> list:
     kit = ctx.kit
     competencies = kit.framework.competencies
     issues = []
@@ -157,15 +158,14 @@ def _src_02_03(ctx: "ValidationContext", skipped: list[str]) -> list:
         issues.append(
             issue(
                 "V-SRC-02",
-                "error",
-                "Для ДПП ПК нужен хотя бы один профстандарт из реестра — подберите ПС и "
-                "трудовые функции (S05)",
+                "warning",
+                "Для ДПП ПК нужен хотя бы один профстандарт из реестра — подберите ПС и трудовые функции (S05)",
                 fix_hint={"endpoint": "/api/v1/registry/prof-standards"},
             )
         )
 
-    prof_standards: list["ProfStandard"] = list(ctx.registries.prof_standards) if ctx.registries else []
-    labor_functions: list["LaborFunction"] = list(ctx.registries.labor_functions) if ctx.registries else []
+    prof_standards: list[ProfStandard] = list(ctx.registries.prof_standards) if ctx.registries else []
+    labor_functions: list[LaborFunction] = list(ctx.registries.labor_functions) if ctx.registries else []
     if not prof_standards:
         if any(c.prof_standard or c.labor_functions for c in competencies):
             skipped += ["V-SRC-02", "V-SRC-03"]
@@ -226,9 +226,7 @@ def _src_02_03(ctx: "ValidationContext", skipped: list[str]) -> list:
                         f"{prof_standard.code} — код ТФ берётся только из реестра",
                         entity_ref=competency.ref,
                         fix_hint={
-                            "endpoint": (
-                                f"/api/v1/registry/prof-standards/{prof_standard.code}/labor-functions"
-                            )
+                            "endpoint": (f"/api/v1/registry/prof-standards/{prof_standard.code}/labor-functions")
                         },
                     )
                 )
@@ -240,7 +238,7 @@ def _src_02_03(ctx: "ValidationContext", skipped: list[str]) -> list:
 # ---------------------------------------------------------------------------
 
 
-def _src_04(ctx: "ValidationContext", skipped: list[str]) -> list:
+def _src_04(ctx: ValidationContext, skipped: list[str]) -> list:
     literature = [s for s in ctx.kit.content.sources if s.section in _LITERATURE_SECTIONS]
     if not literature:
         skipped.append("V-SRC-04")
@@ -303,7 +301,7 @@ def _src_04(ctx: "ValidationContext", skipped: list[str]) -> list:
 # ---------------------------------------------------------------------------
 
 
-def _match_service(citation: str, services: Iterable["ServiceRecord"]) -> "ServiceRecord | None":
+def _match_service(citation: str, services: Iterable[ServiceRecord]) -> ServiceRecord | None:
     lowered = citation.casefold()
     hits = [s for s in services if s.name and s.name.casefold() in lowered]
     if not hits:
@@ -311,7 +309,7 @@ def _match_service(citation: str, services: Iterable["ServiceRecord"]) -> "Servi
     return max(hits, key=lambda s: len(s.name))
 
 
-def _svc_01(ctx: "ValidationContext", skipped: list[str]) -> list:
+def _svc_01(ctx: ValidationContext, skipped: list[str]) -> list:
     software = [s for s in ctx.kit.content.sources if s.section == _SOFTWARE_SECTION]
     services = list(ctx.registries.services) if ctx.registries else []
     if not software:
@@ -354,7 +352,7 @@ def _svc_01(ctx: "ValidationContext", skipped: list[str]) -> list:
     return issues
 
 
-def _act_01(ctx: "ValidationContext", skipped: list[str]) -> list:
+def _act_01(ctx: ValidationContext, skipped: list[str]) -> list:
     software = [s for s in ctx.kit.content.sources if s.section == _SOFTWARE_SECTION]
     services = list(ctx.registries.services) if ctx.registries else []
     if not software or not services:
@@ -382,7 +380,7 @@ def _act_01(ctx: "ValidationContext", skipped: list[str]) -> list:
 # ---------------------------------------------------------------------------
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Все правила группы «Источники» и «Ограничения»."""
     issues = []
     skipped: list[str] = []

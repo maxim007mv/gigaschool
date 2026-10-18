@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from karkas.infra import db as db_module
 from karkas.settings import settings
@@ -124,7 +123,10 @@ def test_foreign_file_cannot_be_attached(hardened) -> None:
     response = client.post(
         "/api/v1/programs",
         headers=_headers(USER_B, ORG_B),
-        json={"brief": "Курс на 16 часов для проверки доступа", "file_ids": [{"file_id": FILE_A, "role": "reference"}]},
+        json={
+            "brief": "Курс на 16 часов для проверки доступа",
+            "file_ids": [{"file_id": FILE_A, "role": "reference"}],
+        },
     )
     assert response.status_code == 404
     assert response.json()["code"] == "NOT_FOUND"
@@ -274,7 +276,7 @@ def test_program_update_allowed_while_kit_generating(hardened) -> None:
 
 def test_pagination_cursor_works(hardened) -> None:
     """Курсорная пагинация: next_cursor ведёт на вторую страницу (а не в 500)."""
-    for index in range(3):
+    for _index in range(3):
         _seed_program(ORG_A, USER_A)
     client = _client()
     headers = _headers()
@@ -329,10 +331,10 @@ def test_agent_run_idempotency(hardened, monkeypatch) -> None:
     """Idempotency-Key на POST /agent/run не создаёт дубли прогонов."""
     import karkas.api.routers.agent as agent_router
 
-    async def noop(run_id: str) -> None:
+    async def noop_dispatch(session, run_id: str, program_id: str, *, wait: bool) -> None:
         return None
 
-    monkeypatch.setattr(agent_router, "_execute_run", noop)
+    monkeypatch.setattr(agent_router, "_dispatch_agent_run", noop_dispatch)
 
     client = _client()
     headers = {**_headers(), "Idempotency-Key": "run-key-1"}

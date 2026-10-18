@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 from karkas.domain.kit import (
     Calendar,
     CalendarSession,
@@ -58,10 +56,7 @@ def topic(
 
 def calendar_16h() -> Calendar:
     """8 занятий по 2 ч за 4 недели (эталон ТК-1): T1.1 ×4, T1.2 ×3, ИА."""
-    sessions = [
-        CalendarSession(seq=i + 1, week=(i // 4) + 1, day=i + 1, topic_ref="T1.1", hours=2)
-        for i in range(4)
-    ]
+    sessions = [CalendarSession(seq=i + 1, week=(i // 4) + 1, day=i + 1, topic_ref="T1.1", hours=2) for i in range(4)]
     sessions += [
         CalendarSession(seq=5, week=2, day=5, topic_ref="T1.2", hours=2),
         CalendarSession(seq=6, week=2, day=6, topic_ref="T1.2", hours=2),
@@ -251,9 +246,7 @@ def test_hrs_06_matching_row_ok():
 
 def test_hrs_07_module_program_hours_mismatch_is_error():
     content = Content(
-        module_programs=[
-            ContentBlock(ref="MP-M1", kind="module_program", module_ref="M1", body={"hours": 20})
-        ]
+        module_programs=[ContentBlock(ref="MP-M1", kind="module_program", module_ref="M1", body={"hours": 20})]
     )
     kit = build_kit(content=content, modules=None)
     issues = issues_of(kit, "V-HRS-07")
@@ -268,9 +261,7 @@ def test_hrs_07_declared_modules_mismatch_is_error():
 
 def test_hrs_07_matching_declared_hours_ok():
     content = Content(
-        module_programs=[
-            ContentBlock(ref="MP-M1", kind="module_program", module_ref="M1", body={"hours": 14})
-        ]
+        module_programs=[ContentBlock(ref="MP-M1", kind="module_program", module_ref="M1", body={"hours": 14})]
     )
     kit = build_kit(content=content)
     assert "V-HRS-07" not in codes(kit, declared_totals={"modules": {"M1": 14}})

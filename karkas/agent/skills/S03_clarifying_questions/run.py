@@ -53,7 +53,7 @@ DEFAULT_QUESTIONS: dict[str, tuple[str, list[str], str]] = {
         "Форма обучения влияет на часы ДОТ и СРС.",
     ),
     "final_attestation": (
-        "Как проверить результат в конце обучения?",
+        "Какая форма итоговой аттестации предусмотрена (тест, экзамен, защита проекта, собеседование)?",
         ["Тест", "Собеседование", "Проект/защита", "Экзамен"],
         "Итоговая аттестация входит в объём часов программы.",
     ),
@@ -106,7 +106,13 @@ def normalize(payload: QuestionsOut, missing: list[str], max_questions: int) -> 
             continue
         text, options, why = DEFAULT_QUESTIONS[slot]
         questions.append(
-            {"slot": slot, "question": text, "why": why, "options": options, "required": slot in REQUIRED_SLOTS}
+            {
+                "slot": slot,
+                "question": text,
+                "why": why,
+                "options": options,
+                "required": slot in REQUIRED_SLOTS,
+            }
         )
         seen.add(slot)
     if len(questions) > max_questions:
@@ -128,9 +134,7 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     s01 = inputs.get("S01") if isinstance(inputs.get("S01"), dict) else {}
     s02 = inputs.get("S02") if isinstance(inputs.get("S02"), dict) else {}
     missing = [
-        str(slot)
-        for slot in (inputs.get("missing_slots") or s01.get("missing_slots") or [])
-        if str(slot).strip()
+        str(slot) for slot in (inputs.get("missing_slots") or s01.get("missing_slots") or []) if str(slot).strip()
     ]
     if s02.get("kind"):
         missing = [slot for slot in missing if slot != "kind"]

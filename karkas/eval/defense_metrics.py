@@ -23,10 +23,9 @@ class TokenCost:
 
 
 def estimate_gigachat3_pro_cost(prompt_tokens: int, completion_tokens: int) -> TokenCost:
-    cost = (
-        Decimal(prompt_tokens) * GIGACHAT_3_PRO_IN_RUB_PER_M / Decimal(1_000_000)
-        + Decimal(completion_tokens) * GIGACHAT_3_PRO_OUT_RUB_PER_M / Decimal(1_000_000)
-    )
+    cost = Decimal(prompt_tokens) * GIGACHAT_3_PRO_IN_RUB_PER_M / Decimal(1_000_000) + Decimal(
+        completion_tokens
+    ) * GIGACHAT_3_PRO_OUT_RUB_PER_M / Decimal(1_000_000)
     return TokenCost(
         prompt_tokens=max(0, prompt_tokens),
         completion_tokens=max(0, completion_tokens),

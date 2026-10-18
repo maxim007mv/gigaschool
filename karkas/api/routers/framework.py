@@ -26,6 +26,7 @@ from karkas.api.errors import (
     InfeasibleConstraints,
     JobInProgress,
     NotFound,
+    VersionConflict,
 )
 from karkas.api.routers.programs import assert_access, get_program_or_404
 from karkas.domain.framework_ops import OpError, apply_ops
@@ -37,9 +38,7 @@ from karkas.infra.repos import jobs as jobs_repo
 from karkas.infra.repos import programs as programs_repo
 from karkas.infra.repos.framework import LockVersionConflict
 
-router = APIRouter(
-    prefix="/programs", tags=["framework"], dependencies=[Depends(enforce_rate_limit)]
-)
+router = APIRouter(prefix="/programs", tags=["framework"], dependencies=[Depends(enforce_rate_limit)])
 
 
 async def _load_kit_or_404(session: AsyncSession, program_id: str) -> KitV1:
@@ -73,18 +72,29 @@ async def generate_framework(
     # Ключ идемпотентности меняется вместе с lock_version: двойной клик дедуплицируется,
     # повторная генерация после завершения/провала создаёт новую задачу.
     job_id = await jobs_repo.enqueue(
-        session, kind="framework", program_id=program_id, priority=1,
+        session,
+        kind="framework",
+        program_id=program_id,
+        priority=1,
         payload={"prev_status": program["status"]},
         idempotency_key=f"framework:{program_id}:{program['lock_version']}",
     )
     await programs_repo.set_status(session, program_id=program_id, status="framework_generating")
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="framework.generate",
-        actor_id=principal.user_id, program_id=program_id, details={"job_id": job_id},
+        session,
+        org_id=program["org_id"],
+        action="framework.generate",
+        actor_id=principal.user_id,
+        program_id=program_id,
+        details={"job_id": job_id},
     )
     await session.commit()
     response.headers["Location"] = f"/api/v1/jobs/{job_id}"
-    return {"job_id": job_id, "status": "framework_generating", "events": f"/api/v1/programs/{program_id}/events"}
+    return {
+        "job_id": job_id,
+        "status": "framework_generating",
+        "events": f"/api/v1/programs/{program_id}/events",
+    }
 
 
 @router.get("/{program_id}/framework", response_model=schemas.FrameworkOut)
@@ -129,20 +139,24 @@ async def patch_framework(
         raise BadRequest("Часы итоговой аттестации должны быть меньше объёма программы")
 
     try:
-        await framework_repo.save_kit(
-            session, program_id, new_kit, expected_lock_version=int(program["lock_version"])
-        )
+        await framework_repo.save_kit(session, program_id, new_kit, expected_lock_version=int(program["lock_version"]))
     except LockVersionConflict as exc:
         raise VersionConflict(str(exc)) from exc
     version = await programs_repo.save_version(
-        session, program_id=program_id, reason="edit:framework",
-        snapshot=new_kit.model_dump(mode="json"), created_by=principal.user_id,
+        session,
+        program_id=program_id,
+        reason="edit:framework",
+        snapshot=new_kit.model_dump(mode="json"),
+        created_by=principal.user_id,
     )
     report = await services.run_full_validation(session, kit=new_kit, scope="framework")
     await framework_repo.save_report(session, program_id, version, report)
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="framework.patch",
-        actor_id=principal.user_id, program_id=program_id,
+        session,
+        org_id=program["org_id"],
+        action="framework.patch",
+        actor_id=principal.user_id,
+        program_id=program_id,
         details={"ops": len(payload.ops), "changed": len(changes)},
     )
     await session.commit()
@@ -162,9 +176,7 @@ async def validate_framework(
     if kit is None:
         raise NotFound("Каркас ещё не собран")
     report = await services.run_full_validation(session, kit=kit, scope="framework")
-    return schemas.ValidateOut(
-        version=int(program["current_version"]), checks=services.checks_payload(report)
-    )
+    return schemas.ValidateOut(version=int(program["current_version"]), checks=services.checks_payload(report))
 
 
 @router.post("/{program_id}/framework:rebalance", response_model=schemas.RebalanceOut)
@@ -210,14 +222,21 @@ async def rebalance_framework(
 
     await framework_repo.save_kit(session, program_id, kit)
     version = await programs_repo.save_version(
-        session, program_id=program_id, reason="rebalance",
-        snapshot=kit.model_dump(mode="json"), created_by=principal.user_id,
+        session,
+        program_id=program_id,
+        reason="rebalance",
+        snapshot=kit.model_dump(mode="json"),
+        created_by=principal.user_id,
     )
     report = await services.run_full_validation(session, kit=kit, scope="framework")
     await framework_repo.save_report(session, program_id, version, report)
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="framework.rebalance",
-        actor_id=principal.user_id, program_id=program_id, details={"changed": len(changed)},
+        session,
+        org_id=program["org_id"],
+        action="framework.rebalance",
+        actor_id=principal.user_id,
+        program_id=program_id,
+        details={"changed": len(changed)},
     )
     await session.commit()
     return schemas.RebalanceOut(version=version, changed=changed, checks=services.checks_payload(report))
@@ -255,8 +274,11 @@ async def approve_framework(
     version = int(program["current_version"])
     if kit is not None:
         version = await programs_repo.save_version(
-            session, program_id=program_id, reason="framework_approved",
-            snapshot=kit.model_dump(mode="json"), created_by=principal.user_id,
+            session,
+            program_id=program_id,
+            reason="framework_approved",
+            snapshot=kit.model_dump(mode="json"),
+            created_by=principal.user_id,
         )
     approved_at = (
         await session.execute(
@@ -265,8 +287,11 @@ async def approve_framework(
         )
     ).scalar_one_or_none()
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="framework.approve",
-        actor_id=principal.user_id, program_id=program_id,
+        session,
+        org_id=program["org_id"],
+        action="framework.approve",
+        actor_id=principal.user_id,
+        program_id=program_id,
         details={"comment": payload.comment or ""},
     )
     await session.commit()
@@ -291,11 +316,16 @@ async def reopen_framework(
         raise GateNotPassed("Каркас и так не утверждён")
     await programs_repo.reopen(session, program_id=program_id)
     await programs_repo.audit(
-        session, org_id=program["org_id"], action="framework.reopen",
-        actor_id=principal.user_id, program_id=program_id,
+        session,
+        org_id=program["org_id"],
+        action="framework.reopen",
+        actor_id=principal.user_id,
+        program_id=program_id,
     )
     await session.commit()
     return schemas.ApproveOut(
-        status="framework_review", version=int(program["current_version"]),
-        approved_by=None, approved_at=None,
+        status="framework_review",
+        version=int(program["current_version"]),
+        approved_by=None,
+        approved_at=None,
     )

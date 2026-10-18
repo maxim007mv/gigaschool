@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.domain.hours import Constraints, ModuleIn, Plan, TopicIn
-from karkas.domain.verified_registry import merge_registry_bundle_prof_standards
 from karkas.domain.kit import ACTIVITIES, KitV1, Report
 from karkas.domain.validators import (
     LaborFunction,
@@ -26,47 +24,62 @@ from karkas.domain.validators import (
     ValidationContext,
     run_validation,
 )
-from karkas.settings import settings
+from karkas.domain.verified_registry import merge_registry_bundle_prof_standards
 
-HOURS_RULES = {"V-HRS-01", "V-HRS-02", "V-HRS-03", "V-HRS-04", "V-HRS-05", "V-HRS-06", "V-HRS-07", "V-HRS-08", "V-HRS-09"}
+HOURS_RULES = {
+    "V-HRS-01",
+    "V-HRS-02",
+    "V-HRS-03",
+    "V-HRS-04",
+    "V-HRS-05",
+    "V-HRS-06",
+    "V-HRS-07",
+    "V-HRS-08",
+    "V-HRS-09",
+}
 
 
 async def build_registries(session: AsyncSession) -> RegistryBundle:
     """Загрузить реестры из БД для валидаторов (НПА, профстандарты, ТФ, сервисы)."""
     act_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT issuer, number, signed_on, valid_from, valid_to, kind
                 FROM normative_act
                 """
+                )
             )
         )
-    ).mappings().all()
-    ps_rows = (
-        await session.execute(text("SELECT code, title, status FROM prof_standard"))
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
+    ps_rows = (await session.execute(text("SELECT code, title, status FROM prof_standard"))).mappings().all()
     lf_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT ps.code AS ps_code, lf.code AS lf_code, lf.title AS lf_title
                 FROM labor_function lf JOIN prof_standard ps ON ps.id = lf.prof_standard_id
                 """
+                )
             )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     svc_rows = (
-        await session.execute(
-            text("SELECT name, available_ru, lifecycle, latest_version FROM service_catalog")
-        )
-    ).mappings().all()
+        (await session.execute(text("SELECT name, available_ru, lifecycle, latest_version FROM service_catalog")))
+        .mappings()
+        .all()
+    )
     prof_standards = merge_registry_bundle_prof_standards(
         [ProfStandard(code=r["code"], title=r["title"] or "", status=r["status"]) for r in ps_rows]
     )
     labor_functions = [
-        LaborFunction(prof_standard_code=r["ps_code"], code=r["lf_code"], title=r["lf_title"] or "")
-        for r in lf_rows
+        LaborFunction(prof_standard_code=r["ps_code"], code=r["lf_code"], title=r["lf_title"] or "") for r in lf_rows
     ]
     known = {(lf.prof_standard_code, lf.code) for lf in labor_functions}
     from karkas.domain.verified_registry import VERIFIED_JSON, load_file_verified
@@ -88,8 +101,12 @@ async def build_registries(session: AsyncSession) -> RegistryBundle:
     return RegistryBundle(
         normative_acts=[
             NormativeAct(
-                issuer=r["issuer"], number=r["number"], signed_on=r["signed_on"],
-                valid_from=r["valid_from"], valid_to=r["valid_to"], kind=r["kind"],
+                issuer=r["issuer"],
+                number=r["number"],
+                signed_on=r["signed_on"],
+                valid_from=r["valid_from"],
+                valid_to=r["valid_to"],
+                kind=r["kind"],
             )
             for r in act_rows
         ],
@@ -97,7 +114,9 @@ async def build_registries(session: AsyncSession) -> RegistryBundle:
         labor_functions=labor_functions,
         services=[
             ServiceRecord(
-                name=r["name"], available_ru=r["available_ru"], lifecycle=r["lifecycle"],
+                name=r["name"],
+                available_ru=r["available_ru"],
+                lifecycle=r["lifecycle"],
                 latest_version=r["latest_version"],
             )
             for r in svc_rows

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from karkas.domain.kit import Content, KitV1, Source
+from karkas.domain.kit import Content, Source
 from karkas.infra.exporters.docx_program import PARTIAL_VERIFY_MARK, UNVERIFIED_MARK, _source_payload
 from tests.conftest import build_minimal_kit
 

@@ -123,6 +123,71 @@ def _attr(obj: Any, name: str, default: Any = None) -> Any:
     return getattr(obj, name, default)
 
 
+def _lenient_coerce(data: Any, schema: Any) -> Any:
+    """Мягкое приведение JSON от GigaChat к Pydantic-схеме до валидации."""
+    import types
+    import typing
+
+    from pydantic import BaseModel as _BM
+
+    def _unwrap(ann: Any) -> Any:
+        origin = typing.get_origin(ann)
+        if origin in (typing.Union, types.UnionType):
+            args = [a for a in typing.get_args(ann) if a is not type(None)]
+            return args[0] if len(args) == 1 else ann
+        return ann
+
+    def _as_text(v: Any) -> str:
+        if isinstance(v, dict):
+            for key in ("text", "value", "description", "name", "title"):
+                if isinstance(v.get(key), str) and v[key].strip():
+                    return v[key]
+            return json.dumps(v, ensure_ascii=False)
+        if isinstance(v, list):
+            return "; ".join(_as_text(x) for x in v)
+        return str(v)
+
+    def _coerce(value: Any, ann: Any) -> Any:
+        ann = _unwrap(ann)
+        origin = typing.get_origin(ann)
+        if isinstance(ann, type) and issubclass(ann, _BM) and isinstance(value, dict):
+            return _model(value, ann)
+        if origin is list:
+            args = typing.get_args(ann)
+            inner = args[0] if args else Any
+            if isinstance(value, str):
+                value = [value] if value.strip() else []
+            if isinstance(value, list):
+                return [_coerce(v, inner) for v in value if v is not None]
+            return value
+        if ann is str and isinstance(value, (dict, list)):
+            return _as_text(value)
+        if ann is str and isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(value)
+        return value
+
+    def _model(obj: dict, model: Any) -> dict:
+        out = dict(obj)
+        for name, model_field in model.model_fields.items():
+            key = model_field.alias or name
+            if key not in out:
+                continue
+            if out[key] is None and not model_field.is_required():
+                if _unwrap(model_field.annotation) is not model_field.annotation:
+                    continue
+                del out[key]
+                continue
+            out[key] = _coerce(out[key], model_field.annotation)
+        return out
+
+    try:
+        if isinstance(data, dict) and isinstance(schema, type) and issubclass(schema, _BM):
+            return _model(data, schema)
+    except Exception:  # noqa: BLE001
+        return data
+    return data
+
+
 def _extract_content(response: Any) -> str:
     """Текст ответа модели; пустая строка, если сообщение пустое."""
     choices = _attr(response, "choices") or []
@@ -167,7 +232,13 @@ def _is_json_mode_rejection(exc: BaseException) -> bool:
     if status not in (400, 404, 422):
         return False
     message = str(exc).lower()
-    markers = ("response_format", "json_object", "unknown parameter", "unsupported parameter", "invalid parameter")
+    markers = (
+        "response_format",
+        "json_object",
+        "unknown parameter",
+        "unsupported parameter",
+        "invalid parameter",
+    )
     return any(marker in message for marker in markers)
 
 
@@ -264,10 +335,19 @@ class LlmGateway:
         repairs_done = 0
         while True:
             response = await self._call_with_retries(model, attempt_messages, temp, skill)
+            raw_content = ""
+            try:
+                raw_content = _extract_content(response) or ""
+            except Exception:  # noqa: BLE001
+                raw_content = ""
             try:
                 if _finish_reason(response) == "length":
                     raise ValueError("ответ обрезан по лимиту токенов (finish_reason=length)")
-                obj = schema.model_validate_json(_extract_content(response))
+                try:
+                    parsed = json.loads(raw_content)
+                    obj = schema.model_validate(_lenient_coerce(parsed, schema))
+                except ValueError:
+                    obj = schema.model_validate_json(raw_content)
             except ValueError as exc:  # ValidationError и json.JSONDecodeError — тоже ValueError
                 if repairs_done >= self._settings.llm_max_repairs:
                     raise LlmBadOutput(
@@ -275,7 +355,18 @@ class LlmGateway:
                         f"{schema.__name__} после {repairs_done} ремонтов: {exc}"
                     ) from exc
                 repairs_done += 1
-                attempt_messages = attempt_messages + [{"role": "user", "content": _repair_message(exc)}]
+                logger.warning(
+                    "llm.repair",
+                    skill=skill,
+                    model=model,
+                    attempt=repairs_done,
+                    error=str(exc)[:600],
+                    raw_head=raw_content[:300],
+                )
+                attempt_messages = attempt_messages + [
+                    {"role": "assistant", "content": raw_content or "{}"},
+                    {"role": "user", "content": _repair_message(exc)},
+                ]
                 continue
             await maybe_await(self._cache.put(key, obj.model_dump(mode="json"), self._cache_ttl_s()))
             return obj
@@ -404,9 +495,7 @@ class LlmGateway:
         cache_hit: bool,
     ) -> None:
         await maybe_await(
-            self._meter.record(
-                skill, model, prompt_tokens, completion_tokens, float(latency_ms), ok, cache_hit
-            )
+            self._meter.record(skill, model, prompt_tokens, completion_tokens, float(latency_ms), ok, cache_hit)
         )
         if ok and not cache_hit and (prompt_tokens or completion_tokens):
             logger.info(

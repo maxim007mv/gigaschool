@@ -41,7 +41,7 @@ def dsn_from_settings(database_url: str) -> str:
 def migration_files(migrations_dir: Path, include_demo: bool = False) -> list[Path]:
     files = sorted(p for p in migrations_dir.glob("*.sql"))
     if not include_demo:
-        files = [p for p in files if not p.name.startswith("900")]
+        files = [p for p in files if not p.name.startswith("9")]
     return files
 
 

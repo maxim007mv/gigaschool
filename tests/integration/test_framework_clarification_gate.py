@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 
-from tests.integration.test_api_flow import TEST_DB, MIGRATIONS, _auth, _client, _psql
+from tests.integration.test_api_flow import MIGRATIONS, TEST_DB, _auth, _client, _psql
 
 
 def _postgres_ready() -> bool:
     psql = shutil.which("psql") or "/opt/homebrew/opt/postgresql@17/bin/psql"
     try:
-        return subprocess.run([psql, "-h", "127.0.0.1", "-d", "postgres", "-c", "SELECT 1"], capture_output=True).returncode == 0
+        return (
+            subprocess.run(
+                [psql, "-h", "127.0.0.1", "-d", "postgres", "-c", "SELECT 1"], capture_output=True
+            ).returncode
+            == 0
+        )
     except Exception:
         return False
 

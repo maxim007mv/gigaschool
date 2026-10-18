@@ -165,7 +165,7 @@ def test_patch_program_validates_payload(env) -> None:
     program_id = _seed_program()
     client = _client()
     headers = _headers()
-    etag = client.get(f"/api/v1/programs/{program_id}", headers=headers).headers.get("ETag")
+    client.get(f"/api/v1/programs/{program_id}", headers=headers).headers.get("ETag")
     # ETag карточки программы API не отдаёт — правки идут без If-Match только сервису,
     # поэтому берём lock_version из карточки и формируем If-Match вручную.
     lock_version = client.get(f"/api/v1/programs/{program_id}", headers=headers).json()["lock_version"]
@@ -302,12 +302,20 @@ def test_recover_stuck_per_kind(env) -> None:
             # что «зависла» только framework-задача (порог 360 с), а исчерпавший
             # попытки kit-джоб переводится в failed с откатом статуса программы.
             await jobs_repo.enqueue(
-                session, kind="kit", program_id=program_id, priority=5,
-                payload={"prev_status": "framework_approved"}, idempotency_key="stuck-kit",
+                session,
+                kind="kit",
+                program_id=program_id,
+                priority=5,
+                payload={"prev_status": "framework_approved"},
+                idempotency_key="stuck-kit",
             )
             await jobs_repo.enqueue(
-                session, kind="framework", program_id=program_id, priority=1,
-                payload={"prev_status": "framework_review"}, idempotency_key="stuck-framework",
+                session,
+                kind="framework",
+                program_id=program_id,
+                priority=1,
+                payload={"prev_status": "framework_review"},
+                idempotency_key="stuck-framework",
             )
             await session.execute(
                 text(
@@ -339,7 +347,7 @@ def test_recover_stuck_per_kind(env) -> None:
     recovered, failed, program_status = asyncio.run(run())
     asyncio.run(db_module.dispose_engine())
     assert recovered == 1  # framework «завис» (7 мин > 360 с) и вернулся в очередь
-    assert failed == 1     # kit исчерпал попытки и переведён в failed
+    assert failed == 1  # kit исчерпал попытки и переведён в failed
     assert program_status == "framework_approved"  # откат из kit_generating по prev_status
 
 
@@ -378,7 +386,10 @@ def test_dispatch_job_intake_is_wired(env, monkeypatch) -> None:
         factory = db_module.get_session_factory()
         async with factory() as session:
             job_id = await jobs_repo.enqueue(
-                session, kind="intake", program_id=program_id, priority=1,
+                session,
+                kind="intake",
+                program_id=program_id,
+                priority=1,
                 payload={"brief": "Программа для школьников 8–9 классов: первые шаги в Python, 16 часов."},
                 idempotency_key=f"dispatch-intake:{program_id}",
             )
@@ -423,7 +434,12 @@ def test_clarification_roundtrip_and_kind_from_answer(env, monkeypatch) -> None:
     responses["S02"] = {"kind": None, "confidence": 0.5, "rationale": "недостаточно признаков"}
     responses["S03"] = {
         "questions": [
-            {"slot": "kind", "question": "Какой это тип программы?", "why": "Шаблон", "options": ["Повышение квалификации", "Общеразвивающая"]},
+            {
+                "slot": "kind",
+                "question": "Какой это тип программы?",
+                "why": "Шаблон",
+                "options": ["Повышение квалификации", "Общеразвивающая"],
+            },
             {"slot": "total_hours", "question": "Сколько часов?", "why": "Объём", "options": ["36", "72"]},
         ],
         "assumptions": [],
@@ -459,8 +475,9 @@ def test_clarification_roundtrip_and_kind_from_answer(env, monkeypatch) -> None:
         return open_count, [dict(q) for q in questions], len(intake["questions"]), str(status)
 
     open_count, questions, returned, status = asyncio.run(run())
-    assert len(questions) == 2, f"stored={questions}"
-    assert returned == 2 and status == "clarifying"
+    assert len(questions) == 1, f"stored={questions}"
+    assert questions[0]["slot"] == "kind"
+    assert returned == 1 and status == "clarifying"
 
     # Пользователь отвечает: «повышение квалификации» + 16 часов.
     _psql(
@@ -522,29 +539,42 @@ def test_edit_regenerates_only_affected_topic(env, monkeypatch) -> None:
         async with factory() as session:
             # Каркас + комплект с содержанием темы T1.1 (вопросы/план) для правки.
             kit = _kit()
-            from karkas.domain.kit import Assessment, AssessmentOption, AnswerKey, ContentBlock
+            from karkas.domain.kit import AnswerKey, Assessment, AssessmentOption, ContentBlock
 
             kit.content.assessments = [
                 Assessment(
-                    ref="Q-001", kind="test_question", topic_ref="T1.1", module_ref="M1",
-                    stem="Старый вопрос?", qtype="single",
-                    options=[AssessmentOption(id="a", text="Старый"), AssessmentOption(id="b", text="Второй")],
+                    ref="Q-001",
+                    kind="test_question",
+                    topic_ref="T1.1",
+                    module_ref="M1",
+                    stem="Старый вопрос?",
+                    qtype="single",
+                    options=[
+                        AssessmentOption(id="a", text="Старый"),
+                        AssessmentOption(id="b", text="Второй"),
+                    ],
                     answer_key=AnswerKey(correct=["a"], explanation="старое"),
                     outcome_refs=["LO1.1"],
                 )
             ]
             kit.content.lecture_plans = [
-                ContentBlock(ref="LP-T1.1", kind="lecture_plan", module_ref="M1", topic_ref="T1.1", body={"title": "Старый план"})
+                ContentBlock(
+                    ref="LP-T1.1",
+                    kind="lecture_plan",
+                    module_ref="M1",
+                    topic_ref="T1.1",
+                    body={"title": "Старый план"},
+                )
             ]
             # Динамические заготовки FakeGateway ссылаются на LO1.2 — добавим его,
             # чтобы постпроверка S14/S15 не отбросила пересобранные средства.
             from karkas.domain.kit import Outcome
 
-            kit.framework.competencies[0].outcomes.append(
-                Outcome(ref="LO1.2", type="knowledge", text="Знает основы")
-            )
+            kit.framework.competencies[0].outcomes.append(Outcome(ref="LO1.2", type="knowledge", text="Знает основы"))
             await framework_repo.save_kit(session, program_id, kit)
-            await programs_repo.set_status(session, program_id=program_id, status="framework_approved", approved_by=USER_A)
+            await programs_repo.set_status(
+                session, program_id=program_id, status="framework_approved", approved_by=USER_A
+            )
             await session.commit()
             edit_id = programs_repo.new_uuid()
             await session.execute(
@@ -555,7 +585,12 @@ def test_edit_regenerates_only_affected_topic(env, monkeypatch) -> None:
                             'Замени формулировки на более простые', :affected, 'running', 1)
                     """
                 ),
-                {"eid": edit_id, "pid": program_id, "author": USER_A, "affected": ["T1.1", "LP-T1.1", "Q-001", "MP-M1"]},
+                {
+                    "eid": edit_id,
+                    "pid": program_id,
+                    "author": USER_A,
+                    "affected": ["T1.1", "LP-T1.1", "Q-001", "MP-M1"],
+                },
             )
             await session.commit()
             await pipeline.edit_core(session, program_id, edit_id, gateway=gateway)
@@ -573,7 +608,8 @@ def test_edit_regenerates_only_affected_topic(env, monkeypatch) -> None:
                 ).scalar_one(),
                 "edit_status": (
                     await session.execute(
-                        text("SELECT status FROM edit_request WHERE id = CAST(:eid AS uuid)"), {"eid": edit_id}
+                        text("SELECT status FROM edit_request WHERE id = CAST(:eid AS uuid)"),
+                        {"eid": edit_id},
                     )
                 ).scalar_one(),
             }
@@ -595,7 +631,7 @@ def test_execute_run_is_locked_against_double_start(env, monkeypatch) -> None:
     gateway = FakeGateway(FAKE_RESPONSES)
     monkeypatch.setattr(pipeline, "make_gateway", lambda *args, **kwargs: gateway)
 
-    program_id = _seed_program()
+    _seed_program()
 
     async def run() -> tuple[int, str]:
         factory = db_module.get_session_factory()

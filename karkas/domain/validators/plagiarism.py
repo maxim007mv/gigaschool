@@ -41,7 +41,7 @@ def _first_shared_fragment(tokens: list[str], size: int, known: set[tuple[str, .
     return " ".join(tokens[:size])
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Проверка дословного копирования референсов."""
     references = [t for t in ctx.reference_texts if t and t.strip()]
     if not references:

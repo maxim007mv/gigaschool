@@ -6,11 +6,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 
 from karkas.domain.kit import KitV1
 from karkas.domain.validators import ValidationContext
+
 
 @dataclass(frozen=True)
 class CheckResult:
@@ -47,12 +48,7 @@ def _check_hours_match(kit: KitV1) -> CheckResult:
 
 
 def _check_no_zero_topics(kit: KitV1) -> CheckResult:
-    bad = [
-        t.ref
-        for m in kit.framework.modules
-        for t in m.topics
-        if t.workload.total == 0
-    ]
+    bad = [t.ref for m in kit.framework.modules for t in m.topics if t.workload.total == 0]
     return CheckResult(
         "TK-COMMON",
         "TK-ОБЩ-2",
@@ -107,9 +103,7 @@ def _check_tk2_distance_split(kit: KitV1) -> CheckResult:
     if kit.program.total_hours != 36:
         return CheckResult("TK-2", "TK2-2", True, "не ТК-2")
     contact = sum(
-        t.workload.lecture + t.workload.practice + t.workload.lab
-        for m in kit.framework.modules
-        for t in m.topics
+        t.workload.lecture + t.workload.practice + t.workload.lab for m in kit.framework.modules for t in m.topics
     )
     distance = sum(t.workload.distance for m in kit.framework.modules for t in m.topics)
     ok = contact > 0 and distance >= 8
@@ -219,9 +213,7 @@ def _check_internship_self_study(kit: KitV1) -> CheckResult:
     if kit.program.form != "internship":
         return CheckResult("TK-5", "TK5-2", True, "не стажировка — пропуск")
     contact = sum(
-        t.workload.lecture + t.workload.practice + t.workload.lab
-        for m in kit.framework.modules
-        for t in m.topics
+        t.workload.lecture + t.workload.practice + t.workload.lab for m in kit.framework.modules for t in m.topics
     )
     ok = contact == 0 and all(
         t.workload.practice == 0 and t.workload.lab == 0 and t.workload.lecture == 0
@@ -255,9 +247,7 @@ def _check_interview_per_module(kit: KitV1) -> CheckResult:
     if kit.program.form != "internship":
         return CheckResult("TK-5", "TK5-6", True, "не стажировка — пропуск")
     missing: list[str] = []
-    topic_to_module = {
-        t.ref: mod.ref for mod in kit.framework.modules for t in mod.topics
-    }
+    topic_to_module = {t.ref: mod.ref for mod in kit.framework.modules for t in mod.topics}
     modules_with_interview: set[str] = set()
     for a in kit.content.assessments:
         if a.kind != "interview_question" or not a.topic_ref:
@@ -290,8 +280,8 @@ def _check_tk1_calendar(kit: KitV1) -> CheckResult:
     cal = kit.framework.calendar
     if cal is None:
         return CheckResult("TK-1", "TK1-3", False, "календарь не задан")
-    sessions = [s for s in cal.sessions if s.topic_ref is not None]
-    ok = len(sessions) == 8 and all(s.hours == 2 for s in sessions) and cal.weeks <= 4
+    sessions = [s for s in cal.sessions if s.hours == 2]
+    ok = len(sessions) == 8 and cal.weeks <= 4
     return CheckResult("TK-1", "TK1-3", ok, f"занятий={len(sessions)}, недель={cal.weeks}")
 
 

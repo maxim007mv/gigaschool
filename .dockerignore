@@ -1,0 +1,4 @@
+# Контекст сборки: корень репозитория (deploy/Dockerfile*: context: ..).
+web/node_modules
+.git
+.venv

@@ -91,12 +91,8 @@ def _sources_of_topic(kit: KitV1, topic_ref: str) -> list[Source]:
 
 def _closure_topic(kit: KitV1, topic: Topic) -> list[str]:
     content = kit.content
-    lecture_refs = [f"LP-{topic.ref}"] + [
-        block.ref for block in content.lecture_plans if block.topic_ref == topic.ref
-    ]
-    slides_refs = [f"SL-{topic.ref}"] + [
-        block.ref for block in content.slides if block.topic_ref == topic.ref
-    ]
+    lecture_refs = [f"LP-{topic.ref}"] + [block.ref for block in content.lecture_plans if block.topic_ref == topic.ref]
+    slides_refs = [f"SL-{topic.ref}"] + [block.ref for block in content.slides if block.topic_ref == topic.ref]
     module_ref = _module_ref_of_topic(kit, topic.ref)
     module_program_refs: list[str] = []
     if module_ref is not None:

@@ -4,6 +4,8 @@
 Компетенции/РО: {{ competencies_json }}
 
 Тема → outcome_refs (LO*); weight>0; practicality 0–1; complexity 1–5; has_lab при лабораторных.
+Число тем по всей программе — не больше, чем (total_hours − часы итоговой аттестации) / unit_hours
+(для {{ total_hours }} ч это обычно несколько тем, не десятки).
 
 {% if missing_outcomes %}
 ВНИМАНИЕ: в прошлом ответе НЕ раскрыты РО: {{ missing_outcomes }}.

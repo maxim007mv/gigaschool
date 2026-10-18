@@ -41,9 +41,7 @@ class LecturePlansOut(BaseModel):
     lecture_plans: list[LecturePlanOut] = Field(default_factory=list)
 
 
-def normalize_plans(
-    payload: LecturePlansOut, default_topic: str, module_ref: str | None
-) -> list[dict[str, Any]]:
+def normalize_plans(payload: LecturePlansOut, default_topic: str, module_ref: str | None) -> list[dict[str, Any]]:
     """Постпроверка: этапы, refs, отсутствие пустых планов."""
     plans: list[dict[str, Any]] = []
     for plan in payload.lecture_plans:

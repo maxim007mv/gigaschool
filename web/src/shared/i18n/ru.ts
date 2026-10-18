@@ -112,6 +112,7 @@ export const T = {
   } satisfies Record<IssueSeverity, string>,
   verifyStatus: {
     verified: "подтверждён",
+    partially_verified: "частично проверен",
     unverified: "не подтверждён",
     not_found: "не найден",
     outdated: "устарел",

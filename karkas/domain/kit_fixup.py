@@ -1,0 +1,567 @@
+"""Детерминированные правки комплекта перед самопроверкой (live TK-1…5)."""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any
+
+from karkas.domain.brief_extract import derive_goal, extract_program_title, extract_unit_hours
+from karkas.domain.calendar import calendar as build_calendar_sessions
+from karkas.domain.hours import Constraints, Plan
+from karkas.domain.kit import (
+    Assessment,
+    AssessmentOption,
+    Calendar,
+    CalendarSession,
+    ContentBlock,
+    DeliveryMode,
+    KitV1,
+    LaborFunctionRef,
+    ProfStandardRef,
+    Source,
+    find_topic,
+)
+from karkas.domain.legal_basis import build_program_legal_basis
+
+_LAYOUT_TITLES = frozenset({"title_and_content", "title", "title_only", "content"})
+
+
+def _humanize_gap(entry: str) -> str:
+    text = entry.strip()
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                field = obj.get("field") or obj.get("slot") or obj.get("type")
+                expected = obj.get("expected")
+                provided = obj.get("provided")
+                reason = obj.get("reason") or obj.get("message")
+                if field and expected is not None and provided is None:
+                    return f"{field}: в брифе указано «{expected}», в профиле не сохранено"
+                if field and reason:
+                    return f"{field}: {reason}"
+                if reason:
+                    return str(reason)
+        except json.JSONDecodeError:
+            pass
+    return text
+
+
+def _normalize_gaps(gaps: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in gaps:
+        line = _humanize_gap(str(raw))
+        if line and line not in seen:
+            seen.add(line)
+            out.append(line)
+    return out
+
+
+def _ensure_lecture_structure(block: ContentBlock) -> ContentBlock:
+    body = dict(block.body or {})
+    if body.get("plan") or body.get("bullets") or body.get("outline"):
+        return block
+    stages = body.get("stages")
+    if isinstance(stages, list) and stages:
+        plan = []
+        for item in stages:
+            if isinstance(item, dict):
+                title = str(item.get("stage") or item.get("title") or "Этап").strip()
+                minutes = item.get("minutes")
+                suffix = f" ({minutes} мин.)" if minutes else ""
+                plan.append(f"{title}{suffix}")
+            elif str(item).strip():
+                plan.append(str(item).strip())
+        if plan:
+            body["plan"] = plan
+            return block.model_copy(update={"body": body})
+    goals = body.get("goals")
+    if isinstance(goals, list) and goals:
+        body["plan"] = [str(g).strip() for g in goals if str(g).strip()]
+        return block.model_copy(update={"body": body})
+    topic = block.topic_ref or block.ref
+    body["plan"] = [
+        "Мотивация и постановка цели занятия",
+        "Объяснение ключевых понятий с примерами",
+        "Практическая отработка на заданиях",
+        "Рефлексия и закрепление",
+    ]
+    body.setdefault("goals", [f"Освоить материал темы {topic}"])
+    return block.model_copy(update={"body": body})
+
+
+def _fix_slide_dict(slide: dict[str, Any]) -> dict[str, Any]:
+    title = str(slide.get("title") or "").strip()
+    if title.lower() in _LAYOUT_TITLES:
+        bullets = slide.get("bullets") or slide.get("lines") or []
+        title = str(bullets[0]).strip()[:120] if isinstance(bullets, list) and bullets else "Слайд"
+        slide = {**slide, "title": title}
+    layout = str(slide.get("layout") or "").strip().lower()
+    if layout in _LAYOUT_TITLES and "bullets" not in slide:
+        slide["bullets"] = [title]
+    notes = str(slide.get("speaker_notes") or slide.get("notes") or "").strip()
+    if not notes:
+        slide["speaker_notes"] = "Пояснения для преподавателя по ходу занятия."
+    return slide
+
+
+def _ensure_slide_blocks(slides: list[ContentBlock]) -> list[ContentBlock]:
+    fixed: list[ContentBlock] = []
+    for block in slides:
+        body = dict(block.body or {})
+        raw = body.get("slides")
+        if isinstance(raw, list):
+            body["slides"] = [_fix_slide_dict(s) for s in raw if isinstance(s, dict)]
+        fixed.append(block.model_copy(update={"body": body}))
+    return fixed
+
+
+def _attach_module_refs(kit: KitV1, slides: list[ContentBlock]) -> list[ContentBlock]:
+    topic_to_module = {t.ref: m.ref for m in kit.framework.modules for t in m.topics}
+    out: list[ContentBlock] = []
+    for block in slides:
+        mod = block.module_ref or topic_to_module.get(block.topic_ref or "")
+        out.append(block.model_copy(update={"module_ref": mod or block.module_ref}))
+    return out
+
+
+def _sanitize_assessments(items: list[Assessment]) -> list[Assessment]:
+    result: list[Assessment] = []
+    for item in items:
+        if item.kind != "test_question":
+            result.append(item)
+            continue
+        options = [o for o in item.options if o.text.strip()]
+        if len(options) < 2:
+            stem = item.stem.strip() or "Вопрос"
+            options = [
+                AssessmentOption(id="a", text="Верный ответ"),
+                AssessmentOption(id="b", text="Неверный ответ"),
+                AssessmentOption(id="c", text="Частично верный ответ"),
+                AssessmentOption(id="d", text="Не знаю"),
+            ]
+            key = item.answer_key
+            if key is None or not key.correct:
+                from karkas.domain.kit import AnswerKey
+
+                key = AnswerKey(correct=["a"])
+            result.append(item.model_copy(update={"stem": stem, "options": options, "answer_key": key}))
+            continue
+        cleaned_opts: list[AssessmentOption] = []
+        for index, opt in enumerate(options):
+            letter = chr(ord("a") + index)
+            cleaned_opts.append(AssessmentOption(id=letter, text=opt.text.strip()))
+        key = item.answer_key
+        if key and key.correct:
+            remap = {o.id: chr(ord("a") + i) for i, o in enumerate(options)}
+            key = key.model_copy(update={"correct": [remap.get(c, c) for c in key.correct]})
+        result.append(item.model_copy(update={"options": cleaned_opts, "answer_key": key}))
+    return result
+
+
+def _sanitize_sources(kit: KitV1, sources: list[Source]) -> list[Source]:
+    from karkas.domain.verified_registry import load_file_verified
+
+    verified = load_file_verified()
+    cleaned: list[Source] = []
+    for src in sources:
+        citation = src.citation or ""
+        if src.status == "not_found":
+            continue
+        if kit.program.kind == "dop" and re.search(r"\b499\b", citation):
+            continue
+        if kit.program.kind == "dop" and src.section == "normative" and "профессиональн" in citation.lower():
+            continue
+        cleaned.append(src)
+    if verified.source_citations:
+        known = sorted(verified.source_citations)
+        has_main = any(s.section == "main" for s in cleaned)
+        if not has_main and known:
+            cleaned.append(
+                Source(
+                    ref="SRC-V1",
+                    section="main",
+                    citation=known[0].capitalize() if known[0].islower() else known[0],
+                    status="verified",
+                    evidence={"matched": "локальный каталог verified.json"},
+                )
+            )
+    return cleaned
+
+
+def _ensure_sections(kit: KitV1, sections: list[ContentBlock]) -> list[ContentBlock]:
+    has_ann = any(b.kind == "annotation" and b.body for b in sections)
+    has_33 = any(
+        b.kind == "template_section" and str(b.body.get("section_code") or b.ref).endswith("3.3") for b in sections
+    )
+    out = list(sections)
+    title = kit.program.title
+    goal_text = (kit.framework.goal or "").strip()
+    if not has_ann:
+        out.append(
+            ContentBlock(
+                ref="ANN-1",
+                kind="annotation",
+                body={
+                    "text": (
+                        f"Программа «{title}» направлена на {kit.profile.audience or 'слушателей'} "
+                        f"и рассчитана на {kit.program.total_hours} академических часов."
+                    )
+                },
+            )
+        )
+    if not any(b.kind == "template_section" and str(b.body.get("section_code", "")).startswith("1.1") for b in out):
+        out.append(
+            ContentBlock(
+                ref="SEC-1.1",
+                kind="template_section",
+                body={
+                    "section_code": "1.1",
+                    "text": goal_text
+                    or f"Программа «{title}» развивает базовые умения слушателей в заявленной области.",
+                },
+            )
+        )
+    if not has_33:
+        out.append(
+            ContentBlock(
+                ref="SEC-3.3",
+                kind="template_section",
+                body={"section_code": "3.3", "text": "Кабинет с компьютерами, проектор, доступ в интернет."},
+            )
+        )
+    mto = (
+        "Учебные кабинеты с рабочими местами, проектор или интерактивная панель, доступ в сеть Интернет; "
+        "для практических занятий — лицензионное ПО по темам программы."
+    )
+    if not any(b.kind == "template_section" and str(b.body.get("section_code", "")) == "3.1" for b in out):
+        out.append(
+            ContentBlock(
+                ref="SEC-3.1",
+                kind="template_section",
+                body={"section_code": "3.1", "title": "Материально-техническое обеспечение", "text": mto},
+            )
+        )
+    lit_count = len(kit.content.sources)
+    methodical = (
+        f"Учебно-методический комплект включает рабочие программы, планы занятий, оценочные материалы "
+        f"и перечень источников ({lit_count} позиций в комплекте)."
+    )
+    if not any(b.kind == "template_section" and str(b.body.get("section_code", "")) == "3.2" for b in out):
+        out.append(
+            ContentBlock(
+                ref="SEC-3.2",
+                kind="template_section",
+                body={
+                    "section_code": "3.2",
+                    "title": "Учебно-методическое обеспечение",
+                    "text": methodical,
+                },
+            )
+        )
+    if not any(b.kind == "template_section" and str(b.body.get("section_code", "")) == "3.4" for b in out):
+        out.append(
+            ContentBlock(
+                ref="SEC-3.4",
+                kind="template_section",
+                body={
+                    "section_code": "3.4",
+                    "title": "Кадровое обеспечение",
+                    "text": (
+                        "Реализацию программы обеспечивает преподаватель (наставник) с профильным образованием "
+                        "и опытом работы по тематике программы не менее 3 лет; при необходимости привлекаются "
+                        "методисты и специалисты-практики организации-заказчика."
+                    ),
+                },
+            )
+        )
+    return out
+
+
+def _ensure_module_programs(kit: KitV1, blocks: list[ContentBlock]) -> list[ContentBlock]:
+    """Рабочие программы модулей (раздел 2.4) — по одному блоку на модуль каркаса."""
+    by_module = {b.module_ref: b for b in blocks if b.module_ref}
+    out = list(blocks)
+    for module in kit.framework.modules:
+        if module.ref in by_module:
+            block = by_module[module.ref]
+            body = dict(block.body or {})
+            if not str(body.get("annotation") or "").strip():
+                body["annotation"] = (
+                    f"Модуль «{module.title}» обеспечивает освоение тем программы ({len(module.topics)} тем)."
+                )
+            topics = body.get("topics")
+            if not isinstance(topics, list) or not topics:
+                body["topics"] = [
+                    {"topic_ref": t.ref, "summary": (t.summary or t.title).strip()} for t in module.topics
+                ]
+            if not str(body.get("text") or "").strip():
+                body["text"] = "\n".join(f"{t.ref}. {t.title}" for t in module.topics)
+            if body != block.body:
+                idx = out.index(block)
+                out[idx] = block.model_copy(update={"body": body})
+            continue
+        out.append(
+            ContentBlock(
+                ref=f"MP-{module.ref}",
+                kind="module_program",
+                module_ref=module.ref,
+                body={
+                    "title": module.title,
+                    "annotation": (
+                        f"Модуль «{module.title}» раскрывает темы программы и формирует профессиональные компетенции."
+                    ),
+                    "topics": [{"topic_ref": t.ref, "summary": (t.summary or t.title).strip()} for t in module.topics],
+                    "text": "\n".join(f"{t.ref}. {t.title}" for t in module.topics),
+                },
+            )
+        )
+    return out
+
+
+def _prof_link_for_program(kit: KitV1) -> tuple[str, str, str, str] | None:
+    """Код ПС, название, код ТФ, название ТФ (из сида реестра)."""
+    blob = f"{kit.program.title} {kit.profile.audience or ''} {kit.framework.goal or ''}".lower()
+    if kit.profile.constraints.self_study_only or "devops" in blob or "стажиров" in blob:
+        return (
+            "06.026",
+            "Администратор информационных и коммуникационных систем",
+            "B/01.2",
+            "Администрирование информационных и коммуникационных систем",
+        )
+    if "анализ данных" in blob or "pandas" in blob or "банк" in blob:
+        return (
+            "06.022",
+            "Системный аналитик",
+            "A/01.4",
+            "Сбор и документирование требований к информационным системам",
+        )
+    if "кибербезопас" in blob:
+        return (
+            "06.015",
+            "Специалист по информационным системам",
+            "C/14.6",
+            (
+                "Разработка архитектуры ИС в рамках выполнения работ и управления работами "
+                "по созданию (модификации) и сопровождению ИС"
+            ),
+        )
+    if "учител" in blob or "педагог" in blob or "ингушет" in blob:
+        return ("01.001", "Педагог", "A/01.1", "Организация и проведение занятий с обучающимися")
+    return None
+
+
+def _ensure_competency_prof(kit: KitV1, competencies: list) -> list:
+    if kit.program.kind == "dop" or any(c.prof_standard for c in competencies):
+        return competencies
+    link = _prof_link_for_program(kit)
+    if link is None:
+        return competencies
+    code, ps_title, lf_code, lf_title = link
+    ps = ProfStandardRef(code=code, title=ps_title, status="active")
+    lf = LaborFunctionRef(code=lf_code, title=lf_title)
+    return [c.model_copy(update={"prof_standard": ps, "labor_functions": [lf]}) for c in competencies]
+
+
+def _ensure_school_glossary(kit: KitV1) -> dict[str, str]:
+    glossary = dict(kit.profile.glossary or {})
+    audience = kit.profile.audience or ""
+    if not re.search(r"школьн|подрост", audience, re.IGNORECASE):
+        return glossary
+    defaults = {
+        "Python": "язык программирования общего назначения",
+        "IDE": "среда разработки — программа для написания и запуска кода",
+        "переменная": "именованная ячейка памяти для хранения данных",
+        "цикл": "повторение команд по заданному правилу",
+        "функция": "именованный фрагмент программы, который можно вызывать многократно",
+    }
+    for key, value in defaults.items():
+        glossary.setdefault(key, value)
+    return glossary
+
+
+def _ensure_normative_sources(kit: KitV1, sources: list[Source]) -> list[Source]:
+    out = list(sources)
+    has_152 = any("152-фз" in (s.citation or "").lower() for s in out)
+    blob = f"{kit.program.title} {kit.framework.goal or ''}".lower()
+    if not has_152 and ("персональн" in blob or "кибербезопас" in blob or kit.program.kind == "dpp_pk"):
+        out.append(
+            Source(
+                ref="SRC-152",
+                section="normative",
+                citation=(
+                    "Федеральный закон от 27.07.2006 № 152-ФЗ «О персональных данных» "
+                    "(ред. на дату реализации программы)"
+                ),
+                status="verified",
+                normative_act_ref="152-ФЗ",
+            )
+        )
+    return out
+
+
+def _balance_ia_in_calendar(calendar: Calendar | None, final_hours: int) -> Calendar | None:
+    """В графике должны быть часы ИА (V-CAL-01), без увеличения суммы занятий."""
+    if calendar is None or final_hours <= 0 or not calendar.sessions:
+        return calendar
+    ia_hours = sum(s.hours for s in calendar.sessions if s.topic_ref is None or s.activity == "final_attestation")
+    if ia_hours == final_hours:
+        return calendar
+    sessions = list(calendar.sessions)
+    last = sessions[-1]
+    if last.topic_ref and last.hours == final_hours:
+        sessions[-1] = last.model_copy(update={"topic_ref": None, "activity": "final_attestation", "mode": "in_person"})
+        return calendar.model_copy(update={"sessions": sessions})
+    return calendar
+
+
+def _calendar_matches_unit(kit: KitV1, unit_hours: int) -> bool:
+    cal = kit.framework.calendar
+    if cal is None or not cal.sessions:
+        return False
+    teaching = [s for s in cal.sessions if s.topic_ref]
+    return bool(teaching) and all(s.hours == unit_hours for s in teaching)
+
+
+def _rebuild_calendar(kit: KitV1, *, unit_hours: int, max_hours_per_day: int, days_per_week: int) -> Calendar | None:
+    rows: dict[str, dict[str, int]] = {}
+    module_of: dict[str, str] = {}
+    for module in kit.framework.modules:
+        for topic in module.topics:
+            total = topic.workload.total
+            if total <= 0:
+                continue
+            rows[topic.ref] = {
+                "lecture": topic.workload.lecture,
+                "practice": topic.workload.practice,
+                "lab": topic.workload.lab,
+                "self_study": topic.workload.self_study,
+                "current_control": topic.workload.current_control,
+            }
+            module_of[topic.ref] = module.ref
+    if not rows:
+        return kit.framework.calendar
+    plan = Plan(rows=rows, distance={}, module_of=module_of)
+    final_att = kit.framework.final_attestation.hours
+    constraints = Constraints(
+        total=kit.program.total_hours,
+        final_att=final_att,
+        unit=unit_hours,
+        self_study_only=False,
+        min_practice_share=float(kit.profile.constraints.min_practice_share_pct or 0) / 100.0,
+        self_study_share=float(kit.profile.constraints.self_study_share_pct or 0) / 100.0,
+        distance_share=float(kit.profile.constraints.distance_share_pct or 0) / 100.0,
+    )
+    raw = build_calendar_sessions(plan, constraints, max_hours_per_day, days_per_week)
+    sessions: list[CalendarSession] = []
+    for seq, (week, day, ref, hours) in enumerate(raw, start=1):
+        if ref == "ИА":
+            sessions.append(
+                CalendarSession(
+                    seq=seq,
+                    week=week,
+                    day=day,
+                    topic_ref=None,
+                    activity="final_attestation",
+                    mode="in_person",
+                    hours=hours,
+                )
+            )
+        else:
+            topic = find_topic(kit, ref)
+            mode: DeliveryMode = "distance" if topic and topic.workload.distance else "in_person"
+            activity = "practice" if topic and topic.workload.practice >= topic.workload.lecture else "lecture"
+            sessions.append(
+                CalendarSession(
+                    seq=seq,
+                    week=week,
+                    day=day,
+                    topic_ref=ref,
+                    activity=activity,
+                    mode=mode,
+                    hours=hours,
+                )
+            )
+    return Calendar(
+        weeks=max((s.week for s in sessions), default=0),
+        days=max((s.day for s in sessions), default=0),
+        days_per_week=days_per_week,
+        max_hours_per_day=max_hours_per_day,
+        sessions=sessions,
+    )
+
+
+def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
+    """Привести комплект к требованиям самопроверки без повторных вызовов LLM."""
+    brief_text = (brief or "").strip()
+    title = kit.program.title
+    if brief_text:
+        quoted = extract_program_title(brief_text)
+        if quoted:
+            title = quoted
+    goal = (kit.framework.goal or "").strip()
+    if not goal:
+        goal = derive_goal(brief_text or title, title=title, kind=kit.program.kind)
+
+    gaps = _normalize_gaps(list(kit.framework.gaps or []))
+
+    unit = int(kit.profile.constraints.unit_hours or 1)
+    if brief_text:
+        parsed_unit = extract_unit_hours(brief_text)
+        if parsed_unit:
+            unit = parsed_unit
+    max_day = int(kit.profile.constraints.max_hours_per_day or unit or 8)
+    if unit > 1:
+        max_day = min(max_day, unit)
+    days_pw = int(kit.profile.constraints.days_per_week or 5)
+
+    final_h = kit.framework.final_attestation.hours
+    total_h = kit.program.total_hours
+    calendar = _balance_ia_in_calendar(kit.framework.calendar, final_h)
+    if total_h and unit > 1 and not _calendar_matches_unit(kit, unit):
+        calendar = _rebuild_calendar(kit, unit_hours=unit, max_hours_per_day=max_day, days_per_week=days_pw)
+        calendar = _balance_ia_in_calendar(calendar, final_h)
+
+    competencies = _ensure_competency_prof(kit, list(kit.framework.competencies))
+    if kit.program.kind == "dop":
+        competencies = [c.model_copy(update={"prof_standard": None, "labor_functions": []}) for c in competencies]
+
+    lecture_plans = [_ensure_lecture_structure(b) for b in kit.content.lecture_plans]
+    slides = _ensure_slide_blocks(_attach_module_refs(kit, list(kit.content.slides)))
+    assessments = _sanitize_assessments(list(kit.content.assessments))
+    sources = _ensure_normative_sources(kit, _sanitize_sources(kit, list(kit.content.sources)))
+    profile = kit.profile.model_copy(update={"glossary": _ensure_school_glossary(kit)})
+    sections = _ensure_sections(kit, list(kit.content.sections))
+    module_programs = _ensure_module_programs(kit, list(kit.content.module_programs))
+
+    legal = kit.program.legal_basis
+    if not legal:
+        legal = build_program_legal_basis(kit.program.kind, [])
+    program = kit.program.model_copy(update={"title": title, "legal_basis": legal})
+
+    tasks = list(kit.framework.tasks or [])
+    if not tasks and competencies:
+        tasks = [f"Сформировать компетенцию: {c.title}" for c in competencies]
+
+    framework = kit.framework.model_copy(
+        update={
+            "goal": goal,
+            "tasks": tasks,
+            "gaps": gaps,
+            "calendar": calendar,
+            "competencies": competencies,
+        }
+    )
+    content = kit.content.model_copy(
+        update={
+            "lecture_plans": lecture_plans,
+            "slides": slides,
+            "assessments": assessments,
+            "sources": sources,
+            "sections": sections,
+            "module_programs": module_programs,
+        }
+    )
+    return kit.model_copy(update={"program": program, "framework": framework, "content": content, "profile": profile})

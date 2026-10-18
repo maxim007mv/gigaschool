@@ -12,8 +12,9 @@ import hashlib
 import hmac
 import time
 import uuid
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
-from typing import Annotated, AsyncIterator, Callable, Literal
+from typing import Annotated, Literal
 
 import jwt
 from fastapi import Depends, Header, Request
@@ -241,8 +242,7 @@ def parse_if_match(if_match: str | None, current_lock_version: int, *, required:
     if not if_match:
         if required:
             raise VersionConflict(
-                "Нужен заголовок If-Match с ETag из GET framework "
-                "(защита от одновременного редактирования)"
+                "Нужен заголовок If-Match с ETag из GET framework (защита от одновременного редактирования)"
             )
         return
     cleaned = if_match.strip().strip('"').lstrip("W/").strip('"')
@@ -258,6 +258,5 @@ def parse_if_match(if_match: str | None, current_lock_version: int, *, required:
             raise VersionConflict("Некорректный заголовок If-Match") from exc
     if lock_version != current_lock_version:
         raise VersionConflict(
-            f"Версия каркаса на сервере — {current_lock_version}, у вас — {lock_version}. "
-            "Обновите страницу."
+            f"Версия каркаса на сервере — {current_lock_version}, у вас — {lock_version}. Обновите страницу."
         )

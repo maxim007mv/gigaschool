@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from karkas.agent.skill_runner import SkillRunner
 from karkas.agent.skills import SKILLS
-from karkas.agent.skills._base import SkillContext, InMemoryCheckpointStore
+from karkas.agent.skills._base import InMemoryCheckpointStore, SkillContext
 from karkas.domain.framework_skeleton import SkeletonSpec, build_skeleton_modules, skeleton_constraints
 from karkas.domain.hours import solve
 from karkas.eval.fake_llm import FakeGateway

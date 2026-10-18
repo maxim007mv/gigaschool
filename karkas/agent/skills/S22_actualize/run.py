@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from pydantic import BaseModel, Field
@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field
 from karkas.agent.skills._base import SkillContext, SkillSpec, complete_structured, to_json
 
 DIR = "S22_actualize"
-METADATA = SkillSpec(code="S22", name="Актуализация старой программы", dir=DIR, model_class="struct", depends_on=("S04",))
+METADATA = SkillSpec(
+    code="S22", name="Актуализация старой программы", dir=DIR, model_class="struct", depends_on=("S04",)
+)
 
 
 class OutdatedOut(BaseModel):
@@ -59,9 +61,7 @@ def stale_tools(tools: list[Any], catalog: list[Any]) -> list[dict[str, str]]:
     return outdated
 
 
-def normalize(
-    payload: ActualizeOut, snapshot_date: str, tools: list[Any], catalog: list[Any]
-) -> dict[str, Any]:
+def normalize(payload: ActualizeOut, snapshot_date: str, tools: list[Any], catalog: list[Any]) -> dict[str, Any]:
     """Дедупликация, чистка, детерминированное дополнение по каталогу."""
     outdated: list[dict[str, str]] = []
     seen_elements: set[str] = set()
@@ -70,7 +70,13 @@ def normalize(
         if not element or element.casefold() in seen_elements:
             continue
         seen_elements.add(element.casefold())
-        outdated.append({"element": element, "current": item.current.strip(), "reason": item.reason.strip() or "требует проверки"})
+        outdated.append(
+            {
+                "element": element,
+                "current": item.current.strip(),
+                "reason": item.reason.strip() or "требует проверки",
+            }
+        )
     for item in stale_tools(tools, catalog):
         if item["element"].casefold() not in seen_elements:
             seen_elements.add(item["element"].casefold())
@@ -97,7 +103,7 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     old_program = inputs.get("old_program") or (inputs.get("S04") if isinstance(inputs.get("S04"), dict) else {})
     tools = [item for item in (inputs.get("tools") or [])]
     catalog = [item for item in (inputs.get("service_catalog") or [])]
-    snapshot_date = str(inputs.get("snapshot_date") or datetime.now(timezone.utc).date().isoformat())
+    snapshot_date = str(inputs.get("snapshot_date") or datetime.now(UTC).date().isoformat())
     payload = cast(
         ActualizeOut,
         await complete_structured(

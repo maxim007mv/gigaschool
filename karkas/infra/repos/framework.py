@@ -85,31 +85,41 @@ def _split_distance(w: Workload) -> dict[tuple[str, str], int]:
 async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
     """Собрать KitV1 из нормализованных таблиц (или None, если программы нет)."""
     program = (
-        await session.execute(text("SELECT * FROM program WHERE id = :pid"), {"pid": program_id})
-    ).mappings().first()
+        (await session.execute(text("SELECT * FROM program WHERE id = :pid"), {"pid": program_id})).mappings().first()
+    )
     if program is None:
         return None
 
     competencies_rows = (
-        await session.execute(
-            text("SELECT * FROM competency WHERE program_id = :pid ORDER BY ord, ref"), {"pid": program_id}
+        (
+            await session.execute(
+                text("SELECT * FROM competency WHERE program_id = :pid ORDER BY ord, ref"),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     outcomes_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT lo.*, lo.competency_id AS comp_id FROM learning_outcome lo
                 WHERE lo.program_id = :pid ORDER BY lo.ord, lo.ref
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     lf_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT c.id AS competency_id, lf.code AS lf_code, lf.title AS lf_title, lf.otf_code,
                        ps.code AS ps_code, ps.title AS ps_title, ps.status AS ps_status, ps.order_number
                 FROM competency c
@@ -117,10 +127,13 @@ async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
                 LEFT JOIN prof_standard ps ON ps.id = lf.prof_standard_id
                 WHERE c.program_id = :pid
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
 
     outcomes_by_comp: dict[str, list[Outcome]] = {}
     outcome_ref_by_id: dict[str, str] = {}
@@ -136,7 +149,9 @@ async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
         comp_id = str(r["competency_id"])
         if r["ps_code"]:
             ps_by_comp[comp_id] = ProfStandardRef(
-                code=r["ps_code"], title=r["ps_title"] or "", status=r["ps_status"] or "active",
+                code=r["ps_code"],
+                title=r["ps_title"] or "",
+                status=r["ps_status"] or "active",
                 order_number=r["order_number"],
             )
         else:
@@ -159,37 +174,54 @@ async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
     ]
 
     module_rows = (
-        await session.execute(
-            text("SELECT * FROM module WHERE program_id = :pid ORDER BY number"), {"pid": program_id}
+        (
+            await session.execute(
+                text("SELECT * FROM module WHERE program_id = :pid ORDER BY number"), {"pid": program_id}
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     topic_rows = (
-        await session.execute(
-            text("SELECT * FROM topic WHERE program_id = :pid ORDER BY module_id, number"), {"pid": program_id}
+        (
+            await session.execute(
+                text("SELECT * FROM topic WHERE program_id = :pid ORDER BY module_id, number"),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     workload_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT w.* FROM topic_workload w JOIN topic t ON t.id = w.topic_id
                 WHERE t.program_id = :pid
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     topic_outcome_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT tl.topic_id, tl.outcome_id FROM topic_outcome tl
                 JOIN topic t ON t.id = tl.topic_id WHERE t.program_id = :pid
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
 
     workload_by_topic: dict[str, dict[str, int]] = {}
     for r in workload_rows:
@@ -298,30 +330,37 @@ async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
     )
 
 
-async def _load_calendar(
-    session: AsyncSession, program_id: str, constraints: ProgramConstraints
-) -> Calendar | None:
+async def _load_calendar(session: AsyncSession, program_id: str, constraints: ProgramConstraints) -> Calendar | None:
     """Календарь из БД. days_per_week/max_hours_per_day восстанавливаем из
     ограничений программы: в calendar_session они не хранятся, и без этого
     reload давал ложный V-CAL-01 (например, ТК-5: 64 дня / 10 недель)."""
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT cs.*, t.ref AS topic_ref FROM calendar_session cs
                 LEFT JOIN topic t ON t.id = cs.topic_id
                 WHERE cs.program_id = :pid ORDER BY cs.seq
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     if not rows:
         return None
     sessions = [
         CalendarSession(
-            seq=r["seq"], week=r["week_no"], day=r["day_no"], topic_ref=r["topic_ref"],
-            activity=r["activity"], mode=r["mode"], hours=r["hours"],
+            seq=r["seq"],
+            week=r["week_no"],
+            day=r["day_no"],
+            topic_ref=r["topic_ref"],
+            activity=r["activity"],
+            mode=r["mode"],
+            hours=r["hours"],
         )
         for r in rows
     ]
@@ -336,50 +375,67 @@ async def _load_calendar(
 
 async def _load_content(session: AsyncSession, program_id: str, outcome_ref_by_id: dict[str, str]) -> Content:
     block_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT cb.*, m.ref AS module_ref, t.ref AS topic_ref FROM content_block cb
                 LEFT JOIN module m ON m.id = cb.module_id
                 LEFT JOIN topic t ON t.id = cb.topic_id
                 WHERE cb.program_id = :pid ORDER BY cb.ref
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     blocks = [
         ContentBlock(
-            ref=r["ref"], kind=r["kind"], module_ref=r["module_ref"], topic_ref=r["topic_ref"],
-            body=r["body"] or {}, generated_by=r["generated_by"], stale=r["stale"],
+            ref=r["ref"],
+            kind=r["kind"],
+            module_ref=r["module_ref"],
+            topic_ref=r["topic_ref"],
+            body=r["body"] or {},
+            generated_by=r["generated_by"],
+            stale=r["stale"],
         )
         for r in block_rows
     ]
 
     assessment_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT ai.*, t.ref AS topic_ref, m.ref AS module_ref FROM assessment_item ai
                 LEFT JOIN topic t ON t.id = ai.topic_id
                 LEFT JOIN module m ON m.id = ai.module_id
                 WHERE ai.program_id = :pid ORDER BY ai.ref
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     ao_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT ao.item_id, ao.outcome_id FROM assessment_outcome ao
                 JOIN assessment_item ai ON ai.id = ao.item_id WHERE ai.program_id = :pid
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     outcome_refs_by_item: dict[str, list[str]] = {}
     for r in ao_rows:
         ref = outcome_ref_by_id.get(str(r["outcome_id"]))
@@ -396,45 +452,67 @@ async def _load_content(session: AsyncSession, program_id: str, outcome_ref_by_i
         rubric = [Criterion(**c) for c in (r["rubric"] or [])] if r["rubric"] else []
         assessments.append(
             Assessment(
-                ref=r["ref"], kind=r["kind"], topic_ref=r["topic_ref"], module_ref=r["module_ref"],
-                stem=r["stem"], qtype=r["qtype"], options=options, answer_key=answer_key,
-                rubric=rubric, outcome_refs=item_refs, difficulty=r["difficulty"],
+                ref=r["ref"],
+                kind=r["kind"],
+                topic_ref=r["topic_ref"],
+                module_ref=r["module_ref"],
+                stem=r["stem"],
+                qtype=r["qtype"],
+                options=options,
+                answer_key=answer_key,
+                rubric=rubric,
+                outcome_refs=item_refs,
+                difficulty=r["difficulty"],
             )
         )
 
     source_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT s.*, na.number AS act_number FROM source s
                 LEFT JOIN normative_act na ON na.id = s.normative_act_id
                 WHERE s.program_id = :pid ORDER BY s.ref
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     usage_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT su.source_id, t.ref AS topic_ref FROM source_usage su
                 JOIN source s ON s.id = su.source_id
                 JOIN topic t ON t.id = su.topic_id
                 WHERE s.program_id = :pid
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     topics_by_source: dict[str, list[str]] = {}
     for r in usage_rows:
         topics_by_source.setdefault(str(r["source_id"]), []).append(r["topic_ref"])
 
     sources = [
         Source(
-            ref=r["ref"], section=r["section"], citation=r["citation"], url=r["url"], isbn=r["isbn"],
-            normative_act_ref=r["act_number"], status=r["status"], evidence=r["evidence"] or {},
+            ref=r["ref"],
+            section=r["section"],
+            citation=r["citation"],
+            url=r["url"],
+            isbn=r["isbn"],
+            normative_act_ref=r["act_number"],
+            status=r["status"],
+            evidence=r["evidence"] or {},
             topic_refs=sorted(topics_by_source.get(str(r["id"]), [])),
         )
         for r in source_rows
@@ -452,24 +530,32 @@ async def _load_content(session: AsyncSession, program_id: str, outcome_ref_by_i
 
 async def _load_report(session: AsyncSession, program_id: str, version: int) -> Report | None:
     run = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT * FROM validation_run
                 WHERE program_id = :pid ORDER BY created_at DESC LIMIT 1
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if run is None:
         return None
     issues_rows = (
-        await session.execute(
-            text("SELECT * FROM validation_issue WHERE run_id = :rid ORDER BY severity, rule_code"),
-            {"rid": run["id"]},
+        (
+            await session.execute(
+                text("SELECT * FROM validation_issue WHERE run_id = :rid ORDER BY severity, rule_code"),
+                {"rid": run["id"]},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     summary = run["summary"] or {}
     return Report(
         passed=run["passed"],
@@ -478,8 +564,11 @@ async def _load_report(session: AsyncSession, program_id: str, version: int) -> 
         summary=summary,
         issues=[
             ReportIssue(
-                rule_code=r["rule_code"], severity=r["severity"], entity_ref=r["entity_ref"],
-                message=r["message"], fix_hint=r["fix_hint"],
+                rule_code=r["rule_code"],
+                severity=r["severity"],
+                entity_ref=r["entity_ref"],
+                message=r["message"],
+                fix_hint=r["fix_hint"],
             )
             for r in issues_rows
         ],
@@ -571,12 +660,19 @@ async def save_kit(
         sql += " RETURNING id"
         updated = (await session.execute(text(sql), params)).scalar_one_or_none()
         if updated is None:
-            raise LockVersionConflict(
-                f"Каркас изменил другой пользователь (ожидалась версия {expected_lock_version})"
-            )
+            raise LockVersionConflict(f"Каркас изменил другой пользователь (ожидалась версия {expected_lock_version})")
 
     # Полная замена дочерних строк (черновик; история — в program_version).
-    for table in ("assessment_item", "content_block", "source", "calendar_session", "topic", "module", "learning_outcome", "competency"):
+    for table in (
+        "assessment_item",
+        "content_block",
+        "source",
+        "calendar_session",
+        "topic",
+        "module",
+        "learning_outcome",
+        "competency",
+    ):
         await session.execute(text(f"DELETE FROM {table} WHERE program_id = :pid"), {"pid": program_id})
 
     # --- Компетенции и РО ---
@@ -607,8 +703,12 @@ async def save_kit(
                     """
                 ),
                 {
-                    "pid": program_id, "ref": comp.ref, "title": comp.title,
-                    "activity_kind": comp.activity_kind, "lf_id": lf_id, "ord": c_ord,
+                    "pid": program_id,
+                    "ref": comp.ref,
+                    "title": comp.title,
+                    "activity_kind": comp.activity_kind,
+                    "lf_id": lf_id,
+                    "ord": c_ord,
                 },
             )
         ).scalar_one()
@@ -623,8 +723,13 @@ async def save_kit(
                         """
                     ),
                     {
-                        "pid": program_id, "cid": comp_id, "ref": outcome.ref, "type": outcome.type,
-                        "text": outcome.text, "bloom": outcome.bloom_level, "ord": o_ord,
+                        "pid": program_id,
+                        "cid": comp_id,
+                        "ref": outcome.ref,
+                        "type": outcome.type,
+                        "text": outcome.text,
+                        "bloom": outcome.bloom_level,
+                        "ord": o_ord,
                     },
                 )
             ).scalar_one()
@@ -643,8 +748,12 @@ async def save_kit(
                     """
                 ),
                 {
-                    "pid": program_id, "ref": module.ref, "number": module.number,
-                    "title": module.title, "weight": module.weight, "att_form": module.att_form,
+                    "pid": program_id,
+                    "ref": module.ref,
+                    "number": module.number,
+                    "title": module.title,
+                    "weight": module.weight,
+                    "att_form": module.att_form,
                 },
             )
         ).scalar_one()
@@ -659,10 +768,17 @@ async def save_kit(
                         """
                     ),
                     {
-                        "pid": program_id, "mid": module_id, "ref": topic.ref, "number": t_number,
-                        "title": topic.title, "summary": topic.summary, "weight": topic.weight,
-                        "practicality": topic.practicality, "complexity": topic.complexity,
-                        "control_form": topic.control_form, "locked": list(topic.locked),
+                        "pid": program_id,
+                        "mid": module_id,
+                        "ref": topic.ref,
+                        "number": t_number,
+                        "title": topic.title,
+                        "summary": topic.summary,
+                        "weight": topic.weight,
+                        "practicality": topic.practicality,
+                        "complexity": topic.complexity,
+                        "control_form": topic.control_form,
+                        "locked": list(topic.locked),
                     },
                 )
             ).scalar_one()
@@ -697,16 +813,19 @@ async def save_kit(
                     """
                 ),
                 {
-                    "pid": program_id, "seq": session_row.seq, "week": session_row.week,
-                    "day": session_row.day, "topic_id": topic_ids.get(session_row.topic_ref or ""),
-                    "activity": session_row.activity, "mode": session_row.mode, "hours": session_row.hours,
+                    "pid": program_id,
+                    "seq": session_row.seq,
+                    "week": session_row.week,
+                    "day": session_row.day,
+                    "topic_id": topic_ids.get(session_row.topic_ref or ""),
+                    "activity": session_row.activity,
+                    "mode": session_row.mode,
+                    "hours": session_row.hours,
                 },
             )
 
     # --- Содержание: блоки ---
-    for block in (
-        kit.content.module_programs + kit.content.lecture_plans + kit.content.slides + kit.content.sections
-    ):
+    for block in kit.content.module_programs + kit.content.lecture_plans + kit.content.slides + kit.content.sections:
         await session.execute(
             text(
                 """
@@ -715,9 +834,13 @@ async def save_kit(
                 """
             ),
             {
-                "pid": program_id, "ref": block.ref, "kind": block.kind,
-                "module_id": None, "topic_id": topic_ids.get(block.topic_ref or ""),
-                "body": json.dumps(block.body, ensure_ascii=False), "stale": block.stale,
+                "pid": program_id,
+                "ref": block.ref,
+                "kind": block.kind,
+                "module_id": None,
+                "topic_id": topic_ids.get(block.topic_ref or ""),
+                "body": json.dumps(block.body, ensure_ascii=False),
+                "stale": block.stale,
                 "generated_by": block.generated_by,
             },
         )
@@ -751,13 +874,22 @@ async def save_kit(
                     """
                 ),
                 {
-                    "pid": program_id, "ref": item.ref, "kind": item.kind,
-                    "topic_id": topic_ids.get(item.topic_ref or ""), "mref": item.module_ref,
-                    "stem": item.stem, "qtype": item.qtype,
-                    "options": json.dumps([o.model_dump() for o in item.options], ensure_ascii=False) if item.options else None,
+                    "pid": program_id,
+                    "ref": item.ref,
+                    "kind": item.kind,
+                    "topic_id": topic_ids.get(item.topic_ref or ""),
+                    "mref": item.module_ref,
+                    "stem": item.stem,
+                    "qtype": item.qtype,
+                    "options": json.dumps([o.model_dump() for o in item.options], ensure_ascii=False)
+                    if item.options
+                    else None,
                     "answer_key": item.answer_key.model_dump_json() if item.answer_key else None,
-                    "rubric": json.dumps([c.model_dump() for c in item.rubric], ensure_ascii=False) if item.rubric else None,
-                    "difficulty": item.difficulty, "hash": content_hash,
+                    "rubric": json.dumps([c.model_dump() for c in item.rubric], ensure_ascii=False)
+                    if item.rubric
+                    else None,
+                    "difficulty": item.difficulty,
+                    "hash": content_hash,
                 },
             )
         ).scalar_one()
@@ -789,8 +921,14 @@ async def save_kit(
                     """
                 ),
                 {
-                    "pid": program_id, "ref": src.ref, "section": src.section, "citation": src.citation,
-                    "url": src.url, "isbn": src.isbn, "act_id": act_id, "status": src.status,
+                    "pid": program_id,
+                    "ref": src.ref,
+                    "section": src.section,
+                    "citation": src.citation,
+                    "url": src.url,
+                    "isbn": src.isbn,
+                    "act_id": act_id,
+                    "status": src.status,
                     "evidence": json.dumps(src.evidence, ensure_ascii=False),
                 },
             )
@@ -821,7 +959,8 @@ async def save_report(session: AsyncSession, program_id: str, version: int, repo
                 """
             ),
             {
-                "pid": program_id, "version": version,
+                "pid": program_id,
+                "version": version,
                 "scope": "kit" if report.summary.get("scope") == "kit" else "framework",
                 "passed": report.passed,
                 "summary": json.dumps(summary, ensure_ascii=False),
@@ -838,8 +977,11 @@ async def save_report(session: AsyncSession, program_id: str, version: int, repo
                 """
             ),
             {
-                "rid": run_id, "rule": issue.rule_code, "severity": issue.severity,
-                "ref": issue.entity_ref, "message": issue.message,
+                "rid": run_id,
+                "rule": issue.rule_code,
+                "severity": issue.severity,
+                "ref": issue.entity_ref,
+                "message": issue.message,
                 "fix": json.dumps(issue.fix_hint, ensure_ascii=False) if issue.fix_hint else None,
             },
         )

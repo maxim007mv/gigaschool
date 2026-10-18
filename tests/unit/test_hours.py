@@ -21,7 +21,6 @@ from karkas.domain.hours import (
     solve,
 )
 
-
 # --- Помощники ---------------------------------------------------------------
 
 
@@ -340,12 +339,12 @@ class TestInfeasible:
             solve(modules, Constraints(total=10, final_att=2, min_practice_share=1.0))
         assert "Нельзя набрать требуемую долю практики" in str(exc.value)
 
-    def test_distance_more_than_lectures(self) -> None:
-        # контакт 10 ч, лекций всего 2 ч, а доля ДОТ требует 6 ч
+    def test_distance_capped_by_lecture_hours(self) -> None:
+        # контакт 10 ч, лекций мало — ДОТ ограничивается лекциями, солвер не падает
         modules = [ModuleIn("M1", 1.0, [topic("T1.1", practicality=0.9)])]
-        with pytest.raises(HoursInfeasible) as exc:
-            solve(modules, Constraints(total=12, final_att=2, distance_share=0.6))
-        assert "Доля дистанционных часов больше объёма лекций" in str(exc.value)
+        plan = solve(modules, Constraints(total=12, final_att=2, distance_share=0.6))
+        assert all(plan.distance.get(ref, 0) <= plan.rows[ref]["lecture"] for ref in plan.rows)
+        assert sum(plan.distance.values()) <= round(0.6 * 10)
 
     def test_no_modules(self) -> None:
         with pytest.raises(HoursInfeasible, match="ни один модуль"):
@@ -521,10 +520,10 @@ class TestRebalance:
         assert sum(plan.distance.values()) == 8
         assert all(ok for _, ok, _ in plan.proof)
 
-    def test_lock_making_distance_infeasible_raises(self) -> None:
+    def test_lock_reduces_distance_to_available_lectures(self) -> None:
         modules, c = case_tk2()
-        with pytest.raises(HoursInfeasible, match="Доля дистанционных часов"):
-            rebalance(modules, c, {"T2.1": {"lecture": 0}, "T2.2": {"lecture": 0}})
+        plan = rebalance(modules, c, {"T2.1": {"lecture": 0}, "T2.2": {"lecture": 0}})
+        assert all(plan.distance.get(ref, 0) <= plan.rows[ref]["lecture"] for ref in plan.rows)
 
     def test_unknown_ref_raises(self) -> None:
         modules, c = case_tk4()

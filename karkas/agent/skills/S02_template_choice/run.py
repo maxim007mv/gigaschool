@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from karkas.agent.skills._base import SkillContext, SkillSpec, complete_structured, to_json
 

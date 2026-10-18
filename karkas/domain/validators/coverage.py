@@ -33,8 +33,7 @@ def _cov_01(kit: KitV1, outcomes: list[Outcome], topics: list[Topic]) -> list:
                 issue(
                     "V-COV-01",
                     "error",
-                    f"Результат обучения {outcome.ref} не раскрыт ни в одной теме — "
-                    "свяжите его с темой программы",
+                    f"Результат обучения {outcome.ref} не раскрыт ни в одной теме — свяжите его с темой программы",
                     entity_ref=outcome.ref,
                 )
             )
@@ -91,8 +90,7 @@ def _cov_04(kit: KitV1) -> list:
                 issue(
                     "V-COV-04",
                     "error",
-                    f"У темы {topic.ref} «{topic.title}» не указан ни один результат обучения — "
-                    "привяжите тему к РО",
+                    f"У темы {topic.ref} «{topic.title}» не указан ни один результат обучения — привяжите тему к РО",
                     entity_ref=topic.ref,
                 )
             )
@@ -113,8 +111,7 @@ def _cov_04(kit: KitV1) -> list:
                 issue(
                     "V-COV-04",
                     "error",
-                    f"Оценочное средство {assessment.ref} не привязано ни к одному результату "
-                    "обучения — укажите РО",
+                    f"Оценочное средство {assessment.ref} не привязано ни к одному результату обучения — укажите РО",
                     entity_ref=assessment.ref,
                 )
             )
@@ -141,7 +138,7 @@ def _seq_01(kit: KitV1) -> list:
     for module in sorted(kit.framework.modules, key=lambda m: m.number):
         ordered.extend(module.topics)
     issues = []
-    for previous, current in zip(ordered, ordered[1:]):
+    for previous, current in zip(ordered, ordered[1:], strict=False):
         if current.complexity < previous.complexity:
             issues.append(
                 issue(
@@ -171,8 +168,7 @@ def _dup_by_hash(kit: KitV1) -> list:
                 issue(
                     "V-DUP-01",
                     "warning",
-                    f"Оценочное средство {assessment.ref} повторяет текст {first} — удалите или "
-                    "переформулируйте дубль",
+                    f"Оценочное средство {assessment.ref} повторяет текст {first} — удалите или переформулируйте дубль",
                     entity_ref=assessment.ref,
                 )
             )
@@ -205,7 +201,7 @@ def _dup_by_embeddings(kit: KitV1, embeddings: dict[str, list[float]]) -> list:
     return issues
 
 
-def _dup_01(ctx: "ValidationContext") -> tuple[list, dict]:
+def _dup_01(ctx: ValidationContext) -> tuple[list, dict]:
     kit = ctx.kit
     issues = _dup_by_hash(kit)
     embeddings = ctx.embeddings or {}
@@ -226,7 +222,7 @@ def _dup_01(ctx: "ValidationContext") -> tuple[list, dict]:
 # ---------------------------------------------------------------------------
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Все правила группы «Покрытие» и «Логика»."""
     kit = ctx.kit
     outcomes = list(kit.iter_outcomes())

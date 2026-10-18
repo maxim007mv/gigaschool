@@ -1,0 +1,22 @@
+# КАРКАС web: сборка SPA и наполнение volume web_dist.
+#
+# multi-stage: node собирает web/dist → финальный образ копирует dist в /dist.
+# Пример:
+#   docker build -f deploy/Dockerfile.web -t karkas-web:local .
+#   docker run --rm -v gigaschool_web_dist:/out karkas-web:local
+
+FROM node:20-slim AS build
+
+WORKDIR /app
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
+
+FROM alpine:3.21 AS ship
+
+RUN mkdir -p /dist /out
+COPY --from=build /app/dist /dist
+# volume монтируется в /out; cp не удаляет старые файлы — при повторной
+# сборке перезаписанные файлы обновляются, орфанные могут остаться (см. runbook).
+CMD ["sh", "-c", "cp -r /dist/. /out/ && echo 'web_dist: SPA synced'"]

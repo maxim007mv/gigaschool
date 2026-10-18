@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+import re
+from datetime import UTC, date, datetime
 from typing import Any
 
 from karkas.agent.skills._base import SkillContext, SkillSpec, registry_bundle, today_from_inputs
@@ -13,6 +14,11 @@ DIR = "S18_source_verification"
 METADATA = SkillSpec(code="S18", name="Верификация источников", dir=DIR, depends_on=("S17",))
 
 STATUSES: tuple[str, ...] = ("verified", "partially_verified", "unverified", "not_found", "outdated")
+
+_PLACEHOLDER_AUTHOR_RE = re.compile(
+    r"\b(иванов\s+и\.?\s*и\.?|петров\s+п\.?\s*п\.?)\b",
+    re.IGNORECASE,
+)
 
 
 def isbn13_valid(value: str) -> bool:
@@ -71,9 +77,7 @@ def _is_outdated(act: NormativeAct, today: date) -> bool:
         return True
     if act.valid_to is not None and today > act.valid_to:
         return True
-    if act.valid_from is not None and today < act.valid_from:
-        return True
-    return False
+    return bool(act.valid_from is not None and today < act.valid_from)
 
 
 def _find_service(source: dict[str, Any], bundle: RegistryBundle | None) -> ServiceRecord | None:
@@ -87,11 +91,29 @@ def _find_service(source: dict[str, Any], bundle: RegistryBundle | None) -> Serv
     return None
 
 
+def _citation_known_verified(citation: str) -> bool:
+    from karkas.domain.verified_registry import load_file_verified
+
+    cite = citation.strip().lower()
+    if not cite:
+        return False
+    known = load_file_verified().source_citations
+    return any(cite == row or row in cite or cite in row for row in known)
+
+
 def verify_source(source: dict[str, Any], bundle: RegistryBundle | None, today: date) -> dict[str, Any]:
     """Статус одного источника + доказательство проверки (evidence)."""
     section = str(source.get("section") or "main")
     status = "unverified"
     evidence: dict[str, Any] = dict(source.get("evidence") or {})
+    citation = str(source.get("citation") or "")
+    if section in ("main", "additional") and _PLACEHOLDER_AUTHOR_RE.search(citation):
+        status = "unverified"
+        evidence["reason"] = "типовой автор-заглушка — требуется подтверждение по каталогу"
+        result = dict(source)
+        result["status"] = status
+        result["evidence"] = evidence
+        return result
     if section == "normative":
         act = _find_act(source, bundle)
         if act is None:
@@ -107,10 +129,15 @@ def verify_source(source: dict[str, Any], bundle: RegistryBundle | None, today: 
             evidence["matched"] = f"{act.issuer} № {act.number}".strip()
     elif section in ("main", "additional") and source.get("isbn"):
         value = str(source["isbn"])
-        if isbn_valid(value):
-            status = "partially_verified"
+        if _citation_known_verified(citation):
+            status = "verified"
+            evidence["reason"] = "издание в локальном проверенном каталоге"
+        elif isbn_valid(value):
+            status = "unverified"
             evidence["isbn_check"] = "ok"
-            evidence["reason"] = "контрольная сумма ISBN верна — частично проверено (каталог библиотек не подключён)"
+            evidence["reason"] = (
+                "контрольная сумма ISBN верна, но издание не подтверждено каталогом — помечено «не проверено»"
+            )
         else:
             status = "not_found"
             evidence["isbn_check"] = "failed"
@@ -183,5 +210,5 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
         "sources": updated,
         "summary": summary,
         "unconfirmed": [str(source.get("ref")) for source in updated if source.get("status") != "verified"],
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": datetime.now(UTC).isoformat(),
     }

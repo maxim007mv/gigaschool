@@ -90,10 +90,7 @@ def assessment_set() -> list[Assessment]:
 
 
 def career_calendar() -> Calendar:
-    sessions = [
-        CalendarSession(seq=i + 1, week=(i // 4) + 1, day=i + 1, topic_ref="T1.1", hours=2)
-        for i in range(4)
-    ]
+    sessions = [CalendarSession(seq=i + 1, week=(i // 4) + 1, day=i + 1, topic_ref="T1.1", hours=2) for i in range(4)]
     sessions += [
         CalendarSession(seq=5, week=2, day=5, topic_ref="T1.2", hours=2),
         CalendarSession(seq=6, week=2, day=6, topic_ref="T1.2", hours=2),
@@ -104,18 +101,13 @@ def career_calendar() -> Calendar:
 
 
 def content_blocks(kind: str) -> dict[str, list[ContentBlock]]:
-    annotation = [
-        ContentBlock(ref="ANN-1", kind="annotation", body={"text": "Программа знакомит с основами."})
-    ]
+    annotation = [ContentBlock(ref="ANN-1", kind="annotation", body={"text": "Программа знакомит с основами."})]
     module_programs = [
-        ContentBlock(
-            ref="MP-M1", kind="module_program", module_ref="M1", body={"hours": 14, "text": "Содержание"}
-        )
+        ContentBlock(ref="MP-M1", kind="module_program", module_ref="M1", body={"hours": 14, "text": "Содержание"})
     ]
     codes = ["3.1", "3.2", "3.3", "3.4"] if kind == "dpp_pk" else ["3.2", "3.3"]
     sections = annotation + [
-        ContentBlock(ref=f"SEC-{code}", kind="template_section", body={"text": f"Раздел {code}"})
-        for code in codes
+        ContentBlock(ref=f"SEC-{code}", kind="template_section", body={"text": f"Раздел {code}"}) for code in codes
     ]
     return {"module_programs": module_programs, "sections": sections}
 
@@ -153,11 +145,7 @@ def build_full_kit(kind: str = "dop") -> KitV1:
         total_hours=16,
         final_attestation=FinalAttestation(form="защита проекта", hours=2),
         document="удостоверение о повышении квалификации" if is_dpp else "сертификат участника",
-        legal_basis=(
-            [LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266")]
-            if is_dpp
-            else []
-        ),
+        legal_basis=([LegalBasis(ref="LB-01", act="Приказ Минобрнауки России от 24.03.2025 № 266")] if is_dpp else []),
     )
     framework = Framework(
         goal="Научить основам программирования",
@@ -298,9 +286,7 @@ def test_tpl_03_order_number_is_error():
 
 def test_tpl_03_filled_teacher_is_error():
     kit = build_full_kit("dop")
-    placeholders = Placeholders.model_construct(
-        teachers=[TeacherPlaceholder.model_construct(name="Иванов И.И.")]
-    )
+    placeholders = Placeholders.model_construct(teachers=[TeacherPlaceholder.model_construct(name="Иванов И.И.")])
     kit = kit.model_copy(update={"placeholders": placeholders})
     assert issues_of(kit, "V-TPL-03")
 

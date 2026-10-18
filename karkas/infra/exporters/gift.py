@@ -183,24 +183,19 @@ def _question_block(assessment: Assessment) -> str:
             body = (
                 "{\n"
                 + "\n".join(
-                    f"={escape_gift(_single_line(left))} -> {escape_gift(_single_line(right))}"
-                    for left, right in pairs
+                    f"={escape_gift(_single_line(left))} -> {escape_gift(_single_line(right))}" for left, right in pairs
                 )
                 + "\n}"
             )
         else:
             body = "{}"
-            comments.append(
-                "// соответствие проверяется вручную: пары не заданы как «элемент -> соответствие»"
-            )
+            comments.append("// соответствие проверяется вручную: пары не заданы как «элемент -> соответствие»")
             comment = _explanation_comment(assessment)
             if comment:
                 comments.append(comment)
     elif qtype == "order":
         body = "{}"
-        order = " -> ".join(
-            _single_line(_answer_text(assessment, answer)) for answer in _correct_ids(assessment)
-        )
+        order = " -> ".join(_single_line(_answer_text(assessment, answer)) for answer in _correct_ids(assessment))
         comments.append(f"// верный порядок: {order}" if order else "// упорядочивание проверяется вручную")
     else:  # open
         body = "{}"

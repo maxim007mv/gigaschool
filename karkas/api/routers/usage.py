@@ -20,18 +20,17 @@ from karkas.infra.db import get_session
 from karkas.infra.repos import usage as usage_repo
 from karkas.infra.sql_dialect import uses_sqlite, uuid_param
 
-router = APIRouter(
-    prefix="/programs", tags=["usage"], dependencies=[Depends(enforce_rate_limit)]
-)
+router = APIRouter(prefix="/programs", tags=["usage"], dependencies=[Depends(enforce_rate_limit)])
 
 
 async def _active_hours(session: AsyncSession, program_id: str) -> float:
     """Активное время методиста: от первого события до последнего минус автосборка."""
     if uses_sqlite():
         row = (
-            await session.execute(
-                text(
-                    """
+            (
+                await session.execute(
+                    text(
+                        """
                     SELECT
                         (julianday(max(created_at)) - julianday(min(created_at))) * 24.0 AS span_h,
                         COALESCE((
@@ -44,16 +43,20 @@ async def _active_hours(session: AsyncSession, program_id: str) -> float:
                     FROM audit_log
                     WHERE program_id = :pid
                     """
-                ),
-                {"pid": program_id},
+                    ),
+                    {"pid": program_id},
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     else:
         pid = uuid_param("pid")
         row = (
-            await session.execute(
-                text(
-                    f"""
+            (
+                await session.execute(
+                    text(
+                        f"""
                     SELECT
                         EXTRACT(EPOCH FROM (max(created_at) - min(created_at))) / 3600.0 AS span_h,
                         COALESCE((
@@ -63,10 +66,13 @@ async def _active_hours(session: AsyncSession, program_id: str) -> float:
                     FROM audit_log
                     WHERE program_id = {pid}
                     """
-                ),
-                {"pid": program_id},
+                    ),
+                    {"pid": program_id},
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     if row is None or row["span_h"] is None:
         return 0.0
     return max(0.0, float(row["span_h"]) - float(row["generation_h"] or 0))
@@ -76,17 +82,21 @@ async def _first_time_framework_approval(session: AsyncSession, program_id: str)
     """True, если каркас утверждён с первой попытки (без framework.reopen)."""
     pid_sql = ":pid" if uses_sqlite() else uuid_param("pid")
     rows = (
-        await session.execute(
-            text(
-                f"""
+        (
+            await session.execute(
+                text(
+                    f"""
                 SELECT action FROM audit_log
                 WHERE program_id = {pid_sql}
                   AND action IN ('framework.approve', 'framework.reopen')
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if not rows:
         return None
     if "framework.approve" not in rows:

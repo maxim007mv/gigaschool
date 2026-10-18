@@ -51,8 +51,7 @@ def _check_totals(kit: KitV1, declared: dict[str, Any]) -> list:
                 issue(
                     "V-SMP-01",
                     "warning",
-                    f"Образец: итоговая строка {label} {declared_value} ч ≠ сумме тем {actual} ч "
-                    "— не перенесено",
+                    f"Образец: итоговая строка {label} {declared_value} ч ≠ сумме тем {actual} ч — не перенесено",
                 )
             )
     if "total" in declared:
@@ -63,8 +62,7 @@ def _check_totals(kit: KitV1, declared: dict[str, Any]) -> list:
                 issue(
                     "V-SMP-01",
                     "warning",
-                    f"Образец: итоговая строка «Всего» {declared_value} ч ≠ сумме тем и ИА {actual} ч "
-                    "— не перенесено",
+                    f"Образец: итоговая строка «Всего» {declared_value} ч ≠ сумме тем и ИА {actual} ч — не перенесено",
                 )
             )
     if "content_total" in declared:
@@ -143,7 +141,7 @@ def _check_modules(kit: KitV1, modules: Any) -> list:
     return issues
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Сверка заявленных итогов образца с комплектом."""
     declared = ctx.declared_totals
     if not declared:

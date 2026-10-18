@@ -37,9 +37,7 @@ def test_query_at_sign_does_not_bypass_allowlist() -> None:
 
     with pytest.raises(ValueError, match="вне allowlist"):
         asyncio.run(
-            _fetch_attachment_url(
-                "http://169.254.169.254?x=@pypi.org", name="x.txt", client_factory=_factory(handler)
-            )
+            _fetch_attachment_url("http://169.254.169.254?x=@pypi.org", name="x.txt", client_factory=_factory(handler))
         )
 
 
@@ -49,10 +47,9 @@ def test_fragment_at_sign_does_not_bypass_allowlist() -> None:
 
     with pytest.raises(ValueError, match="вне allowlist"):
         asyncio.run(
-            _fetch_attachment_url(
-                "http://internal-svc:8080#@pypi.org", name="x.txt", client_factory=_factory(handler)
-            )
+            _fetch_attachment_url("http://internal-svc:8080#@pypi.org", name="x.txt", client_factory=_factory(handler))
         )
+
 
 def test_direct_disallowed_host_blocked() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
@@ -73,9 +70,7 @@ def test_redirect_to_disallowed_host_blocked() -> None:
         raise AssertionError("внутренний хост не должен быть запрошен")
 
     with pytest.raises(ValueError, match="вне allowlist"):
-        asyncio.run(
-            _fetch_attachment_url("https://pypi.org/go", name="x.txt", client_factory=_factory(handler))
-        )
+        asyncio.run(_fetch_attachment_url("https://pypi.org/go", name="x.txt", client_factory=_factory(handler)))
 
 
 def test_redirect_within_allowlist_allowed() -> None:
@@ -86,9 +81,7 @@ def test_redirect_within_allowlist_allowed() -> None:
             return httpx.Response(200, content=b"payload")
         raise AssertionError(f"неожиданный путь {request.url.path}")
 
-    data = asyncio.run(
-        _fetch_attachment_url("https://pypi.org/go", name="x.txt", client_factory=_factory(handler))
-    )
+    data = asyncio.run(_fetch_attachment_url("https://pypi.org/go", name="x.txt", client_factory=_factory(handler)))
     assert data == b"payload"
 
 
@@ -97,6 +90,4 @@ def test_too_many_redirects_blocked() -> None:
         return httpx.Response(302, headers={"location": "https://pypi.org/loop"})
 
     with pytest.raises(ValueError, match="слишком много редиректов"):
-        asyncio.run(
-            _fetch_attachment_url("https://pypi.org/loop", name="x.txt", client_factory=_factory(handler))
-        )
+        asyncio.run(_fetch_attachment_url("https://pypi.org/loop", name="x.txt", client_factory=_factory(handler)))

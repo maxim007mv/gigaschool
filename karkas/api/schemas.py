@@ -174,7 +174,7 @@ class ValidateOut(BaseModel):
 
 class KitGenerateIn(BaseModel):
     slides: dict[str, Any] = Field(default_factory=dict)  # {"modules": ["M2"]}
-    tests: dict[str, Any] = Field(default_factory=dict)   # {"final_questions": 10}
+    tests: dict[str, Any] = Field(default_factory=dict)  # {"final_questions": 10}
     lms_formats: list[str] = Field(default_factory=lambda: ["gift", "moodle_xml"])
 
 

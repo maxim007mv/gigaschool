@@ -12,17 +12,17 @@ import argparse
 import asyncio
 import os
 import socket
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import text
 
+import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация export_program_docx для V-ACR в воркере
 from karkas.api.sse import bus
 from karkas.infra.db import get_session_factory
 from karkas.infra.repos import jobs as jobs_repo
 from karkas.logging_setup import get_logger
 from karkas.settings import settings
-
-import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация export_program_docx для V-ACR в воркере
 
 logger = get_logger("karkas.worker")
 
@@ -36,6 +36,7 @@ TIMEOUTS_S: dict[str, int] = {
     "actualize": 600,
     "adapt": 600,
     "maintenance": 3600,
+    "agent_run": settings.agent_run_timeout_s,
 }
 
 
@@ -108,8 +109,13 @@ async def process_one(worker_id: str) -> bool:
                 await _restore_status_after_failure(error_session, job)
             await error_session.commit()
         logger.error(
-            "job.failed", job_id=job_id, kind=kind, program_id=program_id,
-            code=error["code"], will_retry=will_retry, exc_info=not will_retry,
+            "job.failed",
+            job_id=job_id,
+            kind=kind,
+            program_id=program_id,
+            code=error["code"],
+            will_retry=will_retry,
+            exc_info=not will_retry,
         )
         await bus.publish(
             program_id,
@@ -151,9 +157,7 @@ async def _restore_status_after_failure(session: Any, job: dict[str, Any]) -> No
         expected_current=expected,
     )
     if restored:
-        logger.info(
-            "program.status_restored", program_id=str(job["program_id"]), to=prev_status, job_kind=kind
-        )
+        logger.info("program.status_restored", program_id=str(job["program_id"]), to=prev_status, job_kind=kind)
     # Правка, упавшая навсегда, не должна «висеть» в статусе running.
     if kind == "edit" and payload.get("edit_id"):
         await session.execute(
@@ -226,8 +230,10 @@ def main() -> None:
     async def _run() -> None:
         await maintenance_once()
         wid = worker_id()
-        logger.info("worker.started", worker_id=wid, concurrency=max(1, args.concurrency))
-        await asyncio.gather(*[loop(f"{wid}-{i}") for i in range(max(1, args.concurrency))])
+        concurrency = max(1, args.concurrency)
+        logger.info("worker.started", worker_id=wid, concurrency=concurrency)
+        # Один процесс воркера, до concurrency параллельных захватов задач (общий worker_id).
+        await asyncio.gather(*[loop(wid) for _ in range(concurrency)])
 
     asyncio.run(_run())
 

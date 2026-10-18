@@ -45,9 +45,7 @@ def calendar(
     sessions: list[tuple[int, int, str, int]] = []
     day = 1
     left = max_per_day
-    queue: list[tuple[str, int]] = [
-        (ref, sum(row.values())) for ref, row in plan.rows.items() if sum(row.values()) > 0
-    ]
+    queue: list[tuple[str, int]] = [(ref, sum(row.values())) for ref, row in plan.rows.items() if sum(row.values()) > 0]
     if c.final_att > 0:
         queue.append((IA_REF, c.final_att))
 

@@ -149,13 +149,13 @@ def _hrs_05(kit: KitV1) -> list:
 # ---------------------------------------------------------------------------
 
 
-def _declared_rows(ctx: "ValidationContext") -> dict[str, Any]:
+def _declared_rows(ctx: ValidationContext) -> dict[str, Any]:
     declared = ctx.declared_totals or {}
     rows = declared.get("rows")
     return rows if isinstance(rows, dict) else {}
 
 
-def _hrs_06(ctx: "ValidationContext") -> list:
+def _hrs_06(ctx: ValidationContext) -> list:
     """ЛК + ПР + ЛБ + СРС + контроль = «Всего» по строке.
 
     Итог строки хранится только в образце (ctx.declared_totals["rows"]),
@@ -197,7 +197,7 @@ def _module_declared_hours(kit: KitV1, module_ref: str) -> int | None:
     return None
 
 
-def _hrs_07(ctx: "ValidationContext") -> list:
+def _hrs_07(ctx: ValidationContext) -> list:
     """Σ тем = часы модуля (на всех уровнях: тема → модуль → программа).
 
     Часы модуля в KitV1 вычисляются, поэтому проверяются объявленные итоги:
@@ -359,8 +359,7 @@ def _calendar(kit: KitV1) -> tuple[list, list[str]]:
                 issue(
                     "V-CAL-01",
                     "error",
-                    f"Занятие {session.seq} стоит в неделе {session.week}, а срок программы — "
-                    f"{calendar.weeks} недель",
+                    f"Занятие {session.seq} стоит в неделе {session.week}, а срок программы — {calendar.weeks} недель",
                     entity_ref=session.topic_ref,
                 )
             )
@@ -369,8 +368,7 @@ def _calendar(kit: KitV1) -> tuple[list, list[str]]:
                 issue(
                     "V-CAL-01",
                     "error",
-                    f"Занятие {session.seq} стоит в учебный день {session.day}, а всего дней — "
-                    f"{calendar.days}",
+                    f"Занятие {session.seq} стоит в учебный день {session.day}, а всего дней — {calendar.days}",
                     entity_ref=session.topic_ref,
                 )
             )
@@ -440,7 +438,7 @@ def _calendar(kit: KitV1) -> tuple[list, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def validate(ctx: "ValidationContext") -> GroupResult:
+def validate(ctx: ValidationContext) -> GroupResult:
     """Все правила группы «Часы» и «График»."""
     kit = ctx.kit
     topics: list[Topic] = list(kit.iter_topics())

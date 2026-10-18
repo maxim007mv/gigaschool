@@ -12,7 +12,6 @@ from fastapi.staticfiles import StaticFiles
 
 from karkas import __version__
 from karkas.api.errors import register_error_handlers
-from karkas.logging_setup import configure_logging
 from karkas.api.routers import (
     agent,
     auth,
@@ -27,7 +26,7 @@ from karkas.api.routers import (
     registry,
     usage,
 )
-from karkas.settings import settings
+from karkas.logging_setup import configure_logging
 
 
 def create_app() -> FastAPI:
@@ -48,6 +47,7 @@ def create_app() -> FastAPI:
 
     # Инфраструктурные эндпоинты — без версии и аутентификации.
     app.include_router(health.router)
+    app.include_router(health.router, prefix="/api/v1")
 
     # API v1.
     api_prefix = "/api/v1"

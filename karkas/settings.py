@@ -34,10 +34,10 @@ class Settings(BaseSettings):
     fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY", "OPENAI_API_KEY"))
     model_struct: str = "GigaChat/GigaChat-3-Pro"  # экономичная структурная модель (хакатон)
     model_bulk: str = "GigaChat/GigaChat-3-Pro"  # тот же класс — кэш шлюза, меньше сюрпризов по биллингу
-    model_embed: str = ""   # Qwen3-Embedding-0.6B — RAG
+    model_embed: str = ""  # Qwen3-Embedding-0.6B — RAG
     model_rerank: str = ""  # Qwen3-Reranker-0.6B
     model_struct_backup: str = ""  # резервная структурная модель (Д1 §7)
-    model_bulk_backup: str = ""    # резервная модель массовой генерации
+    model_bulk_backup: str = ""  # резервная модель массовой генерации
     model_allowlist: str = ""  # ids через запятую; пусто = разрешены только 4 модели выше
     llm_concurrency: int = Field(default=2, ge=1, le=64)  # лимит хаба: 2 параллельных запроса
     llm_timeout_s: int = Field(default=120, ge=5)  # таймаут шлюза хаба
@@ -57,18 +57,20 @@ class Settings(BaseSettings):
         except json.JSONDecodeError as exc:
             raise ValueError(f"LLM_EXTRA_BODY_JSON: невалидный JSON ({exc.msg})") from exc
         if not isinstance(parsed, dict):
-            raise ValueError("LLM_EXTRA_BODY_JSON: ожидается JSON-объект, например {\"reasoning\":{\"enabled\":false}}")
+            raise ValueError('LLM_EXTRA_BODY_JSON: ожидается JSON-объект, например {"reasoning":{"enabled":false}}')
         return value
+
     llm_max_output_tokens: int = Field(default=4096, ge=0, le=4096)  # хаб: max_tokens ≤ 4096
-    llm_max_repairs: int = Field(default=2, ge=0)     # «ремонт» JSON до 2 раз
-    llm_backoff_base_s: float = 1.0                   # 1 → 2 → 4 с + джиттер
-    llm_circuit_failures: int = 5                     # 5 ошибок за окно → размыкание
+    llm_max_repairs: int = Field(default=2, ge=0)  # «ремонт» JSON до 2 раз
+    llm_backoff_base_s: float = 1.0  # 1 → 2 → 4 с + джиттер
+    llm_circuit_failures: int = 5  # 5 ошибок за окно → размыкание
     llm_circuit_window_s: int = 30
     llm_circuit_cooldown_s: int = 20
 
     # --- Бюджеты и правила домена ----------------------------------------
     framework_slo_s: int = 180
     kit_timeout_min: int = 20
+    agent_run_timeout_s: int = Field(default=1200, ge=60)  # wait=true: ожидание воркера
     max_questions: int = Field(default=5, ge=1, le=5)
     min_assessments_per_outcome: int = Field(default=2, ge=1)
     plagiarism_ngram: int = Field(default=5, ge=2)
@@ -138,7 +140,7 @@ class Settings(BaseSettings):
         return self.database_url.startswith("sqlite")
 
     @model_validator(mode="after")
-    def _apply_lite_and_prod(self) -> "Settings":
+    def _apply_lite_and_prod(self) -> Settings:
         if self.karkas_lite and not self.database_url.startswith("sqlite"):
             self.database_url = "sqlite+aiosqlite:///./var/karkas.db"
         if self.environment == "prod" and self.jwt_secret in ("", "change-me"):

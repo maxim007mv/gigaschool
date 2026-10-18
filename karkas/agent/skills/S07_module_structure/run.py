@@ -56,9 +56,7 @@ def known_outcomes(inputs: dict[str, Any]) -> set[str]:
     return refs
 
 
-def normalize_structure(
-    items: list[ModuleOut], known: set[str]
-) -> tuple[list[dict[str, Any]], list[str]]:
+def normalize_structure(items: list[ModuleOut], known: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
     """Постпроверка: refs, диапазоны весов/сложности, привязка тем к существующим РО."""
     modules: list[dict[str, Any]] = []
     gaps: list[str] = []
@@ -79,12 +77,20 @@ def normalize_structure(
                 foreign = [ref for ref in topic.outcome_refs if ref and ref not in known]
                 if foreign:
                     gaps.append(
-                        f"{module_ref}.{order}: ссылки на несуществующие РО "
-                        f"{', '.join(foreign)} отброшены (V-COV-04)"
+                        f"{module_ref}.{order}: ссылки на несуществующие РО {', '.join(foreign)} отброшены (V-COV-04)"
                     )
             else:
                 refs = [ref for ref in topic.outcome_refs if _OUTCOME_RE.match(ref)]
-            if not refs:
+            if not refs and known:
+                topic_lower = topic_title.casefold()
+                auto_ref = sorted(known)[-1]
+                if re.search(r"защит|отч[её]т|итогов|аттестац", topic_lower):
+                    refs = [auto_ref]
+                    gaps.append(f"{module_ref}.{order}: тема итоговой аттестации привязана к РО {auto_ref}")
+                else:
+                    refs = [sorted(known)[0]]
+                    gaps.append(f"{module_ref}.{order}: автопривязка к РО {refs[0]}")
+            elif not refs:
                 gaps.append(f"{module_ref}.{order}: тема без привязки к РО (V-COV-04)")
             topics.append(
                 {
@@ -182,9 +188,45 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             payload, modules, gaps, missing = retry, retry_modules, retry_gaps, retry_missing
     if not modules:
         raise ValueError("S07: после постпроверки не осталось валидных модулей")
+    _cap_topics_to_units(modules, inputs.get("constraints"), gaps)
     if missing:
         gaps.append(f"РО не раскрыты ни в одной теме после ремонта: {', '.join(missing)}")
     return {
         "modules": modules,
         "gaps": [*[text.strip() for text in payload.gaps if text.strip()], *gaps],
     }
+
+
+def _cap_topics_to_units(modules: list[dict[str, Any]], raw: Any, gaps: list[str]) -> None:
+    """Тем не больше, чем занятий (total - final_att) // unit — иначе S08 не сойдётся с часами."""
+    if not isinstance(raw, dict):
+        return
+    try:
+        total = int(raw.get("total") or raw.get("total_hours") or 0)
+        final_att = int(raw.get("final_att") or 0)
+        unit = max(1, int(raw.get("unit") or raw.get("unit_hours") or 1))
+    except (TypeError, ValueError):
+        return
+    if total <= 0:
+        return
+    max_topics = (total - final_att) // unit
+    if max_topics < 1:
+        return
+    while sum(len(m["topics"]) for m in modules) > max_topics:
+        module = max(modules, key=lambda m: len(m["topics"]))
+        if len(module["topics"]) < 2:
+            return
+        last = module["topics"].pop()
+        prev = module["topics"][-1]
+        prev_title = str(prev.get("title") or "").strip()
+        last_title = str(last.get("title") or "").strip()
+        if prev_title and last_title:
+            prev["title"] = f"{prev_title} — {last_title}"
+        elif last_title:
+            prev["title"] = last_title
+        prev["summary"] = " ".join(x for x in (prev.get("summary"), last.get("summary")) if x) or None
+        prev["outcome_refs"] = list(dict.fromkeys([*prev["outcome_refs"], *last["outcome_refs"]]))
+        prev["weight"] = round(float(prev["weight"]) + float(last["weight"]), 3)
+        prev["complexity"] = max(prev["complexity"], last["complexity"])
+        prev["has_lab"] = bool(prev.get("has_lab") or last.get("has_lab"))
+        gaps.append(f"{last['ref']} объединена с {prev['ref']}: тем больше, чем занятий по {unit} ч ({max_topics})")

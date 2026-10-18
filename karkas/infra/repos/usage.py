@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -50,8 +50,8 @@ async def record_llm_call(
             "ct": completion_tokens,
             "latency": latency_ms,
             "cost": cost_rub,
-            "cache_hit": 1 if cache_hit else 0 if uses_sqlite() else cache_hit,
-            "ok": 1 if ok else 0 if uses_sqlite() else ok,
+            "cache_hit": (1 if cache_hit else 0) if uses_sqlite() else bool(cache_hit),
+            "ok": (1 if ok else 0) if uses_sqlite() else bool(ok),
         },
     )
 
@@ -59,9 +59,10 @@ async def record_llm_call(
 async def program_usage(session: AsyncSession, program_id: str) -> dict[str, Any] | None:
     if uses_sqlite():
         row = (
-            await session.execute(
-                text(
-                    f"""
+            (
+                await session.execute(
+                    text(
+                        f"""
                     SELECT :pid AS program_id, count(*) AS calls,
                            sum(prompt_tokens) AS prompt_tokens,
                            sum(completion_tokens) AS completion_tokens,
@@ -70,20 +71,27 @@ async def program_usage(session: AsyncSession, program_id: str) -> dict[str, Any
                            NULL AS p95_latency_ms
                     FROM llm_call WHERE program_id = :pid
                     """
-                ),
-                {"pid": program_id},
+                    ),
+                    {"pid": program_id},
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
         if row is None or int(row["calls"] or 0) == 0:
             return None
         return dict(row)
     pid = uuid_param("pid")
     row = (
-        await session.execute(
-            text(f"SELECT * FROM v_program_usage WHERE program_id = {pid}"),
-            {"pid": program_id},
+        (
+            await session.execute(
+                text(f"SELECT * FROM v_program_usage WHERE program_id = {pid}"),
+                {"pid": program_id},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     return dict(row) if row else None
 
 
@@ -163,4 +171,4 @@ async def purge_expired_cache(session: AsyncSession) -> int:
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

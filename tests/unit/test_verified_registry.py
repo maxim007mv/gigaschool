@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from karkas.domain.kit import Competency, LaborFunctionRef, ProfStandardRef, Source
+from karkas.domain.kit import Competency, ProfStandardRef, Source
 from karkas.domain.verified_registry import (
     NEEDS_REVIEW,
     annotate_registries_dict,

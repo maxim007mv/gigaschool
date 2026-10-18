@@ -20,10 +20,10 @@ import copy
 import inspect
 import json
 import time
-from functools import lru_cache
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -84,7 +84,7 @@ class SkillContext:
 
     gateway: Any | None = None
     settings: Settings = field(default_factory=get_settings)
-    checkpoint: "CheckpointStore" = field(default_factory=lambda: InMemoryCheckpointStore())
+    checkpoint: CheckpointStore = field(default_factory=lambda: InMemoryCheckpointStore())
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -287,9 +287,7 @@ async def complete_structured(
         raise ValueError(f"{spec.code}: навык {spec.model_class!r} не является LLM-шагом")
     gateway = require_gateway(ctx, spec.code)
     prompt = render_prompt(spec.dir, **variables)
-    return await gateway.complete_json(
-        spec.code, spec.model_class, make_messages(prompt), schema
-    )
+    return await gateway.complete_json(spec.code, spec.model_class, make_messages(prompt), schema)
 
 
 # ---------------------------------------------------------------------------

@@ -6,7 +6,6 @@ JWT: access 15 минут, refresh 14 дней; пароль — Argon2id.
 from __future__ import annotations
 
 import time
-import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -111,17 +110,21 @@ async def login(
     client_ip = request.client.host if request.client else "unknown"
     check_ip_rate_limit(client_ip, rate_per_min=10, prefix="login")
     row = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT id, org_id, email, role, password_hash, is_active
                 FROM app_user WHERE lower(email) = lower(:email)
                 ORDER BY created_at LIMIT 1
                 """
-            ),
-            {"email": payload.email},
+                ),
+                {"email": payload.email},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if row is None or not row["is_active"] or not row["password_hash"]:
         _dummy_verify(payload.password)  # выравнивание времени ответа (анти-энумерация)
         raise Unauthorized("Неверный e-mail или пароль")

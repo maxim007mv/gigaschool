@@ -140,7 +140,7 @@ def assert_skeleton_invariants(spec: SkeletonSpec, plan: Plan, constraints: Cons
         day_hours[day] = day_hours.get(day, 0) + hours
         if ref != "ИА":
             assert hours <= max_day
-    for day, hours in day_hours.items():
+    for _day, hours in day_hours.items():
         assert hours <= max_day or constraints.final_att > max_day
 
     ia_sessions = [h for _w, _d, ref, h in sessions if ref == "ИА"]

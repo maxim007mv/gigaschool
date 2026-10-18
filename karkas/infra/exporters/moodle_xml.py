@@ -134,10 +134,7 @@ def _add_graderinfo(question: ElementTree.Element, assessment: Assessment) -> No
     """Рубрика задания с ручной проверкой — в ``<graderinfo>``."""
     if not assessment.rubric:
         return
-    lines = [
-        f"{criterion.criterion} — до {int(criterion.max_points)} баллов"
-        for criterion in assessment.rubric
-    ]
+    lines = [f"{criterion.criterion} — до {int(criterion.max_points)} баллов" for criterion in assessment.rubric]
     graderinfo = ElementTree.SubElement(question, "graderinfo", {"format": "html"})
     ElementTree.SubElement(graderinfo, "text").text = "\n".join(lines)
 

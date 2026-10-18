@@ -51,7 +51,9 @@ def normalize_outcomes(items: list[AdaptedOutcomeOut]) -> list[dict[str, str]]:
 
 async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     """Пересчитать часы солвером и (при смене аудитории) переформулировать РО."""
-    modules_raw = inputs.get("modules") or (inputs.get("S07") if isinstance(inputs.get("S07"), dict) else {}).get("modules") or []
+    modules_raw = (
+        inputs.get("modules") or (inputs.get("S07") if isinstance(inputs.get("S07"), dict) else {}).get("modules") or []
+    )
     if not modules_raw:
         raise ValueError("S23: нет структуры модулей для пересчёта")
     new_constraints = inputs.get("new_constraints") or inputs.get("constraints")

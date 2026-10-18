@@ -9,7 +9,7 @@ from karkas.agent import pipeline
 
 
 class _FakeSession:
-    async def __aenter__(self) -> "_FakeSession":
+    async def __aenter__(self) -> _FakeSession:
         return self
 
     async def __aexit__(self, *args: object) -> bool:
@@ -22,7 +22,7 @@ class _FakeSession:
 def test_dispatch_export_passes_job_id(monkeypatch: Any) -> None:
     seen: dict[str, Any] = {}
 
-    monkeypatch.setattr(pipeline, "get_session_factory", lambda: (lambda: _FakeSession()))
+    monkeypatch.setattr(pipeline, "get_session_factory", lambda: lambda: _FakeSession())
 
     async def fake_export(
         session: Any,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from karkas.agent.skills._base import SkillContext, SkillSpec, clamp, complete_structured
 
@@ -46,6 +46,13 @@ class AssumptionOut(BaseModel):
     accepted_value: str | None = None
     source: Literal["default", "user", "agent"] = "agent"
 
+    @field_validator("source", mode="before")
+    @classmethod
+    def _coerce_source(cls, value: object) -> str:
+        if value in ("default", "user", "agent"):
+            return str(value)
+        return "agent"
+
 
 class ParseBriefOut(BaseModel):
     profile: ProfileOut = Field(default_factory=ProfileOut)
@@ -55,6 +62,23 @@ class ParseBriefOut(BaseModel):
     assumptions: list[AssumptionOut] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     template_signs: list[str] = Field(default_factory=list)
+
+    @field_validator("requested", mode="before")
+    @classmethod
+    def _coerce_requested(cls, value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                out.append(item.strip())
+            elif isinstance(item, dict):
+                for key in ("text", "value", "description", "name", "title"):
+                    raw = item.get(key)
+                    if isinstance(raw, str) and raw.strip():
+                        out.append(raw.strip())
+                        break
+        return out
 
 
 def normalize(payload: ParseBriefOut) -> dict[str, Any]:
@@ -71,9 +95,7 @@ def normalize(payload: ParseBriefOut) -> dict[str, Any]:
         if isinstance(value, str) and not value.strip():
             setattr(profile, name, None)
     profile.glossary = {
-        key.strip(): value.strip()
-        for key, value in profile.glossary.items()
-        if key.strip() and value.strip()
+        key.strip(): value.strip() for key, value in profile.glossary.items() if key.strip() and value.strip()
     }
     missing = [slot for slot in REQUIRED_SLOTS if slot in payload.missing_slots]
     return {
@@ -81,10 +103,52 @@ def normalize(payload: ParseBriefOut) -> dict[str, Any]:
         "goal": payload.goal.strip(),
         "requested": [text.strip() for text in payload.requested if text.strip()],
         "missing_slots": missing,
-        "assumptions": [item.model_dump(mode="json") for item in payload.assumptions if item.text.strip()],
+        "assumptions": [
+            (lambda row: row if row.get("source") in ("default", "user", "agent") else {**row, "source": "agent"})(
+                item.model_dump(mode="json")
+            )
+            for item in payload.assumptions
+            if item.text.strip()
+        ],
         "gaps": [text.strip() for text in payload.gaps if text.strip()],
         "template_signs": [text.strip() for text in payload.template_signs if text.strip()],
     }
+
+
+def _reconcile_answers(data: dict[str, Any], answers: dict[str, Any]) -> dict[str, Any]:
+    """Согласовать missing_slots и gaps с уже известными ответами (бриф, clarification)."""
+    if not answers:
+        return data
+    data["missing_slots"] = [
+        slot for slot in (data.get("missing_slots") or []) if not str(answers.get(slot) or "").strip()
+    ]
+    data["gaps"] = _filter_gaps_with_answers(data.get("gaps") or [], answers)
+    profile = dict(data.get("profile") or {})
+    for slot in ("audience", "entry_level", "schedule", "duration_hint"):
+        if not profile.get(slot) and str(answers.get(slot) or "").strip():
+            profile[slot] = str(answers[slot]).strip()
+    data["profile"] = profile
+    return data
+
+
+def _filter_gaps_with_answers(gaps: list[str], answers: dict[str, Any]) -> list[str]:
+    import json
+
+    out: list[str] = []
+    for raw in gaps:
+        text = str(raw).strip()
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                obj = json.loads(text)
+            except json.JSONDecodeError:
+                out.append(text)
+                continue
+            if isinstance(obj, dict):
+                field = str(obj.get("field") or obj.get("slot") or "").strip()
+                if field and str(answers.get(field) or "").strip():
+                    continue
+        out.append(text)
+    return out
 
 
 async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
@@ -104,4 +168,4 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             answers_json=inputs.get("answers") or {},
         ),
     )
-    return normalize(payload)
+    return _reconcile_answers(normalize(payload), dict(inputs.get("answers") or {}))

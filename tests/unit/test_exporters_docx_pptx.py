@@ -122,11 +122,7 @@ def test_docx_program_totals_computed_from_topics(kit: KitV1) -> None:
 
 def test_docx_program_theme_plan_contains_topics_and_distance_column(kit: KitV1) -> None:
     document = Document(io.BytesIO(export_docx_program(kit)))
-    tables = [
-        table
-        for table in document.tables
-        if TOTAL_COLUMN in [cell.text for cell in table.rows[0].cells]
-    ]
+    tables = [table for table in document.tables if TOTAL_COLUMN in [cell.text for cell in table.rows[0].cells]]
     assert len(tables) == 2  # 2.1 учебный план и 2.2 учебно-тематический план
     thematic = tables[1]
     header = [cell.text for cell in thematic.rows[0].cells]

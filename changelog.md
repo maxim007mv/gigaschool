@@ -4,6 +4,77 @@
 
 ---
 
+## 2026-10-18 — CI green, TK-3/5 live blockers, git hygiene
+
+### Проблема
+CI падал на mypy и test_kit_regenerate_api; TK-3 — S08 из-за неявной доли ДОТ; TK-5 — V-COV-04/V-TPL-01; TK-1 — пустые варианты ответов и аннотация; в истории dev — Co-authored-by.
+
+### Фикс
+- ДОТ только при явном упоминании в брифе; солвер ограничивает ДОТ лекциями; миграция 008 (152-ФЗ, ТФ); kit_fixup (ПС/ТФ, глоссарий, кадры, варианты тестов); S07 автопривязка итоговой темы; история dev переписана без trailers.
+
+### Проверка
+`.venv/bin/mypy karkas/domain`; `.venv/bin/pytest tests -q`; GitHub Actions на `dev`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
+## 2026-10-18 — Live TK-2…TK-5: уточнения, RAG, профстандарты, agent/worker
+
+### Проблема
+На VM build `00914a9` TK-1 проходил 6/6; TK-2…TK-5 обрывались на самопроверке каркаса, уточнениях, S08 (часы), RAG/embeddings, реестре ПС (5 записей), усечённых текстах ТК, DOCX-заглушках и синхронном `agent/run` без воркера.
+
+### Фикс
+- RAG: пропуск embed без чанков/ключа, `dimensions=1024`, учёт embed в `llm_call`, `scripts/backfill_kb_embeddings.py`, миграция `007_seed_prof_standards.sql`.
+- Intake/clarify: `slot_defaults`, audience/entry_level, distance_share из брифа (без фиксированных 30%), S01 coerce, TK-4 matching по слотам, полные тексты ТК из `data/eval/test_cases_official.txt`.
+- S07 cap тем; `kit_fixup` — аннотация, 2.4/3.1/3.2, humanize gaps; V-SRC-02 warning без ПС; V-LNG-01 без layout enum.
+- `POST /agent/run` с `wait=true` — job `agent_run` + ожидание через воркер (`wait_agent_run`); live_run пишет отчёты при ошибке, `skeleton_s`/`intake_s` в timings.
+
+### Проверка
+`.venv/bin/pytest tests -q`; `cd web && npm run lint && npm run typecheck && npm test`; `.venv/bin/ruff check karkas tests`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
+## 2026-10-18 — Зелёный Postgres CI, RAG fallback, hotfix TK-1
+
+### Проблема
+На VM полный pytest на PostgreSQL: 7 failed + 1 error (RAG без эмбеддингов валил конвейер, контракт healthz, миграции 005/006, api_env, уточнения слотов). Web: typecheck/lint. Ruff 371 замечание. Live TK-1 self-check: null в gaps, layout в слайдах, V-LNG-01 на коде, фиктивные источники.
+
+### Фикс
+- `kb_retrieval`: pgvector при ключе, иначе ILIKE + warning; тесты fallback.
+- OpenAPI allow-list `/api/v1/healthz|readyz|metrics`; миграции — ожидание из `migration_files()`.
+- Intake: prefill слотов из брифа, S07 cap/merge тем, `final_attestation` из `final_att_form`, S01 gaps filter; S13/S18/kit_fixup/V-LNG-01; ruff в CI; web `partially_verified`, eslint hooks; README TK-1 6/6, 173 s, 38 calls, 73.5k, 7.25 ₽.
+
+### Проверка
+`.venv/bin/pytest tests -q`; `cd web && npm run lint && npm run typecheck && npm test`; `.venv/bin/ruff check karkas tests scripts`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
+## 2026-10-18 — Live TK-1: ремонт LLM, intake, kit_fixup, CI Postgres
+
+### Проблема
+Живой прогон ТК-1: GigaChat 400 на ремонте JSON (два user подряд), строгий S01, «на ваше усмотрение» подменяло 16 ч на 72, блокировка по слоту kind, 500 в очереди job (uuid), boolean в llm_call, enum partially_verified, пустой PPTX, самопроверка 22 ошибки.
+
+### Фикс
+- `llm_gateway`: assistant+user при ремонте, `_lenient_coerce`; миграция `006_verify_status_partial.sql`; `901_demo_password.sql` (без 902 fake usage).
+- Intake/live_run: слоты из брифа, цель по умолчанию, `required_slots_filled` учитывает поля program; clarify не подставляет 72 ч при известном объёме.
+- `kit_fixup` + PPTX по `topic_ref`; `_estimate_cost_rub` с тарифом GigaChat-3-Pro; воркер — один цикл с concurrency 2; health `/api/v1/*`; CI + integration Postgres.
+
+### Проверка
+`.venv/bin/pytest tests --ignore=tests/payments_audit -q`; `scripts/run_eval.py --kit … --case tk1`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — Источники: S18/verified.json, реестры, RAG, legal_basis
 
 ### Проблема

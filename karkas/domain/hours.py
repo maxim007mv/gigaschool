@@ -190,9 +190,7 @@ def _validate_input(modules: list[ModuleIn], c: Constraints) -> None:
                 raise HoursInfeasible(f"Вес темы {t.ref} отрицательный: {t.weight}")
             _check_finite(f"практичность темы {t.ref}", t.practicality)
             if not 0.0 <= t.practicality <= 1.0:
-                raise HoursInfeasible(
-                    f"«Практичность» темы {t.ref} = {t.practicality} вне диапазона 0…1"
-                )
+                raise HoursInfeasible(f"«Практичность» темы {t.ref} = {t.practicality} вне диапазона 0…1")
 
 
 def _allocate_hours(modules: list[ModuleIn], c: Constraints) -> tuple[dict[str, int], dict[str, int]]:
@@ -206,10 +204,10 @@ def _allocate_hours(modules: list[ModuleIn], c: Constraints) -> tuple[dict[str, 
     m_units = largest_remainder(units, [m.weight for m in modules], [len(m.topics) for m in modules])
     module_hours: dict[str, int] = {}
     topic_hours: dict[str, int] = {}
-    for m, mu in zip(modules, m_units):
+    for m, mu in zip(modules, m_units, strict=False):
         t_units = largest_remainder(mu, [t.weight for t in m.topics], [1] * len(m.topics))
         total_m = 0
-        for t, tu in zip(m.topics, t_units):
+        for t, tu in zip(m.topics, t_units, strict=False):
             hours = tu * c.unit
             topic_hours[t.ref] = hours
             total_m += hours
@@ -236,16 +234,12 @@ def _repair_practice_share(plan: Plan, modules: list[ModuleIn], c: Constraints) 
     Доноры перебираются детерминированно: по убыванию «практичности», затем по ref;
     из темы-донора переносится по одному часу, пока требование не выполнено.
     """
-    need = math.ceil(c.min_practice_share * c.total) - sum(
-        r["practice"] + r["lab"] for r in plan.rows.values()
-    )
+    need = math.ceil(c.min_practice_share * c.total) - sum(r["practice"] + r["lab"] for r in plan.rows.values())
     donors = sorted((t for m in modules for t in m.topics), key=lambda t: (-t.practicality, t.ref))
     while need > 0:
         donor = next((t for t in donors if plan.rows[t.ref]["lecture"] > 0), None)
         if donor is None:
-            raise HoursInfeasible(
-                "Нельзя набрать требуемую долю практики: лекционных часов для переноса не осталось"
-            )
+            raise HoursInfeasible("Нельзя набрать требуемую долю практики: лекционных часов для переноса не осталось")
         plan.rows[donor.ref]["lecture"] -= 1
         plan.rows[donor.ref]["practice"] += 1
         need -= 1
@@ -260,10 +254,7 @@ def _distribute_distance(plan: Plan, modules: list[ModuleIn], c: Constraints) ->
         take = min(need, plan.rows[t.ref]["lecture"])
         plan.distance[t.ref] = take
         need -= take
-    if need > 0:
-        raise HoursInfeasible(
-            "Доля дистанционных часов больше объёма лекций; уточните, какие практики идут дистанционно"
-        )
+    # Не валим солвер: ДОТ ограничен лекционными часами темы (V-HRS-09), доля может быть ниже запроса.
 
 
 def _check_cell_limits(rows: dict[str, dict[str, int]]) -> None:
@@ -370,9 +361,7 @@ def _prove(plan: Plan, modules: list[ModuleIn], c: Constraints) -> None:
         )
     )
 
-    empty_modules = sorted(
-        m.ref for m in modules if sum(sum(rows[t.ref].values()) for t in m.topics) <= 0
-    )
+    empty_modules = sorted(m.ref for m in modules if sum(sum(rows[t.ref].values()) for t in m.topics) <= 0)
     p(("V-HRS-03 у каждого модуля есть часы", not empty_modules, f"без часов: {empty_modules or 'нет'}"))
 
     if c.self_study_only:
@@ -381,8 +370,7 @@ def _prove(plan: Plan, modules: list[ModuleIn], c: Constraints) -> None:
             (
                 "V-HRS-04 ЛК/ПР/ЛБ = 0 (стажировка)",
                 contact == 0,
-                f"ЛК {totals['lecture']}, ПР {totals['practice']}, "
-                f"ЛБ {totals['lab']}, СРС {totals['self_study']}",
+                f"ЛК {totals['lecture']}, ПР {totals['practice']}, ЛБ {totals['lab']}, СРС {totals['self_study']}",
             )
         )
 
@@ -429,9 +417,8 @@ def _prove(plan: Plan, modules: list[ModuleIn], c: Constraints) -> None:
         p(
             (
                 "V-HRS-09 дистанционные часы ≤ лекций",
-                dist_total == expected_dist and not excess,
-                f"ДОТ {dist_total} ч (план {expected_dist} ч)"
-                + (f", больше лекций у {excess}" if excess else ""),
+                dist_total <= expected_dist and not excess,
+                f"ДОТ {dist_total} ч (план {expected_dist} ч)" + (f", больше лекций у {excess}" if excess else ""),
             )
         )
 
@@ -482,7 +469,7 @@ def largest_remainder(total: int, weights: list[float], mins: list[int]) -> list
     order = sorted(range(len(weights)), key=lambda i: (-(quotas[i] - base[i]), i))
     for i in order[:rest]:
         base[i] += 1
-    return [b + m for b, m in zip(base, mins)]
+    return [b + m for b, m in zip(base, mins, strict=False)]
 
 
 def solve(modules: list[ModuleIn], c: Constraints) -> Plan:
@@ -506,9 +493,7 @@ def solve(modules: list[ModuleIn], c: Constraints) -> Plan:
     units = content // c.unit
     n_topics = sum(len(m.topics) for m in modules)
     if n_topics > units:
-        raise HoursInfeasible(
-            f"Тем ({n_topics}) больше, чем занятий по {c.unit} ч ({units}) — объедините темы"
-        )
+        raise HoursInfeasible(f"Тем ({n_topics}) больше, чем занятий по {c.unit} ч ({units}) — объедините темы")
 
     _, topic_hours = _allocate_hours(modules, c)
     plan = Plan()

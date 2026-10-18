@@ -48,9 +48,7 @@ def detect_hour_total_conflicts(text: str | None) -> list[str]:
         hour_values.append(int(match.group("n")))
     if not hour_values:
         nums = [
-            int(n)
-            for n in re.findall(r"\b(\d{2,3})\b", body)
-            if 16 <= int(n) <= min(500, settings.total_hours_max)
+            int(n) for n in re.findall(r"\b(\d{2,3})\b", body) if 16 <= int(n) <= min(500, settings.total_hours_max)
         ]
         hour_values.extend(nums)
     unique_all = sorted(set(hour_values))
@@ -71,9 +69,8 @@ def detect_hour_total_conflicts(text: str | None) -> list[str]:
 
 def validate_clarification_answer(slot: str, value: str) -> str | None:
     """Сообщение об ошибке по-русски или None, если ответ допустим."""
-    if slot == "total_hours":
-        if parse_total_hours(value) is None:
-            return "Укажите объём программы в академических часах числом (например, 72), а не только срок «месяц»."
+    if slot == "total_hours" and parse_total_hours(value) is None:
+        return "Укажите объём программы в академических часах числом (например, 72), а не только срок «месяц»."
     if slot == "kind" and len(value.strip()) < 3:
         return "Уточните тип программы: дополнительная общеразвивающая или повышение квалификации."
     return None

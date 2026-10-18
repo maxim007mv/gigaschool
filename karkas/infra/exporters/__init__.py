@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from karkas.infra.exporters.csv_tests import export_tests_csv
 from karkas.infra.exporters.docx_program import export_docx_program

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
-from karkas.domain.kit import LegalBasis
+from karkas.domain.kit import LegalBasis, VerifyStatus
 from karkas.domain.validators.template import load_template
 
 
@@ -28,7 +29,7 @@ def _act_line(act: dict[str, Any]) -> str:
     return f"{issuer} № {number}{date_part} «{title}»"
 
 
-def _status_for_act(act: dict[str, Any], today: date) -> str:
+def _status_for_act(act: dict[str, Any], today: date) -> VerifyStatus:
     valid_to = act.get("valid_to")
     valid_from = act.get("valid_from")
     if valid_to:

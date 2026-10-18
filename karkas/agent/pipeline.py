@@ -18,8 +18,10 @@ import binascii
 import json
 import re
 import time
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 
 import httpx
 from sqlalchemy import text
@@ -30,15 +32,7 @@ from karkas.agent.skills import SKILLS, SkillContext
 from karkas.agent.skills._base import InMemoryCheckpointStore
 from karkas.api.sse import bus
 from karkas.domain.intake_slots import detect_hour_total_conflicts
-from karkas.domain.legal_basis import build_program_legal_basis
-from karkas.domain.verified_registry import (
-    annotate_registries_dict,
-    apply_source_verification_flags,
-    merge_file_prof_standards,
-    verification_assumptions_for_competencies,
-)
-from karkas.infra.kb_retrieval import format_kb_snippets, retrieve_kb_snippets
-from karkas.settings import settings
+from karkas.domain.intake_slots import parse_total_hours as _parse_hours
 from karkas.domain.kit import (
     ACTIVITIES,
     AnswerKey,
@@ -65,9 +59,16 @@ from karkas.domain.kit import (
     Topic,
     Workload,
 )
-from karkas.domain.intake_slots import parse_total_hours as _parse_hours
+from karkas.domain.legal_basis import build_program_legal_basis
+from karkas.domain.verified_registry import (
+    annotate_registries_dict,
+    apply_source_verification_flags,
+    merge_file_prof_standards,
+    verification_assumptions_for_competencies,
+)
 from karkas.infra import ingest, storage
 from karkas.infra.db import get_session_factory
+from karkas.infra.kb_retrieval import format_kb_snippets, retrieve_kb_snippets
 from karkas.infra.repos import framework as framework_repo
 from karkas.infra.repos import programs as programs_repo
 from karkas.infra.repos import usage as usage_repo
@@ -108,23 +109,23 @@ CONTENT_TYPES = {
 # ---------------------------------------------------------------------------
 
 
-def _estimate_cost_rub(model: str, prompt_tokens: int, completion_tokens: int) -> "Decimal":
-    """Стоимость вызова по тарифной таблице организации (organization.settings.tariffs
-    на пилоте; в конфигурации — TARIFFS_JSON: {"<model>": {"in": руб/1M, "out": руб/1M}})."""
+def _estimate_cost_rub(model: str, prompt_tokens: int, completion_tokens: int) -> Decimal:
+    """Стоимость вызова: TARIFFS_JSON или тариф GigaChat-3-Pro по умолчанию."""
     import json as json_module
-    from decimal import Decimal
+
+    from karkas.eval.defense_metrics import estimate_gigachat3_pro_cost
 
     try:
         tariffs = json_module.loads(settings.tariffs_json or "{}")
     except ValueError:
-        return Decimal("0")
+        tariffs = {}
     row = tariffs.get(model) if isinstance(tariffs, dict) else None
-    if not isinstance(row, dict):
-        return Decimal("0")
-    price_in = Decimal(str(row.get("in", 0) or 0))
-    price_out = Decimal(str(row.get("out", 0) or 0))
-    million = Decimal(1_000_000)
-    return (Decimal(prompt_tokens) * price_in + Decimal(completion_tokens) * price_out) / million
+    if isinstance(row, dict) and (row.get("in") or row.get("out")):
+        price_in = Decimal(str(row.get("in", 0) or 0))
+        price_out = Decimal(str(row.get("out", 0) or 0))
+        million = Decimal(1_000_000)
+        return (Decimal(prompt_tokens) * price_in + Decimal(completion_tokens) * price_out) / million
+    return estimate_gigachat3_pro_cost(prompt_tokens, completion_tokens).cost_rub
 
 
 class PgMeter:
@@ -275,9 +276,7 @@ def _progress_adapter(on_progress: ProgressFn | None) -> ProgressCallback:
         return None
 
     def callback(code: str, done: int, total: int, label: str) -> None:
-        task = asyncio.ensure_future(
-            on_progress({"step": code, "done": done, "total": total, "label": label})
-        )
+        task = asyncio.ensure_future(on_progress({"step": code, "done": done, "total": total, "label": label}))
         task.add_done_callback(lambda t: t.cancelled() or t.exception())
 
     return callback
@@ -301,18 +300,22 @@ async def _brief_of(program: dict[str, Any]) -> str:
 async def _files_context(session: AsyncSession, program_id: str) -> tuple[str, list[dict[str, Any]]]:
     """Общий текст приложенных файлов и список референсов для S04."""
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT pf.role, fo.filename, fo.extracted_text, fo.extract_meta
                 FROM program_file pf JOIN file_object fo ON fo.id = pf.file_id
                 WHERE pf.program_id = CAST(:pid AS uuid)
                 ORDER BY fo.filename
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     references: list[dict[str, Any]] = []
     parts: list[str] = []
     for row in rows:
@@ -334,20 +337,22 @@ async def _files_context(session: AsyncSession, program_id: str) -> tuple[str, l
 async def _answers_by_slot(session: AsyncSession, program_id: str) -> dict[str, str]:
     """Ответы на слоты: явные ответы вопросов + зафиксированные допущения (slot_defaults)."""
     rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT slot, answer FROM clarification
                 WHERE program_id = CAST(:pid AS uuid) AND answer IS NOT NULL
                 """
-            ),
-            {"pid": program_id},
+                ),
+                {"pid": program_id},
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     profile = (
-        await session.execute(
-            text("SELECT profile FROM program WHERE id = CAST(:pid AS uuid)"), {"pid": program_id}
-        )
+        await session.execute(text("SELECT profile FROM program WHERE id = CAST(:pid AS uuid)"), {"pid": program_id})
     ).scalar_one_or_none()
     defaults = dict((profile or {}).get("slot_defaults") or {})
     answers = {row["slot"]: str(row["answer"]) for row in rows}
@@ -357,34 +362,42 @@ async def _answers_by_slot(session: AsyncSession, program_id: str) -> dict[str, 
 async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
     """Реестры в виде словаря для адаптера registry_bundle и S05-кандидатов."""
     acts = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT issuer, number, signed_on, valid_from, valid_to, kind, title
                 FROM normative_act
                 """
+                )
             )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     ps_rows = (
-        await session.execute(text("SELECT code, title, status, order_number FROM prof_standard"))
-    ).mappings().all()
+        (await session.execute(text("SELECT code, title, status, order_number FROM prof_standard"))).mappings().all()
+    )
     lf_rows = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT ps.code AS ps_code, lf.code AS lf_code, lf.title AS lf_title, lf.otf_code
                 FROM labor_function lf JOIN prof_standard ps ON ps.id = lf.prof_standard_id
                 ORDER BY lf.code
                 """
+                )
             )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     services = (
-        await session.execute(
-            text("SELECT name, available_ru, lifecycle, latest_version FROM service_catalog")
-        )
-    ).mappings().all()
+        (await session.execute(text("SELECT name, available_ru, lifecycle, latest_version FROM service_catalog")))
+        .mappings()
+        .all()
+    )
 
     lf_by_ps: dict[str, list[dict[str, Any]]] = {}
     for row in lf_rows:
@@ -415,8 +428,7 @@ async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
             for r in ps_rows
         ],
         "labor_functions": [
-            {"prof_standard_code": r["ps_code"], "code": r["lf_code"], "title": r["lf_title"] or ""}
-            for r in lf_rows
+            {"prof_standard_code": r["ps_code"], "code": r["lf_code"], "title": r["lf_title"] or ""} for r in lf_rows
         ],
         "services": [
             {
@@ -454,11 +466,24 @@ def _document_for(kind: str) -> str:
 
 
 def guess_title(brief: str) -> str:
-    """Название программы из брифа (первая содержательная строка ≤ 120 символов)."""
-    for line in brief.splitlines():
-        cleaned = line.strip().strip("«»\"'.")
-        if len(cleaned) >= 8:
-            return cleaned[:120]
+    """Название программы из кавычек брифа или краткой формулировки запроса."""
+    from karkas.domain.brief_extract import extract_program_title
+
+    quoted = extract_program_title(brief)
+    if quoted:
+        return quoted
+    lowered = brief.lower().replace("ё", "е")
+    if "кибербезопас" in lowered:
+        return "Основы кибербезопасности для студентов колледжа"
+    one_line = " ".join(brief.split())
+    for prefix in ("сделайте", "нужна", "нужен", "разработайте", "подготовьте"):
+        if one_line.lower().startswith(prefix):
+            one_line = one_line[len(prefix) :].strip(" :—-")
+    sentence = re.split(r"[.!?]\s", one_line, maxsplit=1)[0].strip()
+    if 12 <= len(sentence) <= 120:
+        return sentence[:120]
+    if len(one_line) >= 12:
+        return one_line[:120]
     return "Новая программа"
 
 
@@ -478,6 +503,27 @@ def _sample_declared_totals_from_errors(errors: list[dict[str, Any]]) -> dict[st
                 if nums:
                     declared[key] = nums[0]
     return declared or None
+
+
+def _filter_slot_gaps(gaps: list[str], answers: dict[str, Any]) -> list[str]:
+    """Убрать JSON-разрывы по слотам, которые уже заполнены из брифа или ответов."""
+    if not gaps:
+        return []
+    out: list[str] = []
+    for raw in gaps:
+        text = str(raw).strip()
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                obj = json.loads(text)
+            except json.JSONDecodeError:
+                out.append(text)
+                continue
+            if isinstance(obj, dict):
+                field = str(obj.get("field") or obj.get("slot") or "").strip()
+                if field and str(answers.get(field) or "").strip():
+                    continue
+        out.append(text)
+    return out
 
 
 def _constraints_dict(program: dict[str, Any], answers: dict[str, str]) -> dict[str, Any]:
@@ -532,15 +578,28 @@ async def intake_core(
     # Ответы пользователя (уже данные ранее) — вход S01/S03: агент не спрашивает
     # повторно и учитывает их в профиле. missing_slots фильтруются по ответам.
     answers = await _answers_by_slot(session, program_id)
+    from karkas.domain.brief_extract import (
+        derive_goal,
+        extract_days_per_week,
+        extract_distance_share_pct,
+        extract_form_label,
+        extract_min_practice_share_pct,
+        extract_unit_hours,
+        kit_options_from_brief,
+        slots_from_brief,
+    )
+
+    brief_slots = slots_from_brief(brief_text)
+    merged_answers = {**brief_slots, **answers}
     inputs: dict[str, Any] = {
         "brief": brief_text,
         "files_text": files_text,
         "references": references,
-        "answers": answers,
+        "answers": merged_answers,
     }
 
     s01 = (await runner.run("S01", inputs, ctx, progress_cb)).output
-    missing_slots = [slot for slot in (s01.get("missing_slots") or []) if slot not in answers]
+    missing_slots = [slot for slot in (s01.get("missing_slots") or []) if slot not in merged_answers]
     inputs = {**inputs, "missing_slots": missing_slots}
     s02 = (await runner.run("S02", inputs, ctx, progress_cb)).output
     if missing_slots:
@@ -555,13 +614,15 @@ async def intake_core(
     s01_profile = s01.get("profile") or {}
     profile_json.update(
         {
-            "audience": s01_profile.get("audience") or profile_json.get("audience"),
-            "entry_level": s01_profile.get("entry_level") or profile_json.get("entry_level"),
+            "audience": s01_profile.get("audience") or merged_answers.get("audience") or profile_json.get("audience"),
+            "entry_level": s01_profile.get("entry_level")
+            or merged_answers.get("entry_level")
+            or profile_json.get("entry_level"),
             "schedule": s01_profile.get("schedule") or profile_json.get("schedule"),
             "duration_hint": s01_profile.get("duration_hint") or profile_json.get("duration_hint"),
             "notes": s01_profile.get("notes") or profile_json.get("notes"),
             "glossary": s01_profile.get("glossary") or profile_json.get("glossary") or {},
-            "gaps": s01.get("gaps") or profile_json.get("gaps") or [],
+            "gaps": _filter_slot_gaps(s01.get("gaps") or profile_json.get("gaps") or [], merged_answers),
             "assumptions": [
                 *(profile_json.get("assumptions") or []),
                 *(a.get("text") for a in (s01.get("assumptions") or []) if a.get("text")),
@@ -571,17 +632,31 @@ async def intake_core(
         }
     )
     constraints = dict(s01_profile.get("constraints") or {})
-    total_hours = _parse_hours(answers.get("total_hours"))
+    total_hours = _parse_hours(merged_answers.get("total_hours"))
     # Ответ пользователя на слот kind важнее правил S02: «повышение квалификации»
     # из ответа должен давать dpp_pk, а не дефолт dop (иначе неверный шаблон и документ).
-    kind = _kind_from_answer(answers.get("kind")) or s02.get("kind") or program.get("kind")
-    form = _map_form(answers.get("form")) or program.get("form")
+    kind = _kind_from_answer(merged_answers.get("kind")) or s02.get("kind") or program.get("kind")
+    form = _map_form(merged_answers.get("form")) or program.get("form")
 
     fields: dict[str, Any] = {"profile": profile_json}
     # Ограничения из S01 объединяем с уже сохранёнными (не затираем допущения).
     # unit_hours задаёт только методист (API/UI): S01 его не выводит и не перезаписывает.
     s01_constraints = {k: v for k, v in constraints.items() if k != "unit_hours"}
     merged_constraints = {**dict(program.get("constraints") or {}), **s01_constraints}
+    unit_h = extract_unit_hours(brief_text)
+    if unit_h:
+        merged_constraints["unit_hours"] = unit_h
+    days_pw = extract_days_per_week(brief_text)
+    if days_pw:
+        merged_constraints["days_per_week"] = days_pw
+    practice_pct = extract_min_practice_share_pct(brief_text)
+    if practice_pct is not None:
+        merged_constraints["min_practice_share_pct"] = practice_pct
+    form_label = merged_answers.get("form") or extract_form_label(brief_text)
+    distance_pct = extract_distance_share_pct(brief_text, str(form_label) if form_label else None)
+    if distance_pct is not None:
+        merged_constraints["distance_share_pct"] = distance_pct
+    profile_json["kit_options"] = kit_options_from_brief(brief_text)
     if merged_constraints:
         fields["constraints"] = merged_constraints
     if kind:
@@ -592,13 +667,22 @@ async def intake_core(
         fields["form"] = form
     if not program.get("title") or program.get("title") == "Новая программа":
         fields["title"] = guess_title(brief_text)
-    if s01.get("goal"):
-        fields["goal"] = s01["goal"]
-    final_form = answers.get("final_attestation")
+    goal_text = (s01.get("goal") or "").strip() or derive_goal(
+        brief_text, title=fields.get("title") or program.get("title"), kind=kind
+    )
+    fields["goal"] = goal_text
+    final_form = merged_answers.get("final_attestation")
     if final_form:
         fields["final_att_form"] = final_form
 
     await programs_repo.update_program(session, program_id=program_id, fields=fields)
+
+    required_slots = ("kind", "total_hours", "audience", "entry_level", "form", "final_attestation")
+    answered_slots = {slot for slot, val in answers.items() if str(val or "").strip()}
+    for slot in required_slots:
+        value = merged_answers.get(slot)
+        if value and slot not in answered_slots:
+            await programs_repo.record_slot_default(session, program_id=program_id, slot=slot, value=str(value))
 
     questions = s03.get("questions") or []
     if questions:
@@ -688,7 +772,7 @@ def _assemble_kit(
         final_attestation=FinalAttestation(form=final_form, hours=final_hours),
         document=_document_for(kind),
         organization=program.get("org_name"),
-        year=datetime.now(timezone.utc).year,
+        year=datetime.now(UTC).year,
     )
 
     s01_profile = s01.get("profile") or {}
@@ -720,9 +804,7 @@ def _assemble_kit(
         ]
         prof_ref = None
         if kind == "dpp_pk" and prof_standard_raw and prof_standard_raw.get("code"):
-            prof_ref = ProfStandardRef(
-                code=prof_standard_raw["code"], title=prof_standard_raw.get("title", "")
-            )
+            prof_ref = ProfStandardRef(code=prof_standard_raw["code"], title=prof_standard_raw.get("title", ""))
         competencies.append(
             Competency(
                 ref=comp["ref"],
@@ -802,7 +884,7 @@ def _assemble_kit(
         program=header,
         profile=profile,
         framework=Framework(
-            goal=s01.get("goal") or "",
+            goal=(s01.get("goal") or program.get("goal") or "").strip(),
             tasks=tasks,
             competencies=competencies,
             modules=modules,
@@ -840,9 +922,7 @@ async def framework_core(
     prefix = ctx.extra["checkpoint_prefix"]
 
     org_id = str(program["org_id"])
-    kb_text = format_kb_snippets(
-        await retrieve_kb_snippets(session, org_id, brief_text, limit=5, max_tokens=1200)
-    )
+    kb_text = format_kb_snippets(await retrieve_kb_snippets(session, org_id, brief_text, limit=5, max_tokens=1200))
     inputs: dict[str, Any] = {
         "brief": brief_text,
         "files_text": files_text,
@@ -881,9 +961,7 @@ async def framework_core(
         str(s02.get("kind") or program.get("kind") or "dop"),
         registries.get("normative_acts") or [],
     )
-    kit = kit.model_copy(
-        update={"program": kit.program.model_copy(update={"legal_basis": legal_basis})}
-    )
+    kit = kit.model_copy(update={"program": kit.program.model_copy(update={"legal_basis": legal_basis})})
     kit_dump = kit.model_dump(mode="json")
     sample_declared = _sample_declared_totals_from_errors(s04.get("sample_errors") or [])
     s10 = (
@@ -918,8 +996,11 @@ async def framework_core(
         {"version": version, "checks": {"passed": bool(s10.get("passed"))}},
     )
     logger.info(
-        "framework.saved", program_id=program_id, version=version,
-        modules=len(kit.framework.modules), total_hours=kit.program.total_hours,
+        "framework.saved",
+        program_id=program_id,
+        version=version,
+        modules=len(kit.framework.modules),
+        total_hours=kit.program.total_hours,
         checks_passed=bool(s10.get("passed")),
     )
     return {"kit": kit, "version": version, "report": report, "s10": s10}
@@ -1002,8 +1083,24 @@ async def kit_core(
     profile_json = kit.profile.model_dump(mode="json")
     outcomes_json = [o.model_dump(mode="json") for o in kit.iter_outcomes()]
 
-    slides_modules = {str(ref) for ref in (options.get("slides") or {}).get("modules") or []}
-    if not slides_modules and kit.framework.modules:
+    profile_opts = dict(program.get("profile") or {}).get("kit_options") or {}
+    slides_cfg = {**profile_opts, **(options.get("slides") or {})}
+    if isinstance(profile_opts.get("slides"), dict):
+        slides_cfg = {**profile_opts.get("slides", {}), **slides_cfg}
+    slides_topic_refs: set[str] = set()
+    if slides_cfg.get("first_topics"):
+        limit = max(1, int(slides_cfg["first_topics"]))
+        for index, topic in enumerate(kit.iter_topics()):
+            if index >= limit:
+                break
+            slides_topic_refs.add(topic.ref)
+    if slides_cfg.get("module_title_contains"):
+        needle = str(slides_cfg["module_title_contains"]).lower()
+        for module in kit.framework.modules:
+            if needle in module.title.lower():
+                slides_topic_refs.update(t.ref for t in module.topics)
+    slides_modules = {str(ref) for ref in slides_cfg.get("modules") or []}
+    if not slides_topic_refs and not slides_modules and kit.framework.modules:
         slides_modules = {kit.framework.modules[0].ref}  # минимум один модуль (ЗАД-30)
 
     # Число вопросов из запроса (tests.final_questions, напр. 10 для ТК-1):
@@ -1063,7 +1160,8 @@ async def kit_core(
         async with llm_sem:
             s12 = (await runner.run("S12", content_common, topic_ctx, progress_cb)).output
             lectures.extend(s12.get("lecture_plans") or [])
-            if module.ref in slides_modules:
+            want_slides = topic.ref in slides_topic_refs or (not slides_topic_refs and module.ref in slides_modules)
+            if want_slides:
                 s13 = (await runner.run("S13", content_common, topic_ctx, progress_cb)).output
                 slide_blocks.extend(s13.get("slides") or [])
             s14 = (await runner.run("S14", {**common, "count": per_topic_questions}, topic_ctx, progress_cb)).output
@@ -1084,7 +1182,11 @@ async def kit_core(
         )
         module_rag = format_kb_snippets(
             await retrieve_kb_snippets(
-                session, str(program["org_id"]), f"{module.title} {kit.program.title}", limit=4, max_tokens=800
+                session,
+                str(program["org_id"]),
+                f"{module.title} {kit.program.title}",
+                limit=4,
+                max_tokens=800,
             )
         )
         s11 = (
@@ -1187,6 +1289,11 @@ async def kit_core(
         sources=apply_source_verification_flags(raw_sources),
     )
 
+    brief_text = await _brief_of(program)
+    from karkas.domain.kit_fixup import apply_kit_fixup
+
+    kit = apply_kit_fixup(kit, brief=brief_text)
+
     # S19 — самопроверка комплекта (детерминированные правила, зависимости засеяны)
     validate_ctx = await _seeded_context(
         program_id,
@@ -1226,8 +1333,11 @@ async def kit_core(
         {"version": new_version, "report": {"passed": bool(report.passed) if report else False}},
     )
     logger.info(
-        "kit.saved", program_id=program_id, version=new_version,
-        assessments=len(assessments), sources=len(kit.content.sources),
+        "kit.saved",
+        program_id=program_id,
+        version=new_version,
+        assessments=len(assessments),
+        sources=len(kit.content.sources),
         report_passed=bool(report.passed) if report else False,
     )
     return {"kit": kit, "version": new_version, "report": report, "s19": s19}
@@ -1350,7 +1460,9 @@ async def _regenerate_affected(
         new_tasks: list[Assessment] = []
         if "tests" in want:
             s14 = (await runner.run("S14", {**common, "count": 3}, topic_ctx, progress_cb)).output
-            old_questions = [a for a in kit.content.assessments if a.topic_ref == topic.ref and a.kind == "test_question"]
+            old_questions = [
+                a for a in kit.content.assessments if a.topic_ref == topic.ref and a.kind == "test_question"
+            ]
             new_questions = _assessments_with_reused_refs(
                 old_questions,
                 [item for item in (s14.get("questions") or [])],
@@ -1365,9 +1477,10 @@ async def _regenerate_affected(
                 prefix=f"ST-{topic.ref}",
             )
         if new_questions or new_tasks:
+            topic_ref = topic.ref
 
-            def _keep_assessment(item: Assessment) -> bool:
-                if item.topic_ref != topic.ref:
+            def _keep_assessment(item: Assessment, _topic_ref: str = topic_ref) -> bool:
+                if item.topic_ref != _topic_ref:
                     return True
                 if item.kind == "test_question":
                     return "tests" not in want
@@ -1375,9 +1488,9 @@ async def _regenerate_affected(
                     return "tasks" not in want
                 return True
 
-            kit.content.assessments = [
-                a for a in kit.content.assessments if _keep_assessment(a)
-            ] + new_questions + new_tasks
+            kit.content.assessments = (
+                [a for a in kit.content.assessments if _keep_assessment(a)] + new_questions + new_tasks
+            )
         if any(p in want for p in ("lecture_plan", "slides", "tests", "tasks")):
             regenerated["topics"] += 1
 
@@ -1420,16 +1533,20 @@ async def edit_core(
     if kit is None:
         raise ValueError("edit: каркас не собран")
     edit_row = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT * FROM edit_request
                 WHERE id = CAST(:eid AS uuid) AND program_id = CAST(:pid AS uuid)
                 """
-            ),
-            {"eid": edit_id, "pid": program_id},
+                ),
+                {"eid": edit_id, "pid": program_id},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if edit_row is None:
         raise ValueError("edit: правка не найдена")
 
@@ -1506,7 +1623,10 @@ async def edit_core(
     )
     s19 = (
         await runner.run(
-            "S19", {"kit": patched_kit.model_dump(mode="json"), "registries": registries}, validate_ctx, progress_cb
+            "S19",
+            {"kit": patched_kit.model_dump(mode="json"), "registries": registries},
+            validate_ctx,
+            progress_cb,
         )
     ).output
     report = Report.model_validate(s19["report"]) if s19.get("report") else None
@@ -1610,7 +1730,9 @@ async def kit_regenerate_core(
     if report is not None:
         await framework_repo.save_report(session, program_id, version, report)
     await programs_repo.set_status(session, program_id=program_id, status="kit_review")
-    await _publish(program_id, "kit_regenerated", {"target_ref": target_ref, "version": version, "parts": list(part_set)})
+    await _publish(
+        program_id, "kit_regenerated", {"target_ref": target_ref, "version": version, "parts": list(part_set)}
+    )
     return {"kit": kit, "version": version, "report": report, "regenerated": regenerated}
 
 
@@ -1689,7 +1811,12 @@ async def export_core(
     ctx = await _seeded_context(
         program_id,
         f"export:{version}",
-        {"S19": {"report": report.model_dump(mode="json") if report else None, "passed": bool(report and report.passed)}},
+        {
+            "S19": {
+                "report": report.model_dump(mode="json") if report else None,
+                "passed": bool(report and report.passed),
+            }
+        },
         gateway=gateway,
         extra={"kit": kit.model_dump(mode="json")},
     )
@@ -1705,11 +1832,7 @@ async def export_core(
             progress_cb,
         )
     ).output
-    keys = (
-        await _save_artifacts(session, program_id, version, artifacts, export_id=export_id)
-        if save_artifacts
-        else {}
-    )
+    keys = await _save_artifacts(session, program_id, version, artifacts, export_id=export_id) if save_artifacts else {}
     await _publish(program_id, "export_ready", {"export_id": export_id or f"v{version}"})
     return {"artifacts": artifacts, "keys": keys, "version": version}
 
@@ -1845,7 +1968,7 @@ async def maintenance_core(
 ) -> dict[str, Any]:
     """Обслуживание: секции на 3 месяца вперёд, очистка кэша, чанки базы знаний."""
     created: list[str] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for month_offset in range(0, 3):
         month = (now.month - 1 + month_offset) % 12 + 1
         year = now.year + (now.month - 1 + month_offset) // 12
@@ -1856,9 +1979,7 @@ async def maintenance_core(
         for table in ("llm_call", "audit_log"):
             partition = f"{table}_{year:04d}_{month:02d}"
             exists = (
-                await session.execute(
-                    text("SELECT to_regclass(:name) IS NOT NULL"), {"name": f"public.{partition}"}
-                )
+                await session.execute(text("SELECT to_regclass(:name) IS NOT NULL"), {"name": f"public.{partition}"})
             ).scalar_one()
             if exists:
                 continue
@@ -1908,31 +2029,41 @@ async def _index_kb_document(
 ) -> int:
     """Разобрать документ базы знаний на фрагменты с эмбеддингами (pgvector)."""
     row = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT d.id, d.org_id, d.file_id, f.extracted_text
                 FROM kb_document d JOIN file_object f ON f.id = d.file_id
                 WHERE d.id = CAST(:did AS uuid)
                 """
-            ),
-            {"did": kb_document_id},
+                ),
+                {"did": kb_document_id},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if row is None or not row["extracted_text"]:
         return 0
     chunks = _chunk_text(row["extracted_text"])
     if not chunks:
         return 0
 
+    from karkas.agent.llm_gateway import TransientError
     from karkas.infra.embeddings import embed_texts
 
-    embeddings = await embed_texts([content for _, content in chunks])
+    meter = getattr(gateway, "_meter", None) if gateway is not None else None
+    try:
+        embeddings = await embed_texts([content for _, content in chunks], meter=meter, skill="embed")
+    except (TransientError, ValueError) as exc:
+        logger.warning("kb_index: embeddings skipped (%s)", exc)
+        return 0
     await session.execute(
         text("DELETE FROM kb_chunk WHERE file_id = CAST(:fid AS uuid)"),
         {"fid": row["file_id"]},
     )
-    for ord_index, ((heading, content), embedding) in enumerate(zip(chunks, embeddings), start=1):
+    for ord_index, ((heading, content), embedding) in enumerate(zip(chunks, embeddings, strict=False), start=1):
         vector_literal = "[" + ",".join(f"{value:.6f}" for value in embedding) + "]"
         await session.execute(
             text(
@@ -1982,9 +2113,7 @@ async def dispatch_job(job: dict[str, Any], *, on_progress: ProgressFn | None = 
         started = time.monotonic()
         async with factory() as session:
             if not await programs_repo.clarification_allows_framework(session, program_id):
-                raise ValueError(
-                    "CLARIFICATION_REQUIRED: есть неотвеченные уточнения — каркас не собираем (ТК-4)"
-                )
+                raise ValueError("CLARIFICATION_REQUIRED: есть неотвеченные уточнения — каркас не собираем (ТК-4)")
             await framework_core(session, program_id, progress_cb=progress_cb)
             await session.commit()
         from karkas.infra.metrics import framework_seconds
@@ -2050,6 +2179,13 @@ async def dispatch_job(job: dict[str, Any], *, on_progress: ProgressFn | None = 
         async with factory() as session:
             await adapt_core(session, program_id, payload, progress_cb=progress_cb)
             await session.commit()
+        return
+
+    if kind == "agent_run":
+        run_id = str(payload.get("run_id") or "").strip()
+        if not run_id:
+            raise ValueError("agent_run: в payload нужен run_id")
+        await execute_run(run_id)
         return
 
     if kind == "maintenance":
@@ -2203,7 +2339,10 @@ async def create_run(
         text(
             """
             INSERT INTO agent_run (id, api_key_id, program_id, mode, status, request)
-            VALUES (CAST(:rid AS uuid), CAST(:key AS uuid), CAST(:pid AS uuid), :mode, 'running', CAST(:request AS jsonb))
+            VALUES (
+                CAST(:rid AS uuid), CAST(:key AS uuid), CAST(:pid AS uuid),
+                :mode, 'running', CAST(:request AS jsonb)
+            )
             """
         ),
         {
@@ -2286,6 +2425,67 @@ async def append_answers(
     )
 
 
+async def wait_agent_run(session: AsyncSession, run_id: str, job_id: str) -> None:
+    """Дождаться завершения прогона: воркер исполняет job, API подкачивает очередь при wait=true."""
+    from karkas.infra.repos import jobs as jobs_repo
+    from karkas.settings import settings
+    from karkas.worker import process_one
+
+    deadline = time.monotonic() + float(settings.agent_run_timeout_s)
+    active_job = job_id
+    while time.monotonic() < deadline:
+        row = (
+            await session.execute(text("SELECT status FROM agent_run WHERE id = CAST(:rid AS uuid)"), {"rid": run_id})
+        ).scalar_one_or_none()
+        if row in ("completed", "failed", "needs_input"):
+            return
+        job = await jobs_repo.get_job(session, active_job)
+        if job is None:
+            await asyncio.sleep(0.25)
+            continue
+        if job["status"] in ("queued", "retry_wait"):
+            await process_one("api-wait")
+        elif job["status"] in ("failed", "cancelled"):
+            return
+        elif job["status"] == "succeeded":
+            # После needs_input воркер помечает job succeeded, хотя прогон ещё running —
+            # подхватываем следующую задачу agent_run для того же run_id.
+            newer = (
+                await session.execute(
+                    text(
+                        """
+                        SELECT id::text FROM job
+                        WHERE kind = 'agent_run'
+                          AND payload->>'run_id' = :rid
+                          AND id::text <> :jid
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """
+                    ),
+                    {"rid": run_id, "jid": active_job},
+                )
+            ).scalar_one_or_none()
+            if newer:
+                active_job = str(newer)
+            else:
+                await process_one("api-wait")
+        await asyncio.sleep(0.25)
+    raise TimeoutError(f"Прогон {run_id} не завершился за {settings.agent_run_timeout_s} с")
+
+
+async def enqueue_agent_run(session: AsyncSession, *, run_id: str, program_id: str) -> str:
+    """Поставить прогон в очередь воркера (единый путь для wait=true)."""
+    from karkas.infra.repos import jobs as jobs_repo
+
+    return await jobs_repo.enqueue(
+        session,
+        kind="agent_run",
+        program_id=program_id,
+        payload={"run_id": run_id},
+        priority=1,
+    )
+
+
 async def execute_run(run_id: str) -> None:
     """Выполнить прогон единого эндпоинта (синхронно в процессе api/worker).
 
@@ -2324,10 +2524,10 @@ async def _execute_run_body(run_id: str) -> None:
 
     async with factory() as session:
         run = (
-            await session.execute(
-                text("SELECT * FROM agent_run WHERE id = CAST(:rid AS uuid)"), {"rid": run_id}
-            )
-        ).mappings().first()
+            (await session.execute(text("SELECT * FROM agent_run WHERE id = CAST(:rid AS uuid)"), {"rid": run_id}))
+            .mappings()
+            .first()
+        )
         if run is None:
             return
         if run["status"] == "completed":
@@ -2341,7 +2541,9 @@ async def _execute_run_body(run_id: str) -> None:
         timings: dict[str, float] = {}
         try:
             # 1. Разбор брифа и уточнения
+            t_intake = time.monotonic()
             intake = await intake_core(session, program_id, gateway=gateway, progress_cb=progress_cb)
+            timings["intake_s"] = round(time.monotonic() - t_intake, 1)
             await session.commit()
             if intake["questions"]:
                 open_questions = await programs_repo.open_questions_count(session, program_id)
@@ -2355,9 +2557,7 @@ async def _execute_run_body(run_id: str) -> None:
                         ),
                         {
                             "rid": run_id,
-                            "result": json.dumps(
-                                {"questions": intake["questions"]}, ensure_ascii=False
-                            ),
+                            "result": json.dumps({"questions": intake["questions"]}, ensure_ascii=False),
                         },
                     )
                     await session.commit()
@@ -2367,6 +2567,7 @@ async def _execute_run_body(run_id: str) -> None:
             t0 = time.monotonic()
             framework_result = await framework_core(session, program_id, gateway=gateway, progress_cb=progress_cb)
             timings["framework_s"] = round(time.monotonic() - t0, 1)
+            timings["skeleton_s"] = timings["framework_s"]
             await session.commit()
 
             report: Report | None = framework_result.get("report")
@@ -2403,25 +2604,41 @@ async def _execute_run_body(run_id: str) -> None:
                     await session.commit()
                     return
                 if hours_blocked:
-                    detail = "Каркас не утверждён: часы не сходятся. " + "; ".join(
-                        i.message for i in report.errors[:3]  # type: ignore[union-attr]
-                    )
-                    raise ValueError(detail)
+                    msgs = [i.message for i in report.errors[:3]]  # type: ignore[union-attr]
+                    joined = "; ".join(msgs)
+                    lowered = joined.lower()
+                    if any("час" in m for m in lowered.split(";")):
+                        prefix = "Каркас не утверждён: часы не сходятся."
+                    elif "цель" in lowered or "goal" in lowered:
+                        prefix = "Каркас не утверждён: не заполнена цель программы."
+                    else:
+                        prefix = "Каркас не утверждён: самопроверка каркаса."
+                    raise ValueError(f"{prefix} {joined}")
 
                 # 3. Human Gate (автопрогон) + комплект + выгрузки
                 program = await _load_program(session, program_id)
                 await programs_repo.set_status(
-                    session, program_id=program_id, status="framework_approved",
+                    session,
+                    program_id=program_id,
+                    status="framework_approved",
                     approved_by=str(program["owner_id"]),
                 )
                 await programs_repo.save_version(
-                    session, program_id=program_id, reason="framework_approved",
+                    session,
+                    program_id=program_id,
+                    reason="framework_approved",
                     snapshot=framework_result["kit"].model_dump(mode="json"),
                 )
                 await session.commit()
 
                 t1 = time.monotonic()
-                kit_result = await kit_core(session, program_id, {}, gateway=gateway, progress_cb=progress_cb)
+                brief_text = await _brief_of(program)
+                kit_opts = dict((program.get("profile") or {}).get("kit_options") or {})
+                if brief_text:
+                    from karkas.domain.brief_extract import kit_options_from_brief
+
+                    kit_opts = {**kit_options_from_brief(brief_text), **kit_opts}
+                kit_result = await kit_core(session, program_id, kit_opts, gateway=gateway, progress_cb=progress_cb)
                 timings["kit_s"] = round(time.monotonic() - t1, 1)
                 await session.commit()
 
@@ -2434,9 +2651,7 @@ async def _execute_run_body(run_id: str) -> None:
                 result = {
                     "version": kit_result["version"],
                     "kit": kit_result["kit"].model_dump(mode="json"),
-                    "report": (
-                        kit_result["report"].model_dump(mode="json") if kit_result.get("report") else None
-                    ),
+                    "report": (kit_result["report"].model_dump(mode="json") if kit_result.get("report") else None),
                     "artifacts": export_result["keys"],
                     "timings": {**timings, "total_s": round(time.monotonic() - started, 1)},
                     "usage": {
@@ -2463,11 +2678,19 @@ async def _execute_run_body(run_id: str) -> None:
             )
             await session.commit()
             logger.info(
-                "run.completed", run_id=run_id, program_id=program_id, status=status,
-                framework_s=timings.get("framework_s"), kit_s=timings.get("kit_s"),
+                "run.completed",
+                run_id=run_id,
+                program_id=program_id,
+                status=status,
+                framework_s=timings.get("framework_s"),
+                kit_s=timings.get("kit_s"),
             )
         except Exception as exc:  # noqa: BLE001 — прогон не должен ронять процесс
             await session.rollback()
+            fail_result = {
+                "detail": f"{type(exc).__name__}: {exc}",
+                "timings": {**timings, "total_s": round(time.monotonic() - started, 1)},
+            }
             await session.execute(
                 text(
                     """
@@ -2477,7 +2700,7 @@ async def _execute_run_body(run_id: str) -> None:
                 ),
                 {
                     "rid": run_id,
-                    "result": json.dumps({"detail": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False),
+                    "result": json.dumps(fail_result, ensure_ascii=False),
                 },
             )
             await session.commit()
@@ -2490,10 +2713,10 @@ async def run_result(session: AsyncSession, run_id: str) -> Any:
     from karkas.api import schemas
 
     row = (
-        await session.execute(
-            text("SELECT * FROM agent_run WHERE id = CAST(:rid AS uuid)"), {"rid": run_id}
-        )
-    ).mappings().first()
+        (await session.execute(text("SELECT * FROM agent_run WHERE id = CAST(:rid AS uuid)"), {"rid": run_id}))
+        .mappings()
+        .first()
+    )
     if row is None:
         raise ValueError("Прогон не найден")
     result = row["result"] or {}

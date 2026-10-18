@@ -29,9 +29,7 @@ class SourcesOut(BaseModel):
     notes: str = ""
 
 
-def normalize_sources(
-    items: list[SourceOut], allowed_normative: set[str] | None
-) -> list[dict[str, Any]]:
+def normalize_sources(items: list[SourceOut], allowed_normative: set[str] | None) -> list[dict[str, Any]]:
     """Дедупликация, порядок разделов, нумерация SRC-nn, сверка кодов реестра."""
     unique: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -62,15 +60,17 @@ def normalize_sources(
     for index, source in enumerate(unique, start=1):
         source["ref"] = f"SRC-{index:02d}"
     return [
-        {"ref": source["ref"], **{key: value for key, value in source.items() if key != "ref"}}
-        for source in unique
+        {"ref": source["ref"], **{key: value for key, value in source.items() if key != "ref"}} for source in unique
     ]
 
 
 async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     """Собрать кандидатов источников (проверка — в S18)."""
     topics = inputs.get("topics") or [
-        topic for module in inputs.get("modules") or [] if isinstance(module, dict) for topic in module.get("topics") or []
+        topic
+        for module in inputs.get("modules") or []
+        if isinstance(module, dict)
+        for topic in module.get("topics") or []
     ]
     allowed_raw = inputs.get("allowed_normative")
     allowed_normative = (

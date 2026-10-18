@@ -12,8 +12,9 @@ KitV1 — единственная сериализация комплекта. 
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from decimal import Decimal
-from typing import Annotated, Any, Iterable, Iterator, Literal, Optional
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -120,7 +121,7 @@ class Outcome(BaseModel):
     ref: RefOutcome
     type: OutcomeType
     text: str = Field(min_length=1)
-    bloom_level: Annotated[Optional[int], Field(ge=1, le=6)] = None
+    bloom_level: Annotated[int | None, Field(ge=1, le=6)] = None
 
 
 class ProfStandardRef(BaseModel):
@@ -208,7 +209,7 @@ class Calendar(BaseModel):
     sessions: list[CalendarSession] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _sequence_is_monotonic(self) -> "Calendar":
+    def _sequence_is_monotonic(self) -> Calendar:
         seqs = [s.seq for s in self.sessions]
         if seqs != sorted(seqs):
             raise ValueError("calendar.sessions: seq должен быть неубывающим")
@@ -286,10 +287,10 @@ class Assessment(BaseModel):
     answer_key: AnswerKey | None = None
     rubric: list[Criterion] = Field(default_factory=list)
     outcome_refs: Annotated[list[str], Field(min_length=1)]
-    difficulty: Annotated[Optional[int], Field(ge=1, le=5)] = None
+    difficulty: Annotated[int | None, Field(ge=1, le=5)] = None
 
     @model_validator(mode="after")
-    def _kind_requires_payload(self) -> "Assessment":
+    def _kind_requires_payload(self) -> Assessment:
         if self.kind == "test_question" and (self.qtype is None or self.answer_key is None):
             raise ValueError(f"{self.ref}: тестовый вопрос требует qtype и answer_key (V-COV-04)")
         if self.kind in ("seminar_task", "final_project", "exam_task", "portfolio_item") and not self.rubric:
@@ -519,27 +520,27 @@ class KitV1(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def find_topic(kit: KitV1, ref: str) -> Optional[Topic]:
+def find_topic(kit: KitV1, ref: str) -> Topic | None:
     return next((t for t in kit.iter_topics() if t.ref == ref), None)
 
 
-def find_module(kit: KitV1, ref: str) -> Optional[Module]:
+def find_module(kit: KitV1, ref: str) -> Module | None:
     return next((m for m in kit.framework.modules if m.ref == ref), None)
 
 
-def find_outcome(kit: KitV1, ref: str) -> Optional[Outcome]:
+def find_outcome(kit: KitV1, ref: str) -> Outcome | None:
     return next((o for o in kit.iter_outcomes() if o.ref == ref), None)
 
 
-def find_competency(kit: KitV1, ref: str) -> Optional[Competency]:
+def find_competency(kit: KitV1, ref: str) -> Competency | None:
     return next((c for c in kit.framework.competencies if c.ref == ref), None)
 
 
-def find_assessment(kit: KitV1, ref: str) -> Optional[Assessment]:
+def find_assessment(kit: KitV1, ref: str) -> Assessment | None:
     return next((a for a in kit.content.assessments if a.ref == ref), None)
 
 
-def find_content_block(kit: KitV1, ref: str) -> Optional[ContentBlock]:
+def find_content_block(kit: KitV1, ref: str) -> ContentBlock | None:
     for group in (
         kit.content.module_programs,
         kit.content.lecture_plans,
@@ -552,5 +553,5 @@ def find_content_block(kit: KitV1, ref: str) -> Optional[ContentBlock]:
     return None
 
 
-def find_source(kit: KitV1, ref: str) -> Optional[Source]:
+def find_source(kit: KitV1, ref: str) -> Source | None:
     return next((s for s in kit.content.sources if s.ref == ref), None)

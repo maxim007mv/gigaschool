@@ -806,6 +806,7 @@ export function useProgramEvents(
     return () => stream.close();
     // onEvent намеренно не в зависимостях: подписка не пересоздаётся на каждом
     // рендере; обработчик читает актуальное состояние на стороне вызова.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onEvent стабилен по контракту SSE
   }, [programId, enabled]);
 }
 

@@ -25,15 +25,11 @@ def get_engine() -> AsyncEngine:
     """
     global _engine
     if _engine is None:
-        connect_args = (
-            {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-        )
+        connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
         if settings.db_pool_mode == "null" or settings.database_url.startswith("sqlite"):
             from sqlalchemy.pool import NullPool
 
-            _engine = create_async_engine(
-                settings.database_url, poolclass=NullPool, connect_args=connect_args
-            )
+            _engine = create_async_engine(settings.database_url, poolclass=NullPool, connect_args=connect_args)
         else:
             _engine = create_async_engine(
                 settings.database_url,

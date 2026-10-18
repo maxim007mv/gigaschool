@@ -135,9 +135,7 @@ async def get_file_meta(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict:
     """Метаданные файла и результат извлечения (без полного текста)."""
-    row = await files_repo.get_file(
-        session, file_id, None if principal.is_service else principal.org_id
-    )
+    row = await files_repo.get_file(session, file_id, None if principal.is_service else principal.org_id)
     if row is None:
         raise NotFound("Файл не найден")
     return {

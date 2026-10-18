@@ -60,6 +60,9 @@ EXPECTED_ENDPOINTS: list[tuple[str, str]] = [
     ("get", "/healthz"),
     ("get", "/readyz"),
     ("get", "/metrics"),
+    ("get", "/api/v1/healthz"),
+    ("get", "/api/v1/readyz"),
+    ("get", "/api/v1/metrics"),
 ]
 
 
