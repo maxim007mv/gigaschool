@@ -53,7 +53,20 @@ def validate_acr_export(ctx: ValidationContext) -> GroupResult:
             ],
             meta={"kind": kit.program.kind, "form": kit.program.form},
         )
-    text = _docx_plain_text(blob)
+    try:
+        text = _docx_plain_text(blob)
+    except ValueError as exc:
+        return GroupResult(
+            issues=[
+                issue(
+                    "V-ACR-01",
+                    "error",
+                    str(exc),
+                    entity_ref="acr_export",
+                )
+            ],
+            meta={"kind": kit.program.kind, "form": kit.program.form},
+        )
     missing = [h for h in headings if h not in text]
     issues = []
     if missing:
@@ -67,12 +80,17 @@ def validate_acr_export(ctx: ValidationContext) -> GroupResult:
                 fix_hint={"missing_headings": missing},
             )
         )
-    ref = "data/templates/"
+    if kit.program.kind == "dop":
+        ref_file = "acr_dop_intensive_ai_24h.txt"
+    elif kit.program.form == "internship":
+        ref_file = "acr_dpp_pk_staj_bsa_248h.txt"
+    else:
+        ref_file = "dpp_pk_template.yaml"
     return GroupResult(
         issues=issues,
         meta={
             "expected_sections": len(headings),
             "missing_count": len(missing),
-            "reference": ref + ("acr_dop_intensive_ai_24h.txt" if kit.program.kind == "dop" else "acr_dpp_pk_staj_bsa_248h.txt"),
+            "reference": "data/templates/" + ref_file,
         },
     )
