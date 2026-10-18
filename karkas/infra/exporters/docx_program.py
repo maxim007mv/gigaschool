@@ -431,6 +431,20 @@ def _find_block(kit: KitV1, kind: str) -> ContentBlock | None:
     return next((block for block in kit.content.sections if block.kind == kind), None)
 
 
+def _annotation_for_export(kit: KitV1) -> str:
+    block = _find_block(kit, "annotation")
+    text = _block_text(block) if block else ""
+    if text:
+        return text
+    audience = kit.profile.audience or "слушателей"
+    goal = (kit.framework.goal or "").strip()
+    base = (
+        f"Программа «{kit.program.title}» направлена на {audience} "
+        f"и рассчитана на {kit.program.total_hours} академических часов."
+    )
+    return f"{base} {goal}".strip() if goal else base
+
+
 def _block_text(block: ContentBlock) -> str:
     for key in ("text", "markdown", "content", "summary"):
         value = block.body.get(key)
@@ -517,9 +531,7 @@ def _add_section_1(document: DocxDocument, kit: KitV1) -> None:
     document.add_heading("1. Общая характеристика программы", level=1)
 
     document.add_heading("1.1 Аннотация", level=2)
-    annotation_block = _find_block(kit, "annotation")
-    annotation = _block_text(annotation_block) if annotation_block else ""
-    _para(document, annotation or ANNOTATION_MISSING_TEXT)
+    _para(document, _annotation_for_export(kit))
 
     document.add_heading("1.2 Цель и задачи программы", level=2)
     _para(document, kit.framework.goal or "Цель в комплекте не сформулирована.")
@@ -798,9 +810,7 @@ def _add_dop_title_page(document: DocxDocument, kit: KitV1) -> None:
 
 def _add_dop_explanatory_note(document: DocxDocument, kit: KitV1) -> None:
     document.add_heading(DOP_EXPLANATORY_NOTE_HEADING, level=1)
-    annotation_block = _find_block(kit, "annotation")
-    annotation = _block_text(annotation_block) if annotation_block else ""
-    _para(document, annotation or ANNOTATION_MISSING_TEXT)
+    _para(document, _annotation_for_export(kit))
 
 
 def _add_dop_part_1(document: DocxDocument, kit: KitV1) -> None:
@@ -981,9 +991,7 @@ def _add_internship_section_1(document: DocxDocument, kit: KitV1) -> None:
     )
 
     document.add_heading("1.1. Аннотация программы", level=2)
-    annotation_block = _find_block(kit, "annotation")
-    annotation = _block_text(annotation_block) if annotation_block else ""
-    _para(document, annotation or ANNOTATION_MISSING_TEXT)
+    _para(document, _annotation_for_export(kit))
 
     document.add_heading("1.2. Цель реализации программы", level=2)
     _para(document, kit.framework.goal or "Цель в комплекте не сформулирована.")

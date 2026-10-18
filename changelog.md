@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-18 — Реестр ПС 009, fallback S05, V-TPL-01 для TK-3/5
+
+### Проблема
+На live TK-3 и TK-5 каркас не проходил V-TPL-01: в реестре не хватало ПС/ТФ, S05 возвращал null; в DOCX TK-1 пустая аннотация; в промпте S17 — фиктивный Иванов.
+
+### Фикс
+Миграция `009_prof_standards_registry_expansion.sql` (06.001, 06.042, расширение 06.026/06.022); детерминированный `pick_prof_standard` в S05 и kit_fixup; раздел 1.5 по gap при отсутствии ПС; дедуп `profile.gaps`; аннотация в DOCX; промпты S05/S06/S17; README и `.gitignore`.
+
+### Проверка
+`pytest tests/unit/test_prof_standard_pick_tk3_tk5.py`; полный `pytest tests`; CI на `dev`.
+
+### Статус деплоя
+Ещё не на прод.
+
+---
+
 ## 2026-10-18 — CI green, TK-3/5 live blockers, git hygiene
 
 ### Проблема

@@ -8,6 +8,7 @@ from typing import Any
 
 from karkas.domain.brief_extract import derive_goal, extract_program_title, extract_unit_hours
 from karkas.domain.calendar import calendar as build_calendar_sessions
+from karkas.domain.gaps import merge_gaps
 from karkas.domain.hours import Constraints, Plan
 from karkas.domain.kit import (
     Assessment,
@@ -23,6 +24,7 @@ from karkas.domain.kit import (
     find_topic,
 )
 from karkas.domain.legal_basis import build_program_legal_basis
+from karkas.domain.prof_standard_pick import prof_standards_gap_section_text
 
 _LAYOUT_TITLES = frozenset({"title_and_content", "title", "title_only", "content"})
 
@@ -181,7 +183,7 @@ def _sanitize_sources(kit: KitV1, sources: list[Source]) -> list[Source]:
         if not has_main and known:
             cleaned.append(
                 Source(
-                    ref="SRC-V1",
+                    ref="SRC-99",
                     section="main",
                     citation=known[0].capitalize() if known[0].islower() else known[0],
                     status="verified",
@@ -191,8 +193,46 @@ def _sanitize_sources(kit: KitV1, sources: list[Source]) -> list[Source]:
     return cleaned
 
 
+def _section_has_text(block: ContentBlock) -> bool:
+    if block.kind != "annotation":
+        return bool(block.body)
+    for key in ("text", "markdown", "content", "summary"):
+        value = (block.body or {}).get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
+
+
+def _ensure_prof_standard_gap_section(
+    kit: KitV1, sections: list[ContentBlock], competencies: list
+) -> list[ContentBlock]:
+    if kit.program.kind == "dop" or any(c.prof_standard for c in competencies):
+        return sections
+    if any(
+        b.kind == "template_section" and str(b.body.get("section_code") or "") in ("1.5", "SEC-1.5")
+        for b in sections
+    ):
+        return sections
+    gap_line = next((g for g in kit.framework.gaps if "профстандарт" in g.lower()), None) or (
+        "Автоматический подбор профстандарта не выполнен."
+    )
+    out = list(sections)
+    out.append(
+        ContentBlock(
+            ref="SEC-1.5",
+            kind="template_section",
+            body={
+                "section_code": "1.5",
+                "title": "Перечень компетенций (коды трудовых функций)",
+                "text": prof_standards_gap_section_text(gap_line),
+            },
+        )
+    )
+    return out
+
+
 def _ensure_sections(kit: KitV1, sections: list[ContentBlock]) -> list[ContentBlock]:
-    has_ann = any(b.kind == "annotation" and b.body for b in sections)
+    has_ann = any(b.kind == "annotation" and _section_has_text(b) for b in sections)
     has_33 = any(
         b.kind == "template_section" and str(b.body.get("section_code") or b.ref).endswith("3.3") for b in sections
     )
@@ -327,16 +367,29 @@ def _prof_link_for_program(kit: KitV1) -> tuple[str, str, str, str] | None:
     if kit.profile.constraints.self_study_only or "devops" in blob or "стажиров" in blob:
         return (
             "06.026",
-            "Администратор информационных и коммуникационных систем",
-            "B/01.2",
-            "Администрирование информационных и коммуникационных систем",
+            "Системный администратор информационно-коммуникационных систем",
+            "B/01.5",
+            (
+                "Выполнение работ по выявлению и устранению инцидентов "
+                "в информационно-коммуникационных системах"
+            ),
         )
-    if "анализ данных" in blob or "pandas" in blob or "банк" in blob:
+    if "большим данн" in blob or "big data" in blob:
         return (
-            "06.022",
-            "Системный аналитик",
-            "A/01.4",
-            "Сбор и документирование требований к информационным системам",
+            "06.042",
+            "Специалист по большим данным",
+            "A/03.6",
+            "Подготовка данных для проведения аналитических работ по исследованию больших данных",
+        )
+    if "python" in blob or "анализ данных" in blob or "pandas" in blob or "банк" in blob:
+        return (
+            "06.001",
+            "Программист",
+            "A/02.3",
+            (
+                "Написание программного кода с использованием языков программирования, "
+                "определения и манипулирования данными в базах данных"
+            ),
         )
     if "кибербезопас" in blob:
         return (
@@ -505,7 +558,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     if not goal:
         goal = derive_goal(brief_text or title, title=title, kind=kit.program.kind)
 
-    gaps = _normalize_gaps(list(kit.framework.gaps or []))
+    gaps = _normalize_gaps(merge_gaps(list(kit.framework.gaps or [])))
 
     unit = int(kit.profile.constraints.unit_hours or 1)
     if brief_text:
@@ -534,6 +587,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     sources = _ensure_normative_sources(kit, _sanitize_sources(kit, list(kit.content.sources)))
     profile = kit.profile.model_copy(update={"glossary": _ensure_school_glossary(kit)})
     sections = _ensure_sections(kit, list(kit.content.sections))
+    sections = _ensure_prof_standard_gap_section(kit, sections, competencies)
     module_programs = _ensure_module_programs(kit, list(kit.content.module_programs))
 
     legal = kit.program.legal_basis

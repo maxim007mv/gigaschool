@@ -16,3 +16,5 @@ scratch/
 var/
 .env
 *.log
+logs/
+e2e*/

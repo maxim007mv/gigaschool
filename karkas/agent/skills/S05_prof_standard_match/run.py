@@ -7,6 +7,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from karkas.agent.skills._base import SkillContext, SkillSpec, complete_structured, to_json
+from karkas.domain.prof_standard_pick import pick_prof_standard
 
 DIR = "S05_prof_standard_match"
 METADATA = SkillSpec(code="S05", name="Подбор профстандарта и ТФ", dir=DIR, model_class="struct", depends_on=("S01",))
@@ -106,6 +107,16 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     )
     prof_standard = payload.prof_standard
     if prof_standard is None or prof_standard.code.strip() not in candidates:
+        profile = inputs.get("profile") if isinstance(inputs.get("profile"), dict) else {}
+        fallback = pick_prof_standard(
+            profile,
+            list(candidates.values()),
+            title=str(inputs.get("title") or ""),
+            goal=str(inputs.get("goal") or ""),
+            brief=str(inputs.get("brief") or ""),
+        )
+        if fallback is not None:
+            return fallback
         dropped = [prof_standard.code.strip()] if prof_standard and prof_standard.code.strip() else []
         return _empty(0.0, NOT_FOUND_NOTE, dropped)
 
@@ -124,7 +135,9 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
             dropped.append(item_code)
     note = payload.note.strip()
     if not functions and allowed:
-        note = (note + " " if note else "") + "состав ТФ не выбран — требуется выбор методиста"
+        first_code, first_title = next(iter(allowed.items()))
+        functions = [{"code": first_code, "title": first_title}]
+        note = (note + " " if note else "") + "состав ТФ выбран автоматически (первая ТФ из реестра)"
     elif not allowed:
         note = (note + " " if note else "") + "реестр не передал состав ТФ профстандарта"
     if not candidate.get("file_verified"):

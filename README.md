@@ -97,7 +97,7 @@ karkas/
 │                  dependency_graph, framework_ops, kit (KitV1), templates/*.yaml
 ├─ infra/          db, repos, jobs (очередь), storage (S3), ingest, exporters, metrics
 └─ worker.py       цикл воркера очереди
-migrations/        SQL-миграции 001–003 + раннер (python -m migrations.runner)
+migrations/        SQL-миграции 001–009 + раннер (python -m migrations.runner)
 web/               SPA методиста (React 18 + TS + Vite)
 tests/             unit / integration / eval / contract
 specs/             спецификации Д1–Д5 (извлечены из .docx)
@@ -129,8 +129,7 @@ PostgreSQL 16+/17 + pgvector:
 
 ```bash
 .venv/bin/python -m migrations.runner --demo   # демо-программа 248 ч
-.venv/bin/python -m karkas.worker --concurrency 4 &
-bash scripts/serve.sh                          # API + UI на :8000
+bash scripts/serve.sh                          # API + UI на :8000 (воркер очереди внутри, concurrency ≤2)
 ```
 
 Для кликабельных ссылок на выгрузки в local storage задайте `PUBLIC_API_BASE=http://<хост>:8000` (по умолчанию `http://127.0.0.1:8000`).

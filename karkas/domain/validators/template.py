@@ -85,13 +85,31 @@ def _has_normative_basis(kit: KitV1) -> bool:
     return bool(kit.program.legal_basis) or any(s.section == "normative" for s in kit.content.sources)
 
 
-def _has_annotation(kit: KitV1) -> bool:
+def _annotation_text(kit: KitV1) -> str:
     for block in kit.content.sections:
         if block.kind != "annotation":
             continue
         for key in ("text", "markdown", "content", "summary"):
             value = block.body.get(key)
             if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def _has_annotation(kit: KitV1) -> bool:
+    return bool(_annotation_text(kit))
+
+
+def _has_prof_standards_filled(kit: KitV1) -> bool:
+    if any(c.prof_standard for c in kit.framework.competencies):
+        return True
+    for block in kit.content.sections:
+        if block.kind != "template_section":
+            continue
+        code = str(block.body.get("section_code") or block.ref or "")
+        if code == "1.5" or code.endswith("1.5"):
+            text = str(block.body.get("text") or block.body.get("content") or "").strip()
+            if len(text) >= 40:
                 return True
     return False
 
@@ -107,7 +125,7 @@ FILL_CHECKS: dict[str, Callable[[KitV1], bool]] = {
     "outcomes": lambda kit: bool(list(kit.iter_outcomes())),
     "competencies": lambda kit: bool(kit.framework.competencies),
     "modules": lambda kit: bool(kit.framework.modules),
-    "prof_standards": lambda kit: any(c.prof_standard for c in kit.framework.competencies),
+    "prof_standards": _has_prof_standards_filled,
     "hours": _modules_with_hours,
     "calendar": _has_calendar,
     "final_attestation": lambda kit: kit.framework.final_attestation.hours > 0,

@@ -31,6 +31,7 @@ from karkas.agent.skill_runner import SkillRunner
 from karkas.agent.skills import SKILLS, SkillContext
 from karkas.agent.skills._base import InMemoryCheckpointStore
 from karkas.api.sse import bus
+from karkas.domain.gaps import merge_gaps
 from karkas.domain.intake_slots import detect_hour_total_conflicts
 from karkas.domain.intake_slots import parse_total_hours as _parse_hours
 from karkas.domain.kit import (
@@ -622,7 +623,10 @@ async def intake_core(
             "duration_hint": s01_profile.get("duration_hint") or profile_json.get("duration_hint"),
             "notes": s01_profile.get("notes") or profile_json.get("notes"),
             "glossary": s01_profile.get("glossary") or profile_json.get("glossary") or {},
-            "gaps": _filter_slot_gaps(s01.get("gaps") or profile_json.get("gaps") or [], merged_answers),
+            "gaps": _filter_slot_gaps(
+                merge_gaps(list(profile_json.get("gaps") or []), list(s01.get("gaps") or [])),
+                merged_answers,
+            ),
             "assumptions": [
                 *(profile_json.get("assumptions") or []),
                 *(a.get("text") for a in (s01.get("assumptions") or []) if a.get("text")),
@@ -871,12 +875,14 @@ def _assemble_kit(
             sessions=[CalendarSession(**session_row) for session_row in s09["sessions"]],
         )
 
-    gaps = [
-        *(s01.get("gaps") or []),
-        *(s06.get("gaps") or []),
-        *(s07.get("gaps") or []),
-        *verification_assumptions_for_competencies(competencies),
-    ]
+    s05_gap = [str(s05["gap"])] if s05.get("gap") else []
+    gaps = merge_gaps(
+        list(s01.get("gaps") or []),
+        list(s06.get("gaps") or []),
+        list(s07.get("gaps") or []),
+        s05_gap,
+        verification_assumptions_for_competencies(competencies),
+    )
     # Задачи программы (раздел шаблона 1.2) выводим из компетенций детерминированно:
     # отдельного поля «задачи» навыки S01–S07 не формируют.
     tasks = [f"Сформировать компетенцию: {comp.title}" for comp in competencies]
@@ -934,6 +940,8 @@ async def framework_core(
         "registries": registries,
         "answers": answers,
         "candidates": registries["prof_standards"],
+        "title": program.get("title"),
+        "goal": program.get("goal"),
         "allowed_normative": [f"{a['number']}" for a in registries["normative_acts"]],
         "knowledge": kb_text,
         "knowledge_snippets": kb_text,
