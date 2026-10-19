@@ -12,6 +12,21 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from karkas.infra.sql_dialect import json_param, uuid_param
+
+
+def _normalize_file_row(row: Any) -> dict[str, Any]:
+    """SQLite отдаёт extract_meta строкой, PostgreSQL — объектом."""
+    data = dict(row)
+    meta = data.get("extract_meta")
+    if isinstance(meta, str):
+        try:
+            parsed = json.loads(meta or "{}")
+        except ValueError:
+            parsed = {}
+        data["extract_meta"] = parsed if isinstance(parsed, dict) else {}
+    return data
+
 
 async def create_file(
     session: AsyncSession,
@@ -30,11 +45,11 @@ async def create_file(
     row = (
         await session.execute(
             text(
-                """
+                f"""
                 INSERT INTO file_object (id, org_id, uploaded_by, filename, mime_type, size_bytes,
                                          sha256, s3_key, extracted_text, extract_meta)
-                VALUES (:fid, :org_id, CAST(:uploaded_by AS uuid), :filename, :mime, :size, :sha,
-                        :s3_key, :text, CAST(:meta AS jsonb))
+                VALUES (:fid, :org_id, {uuid_param("uploaded_by")}, :filename, :mime, :size, :sha,
+                        :s3_key, :text, {json_param("meta")})
                 ON CONFLICT (org_id, sha256) DO NOTHING
                 RETURNING id
                 """
@@ -65,13 +80,13 @@ async def create_file(
 
 
 async def get_file(session: AsyncSession, file_id: str, org_id: str | None = None) -> dict[str, Any] | None:
-    sql = "SELECT * FROM file_object WHERE id = CAST(:fid AS uuid)"
+    sql = f"SELECT * FROM file_object WHERE id = {uuid_param('fid')}"
     params: dict[str, Any] = {"fid": file_id}
     if org_id:
         sql += " AND org_id = :org_id"
         params["org_id"] = org_id
     row = (await session.execute(text(sql), params)).mappings().first()
-    return dict(row) if row else None
+    return _normalize_file_row(row) if row else None
 
 
 async def find_by_sha(session: AsyncSession, org_id: str, sha256: bytes) -> dict[str, Any] | None:
@@ -86,7 +101,7 @@ async def find_by_sha(session: AsyncSession, org_id: str, sha256: bytes) -> dict
         .mappings()
         .first()
     )
-    return dict(row) if row else None
+    return _normalize_file_row(row) if row else None
 
 
 async def attach_to_program(
@@ -98,9 +113,9 @@ async def attach_to_program(
 ) -> None:
     await session.execute(
         text(
-            """
+            f"""
             INSERT INTO program_file (program_id, file_id, role)
-            VALUES (CAST(:pid AS uuid), CAST(:fid AS uuid), :role)
+            VALUES ({uuid_param("pid")}, {uuid_param("fid")}, :role)
             ON CONFLICT (program_id, file_id) DO UPDATE SET role = EXCLUDED.role
             """
         ),
@@ -113,10 +128,10 @@ async def program_files(session: AsyncSession, program_id: str) -> list[dict[str
         (
             await session.execute(
                 text(
-                    """
+                    f"""
                 SELECT pf.role, fo.id, fo.filename, fo.mime_type, fo.extracted_text IS NOT NULL AS has_text
                 FROM program_file pf JOIN file_object fo ON fo.id = pf.file_id
-                WHERE pf.program_id = CAST(:pid AS uuid)
+                WHERE pf.program_id = {uuid_param("pid")}
                 ORDER BY fo.filename
                 """
                 ),

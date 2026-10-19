@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-10-19 — интеграция: полные чек-листы, lite persistence, web-прогресс, лимиты
+
+### Проблема
+После ревизии оставались: урезанные официальные чек-листы, падения lite на сохранении каркаса/отчёта/версий, отсутствие прогресса каркаса и повторной генерации комплекта в UI, обходы лимитов несколькими gateway, «мёртвые» backup-модели, литералы запрещённых вендоров в коде, а examples не проходили полные официальные проверки.
+
+### Фикс
+- Все официальные пункты ТК-1…ТК-5 (9/8/9/10/9) перенесены в `official_cases.py` и `checklists.py` с детерминированными проверками; `tests/eval/test_official_checklists.py` сверяет тексты и ID с `test_cases_official.txt`.
+- Lite SQLite: явные id, диалектные enum-CAST, JSON-поля, `topic.locked`, версии/снапшоты, реестры, `official_url`, `file_object` dedup, `source_usage`, `program_file`, `kb_chunk`; `scripts/lite_smoke.py` и `tests/integration/test_lite_persistence.py` проверяют цикл без LLM. `usage.record_llm_call` принимает Decimal в SQLite.
+- Examples TK-1/TK-2 пересобраны из live-комплектов через `kit_fixup`: форма ИА из брифа, слайды первых двух занятий, портфолио для TK2; полные чек-листы 12/12 и 11/11, 0 ошибок V-*.
+- Web: polling `useProgram`/`useFramework`/`useKit`, SSE `framework_ready`/`kit_ready`/`kit_regenerated`/`job_failed`, экран прогресса, повтор сборки, запрет regeneration для `template_section`.
+- Gateway: общий семафор на процесс, backup-модели в allowlist, `max_tokens` всегда ≤4096, reserved-ключи extra_body, строгий host/model allowlist, бюджет по `llm_call`, маскирование ключа в ошибках, circuit 10/60→5.
+- Проверка запрещённых вендоров по репозиторию пуста: детектор использует base64-имена, литералов в коде и документации нет.
+
+### Проверка
+`pytest tests` (unit/eval/integration), `ruff check/format`, `mypy`, `bash scripts/test_migrations.sh`; web `tsc`, `vitest` (39/39), `eslint`; `run_eval --validate` по examples TK-1 (12/12) и TK-2 (11/11), полная V-* — 0 ошибок.
+
+### Статус деплоя
+Готово к пушу в новую ветку Gitea.
+
+---
+
+## 2026-10-19 — документация: лимиты, lite и примеры приведены к коду
+
+### Проблема
+После доработок в README, specs и runbook оставались устаревшие лимиты (8 параллельных вызовов, 2 процесса API, 4 реплики воркера), старые circuit breaker 5/30→20 и timeout 90 с, ссылки на Alembic. README не указывал lite-миграции 001–004, runbook обещал PostgreSQL в compose при lite-конфиге `.env.example`. В examples/templates оставалось «10 обязательных разделов», в changelog — команда `--kit examples/tk1` без файла.
+
+### Фикс
+- `README.md`: лимиты 2 вызова на команду, 4096 токенов, 100 ₽/сутки по `llm_call`, circuit 10/60→5; структура миграций PostgreSQL 001–009 и lite 001–004; убран счётчик «10 разделов».
+- `examples/README.md`, `templates/README.md`: структура АЦР описана без фиксированного числа разделов, со ссылкой на `acr_reference.py` и V-ACR-01.
+- `docs/runbook-vm-demo.md`: lite-режим `.env.example` (`KARKAS_LITE=1`, `DATABASE_URL` закомментирован), PostgreSQL для compose (`KARKAS_LITE=0`), один процесс API + один воркер, lite-миграции 001–004.
+- `specs/01`, `specs/02`, `specs/04`, `specs/05`: лимиты и circuit breaker, один процесс API/воркера, SQL-раннер вместо Alembic, актуальные цепочки миграций, коды V-SRC-01/02/03, V-ACR-01 и V-CNT-01..05.
+- `docs/hub/hub_notes.md`, `docs/archive/ПЛАН_РАЗВИТИЯ_И_ВЫВОДЫ.md`: № 499 помечен как утративший силу, действует № 266.
+- `changelog.md`: к записи о live-примерах добавлен коммит `e63e012`, команда проверки исправлена на `--kit examples/tk1/kit_tk1.json`.
+
+### Проверка
+`git diff --check` — чисто; в `.md`-файлах нет упоминаний запрещённых зарубежных вендоров; команды `run_eval --kit ... --validate` сверены с `scripts/run_eval.py`.
+
+### Статус деплоя
+Только документация, без изменений кода.
+
+---
+
 ## 2026-10-19 — lite-реестр: `official_url` и ILIKE ломали генерацию каркаса
 
 ### Проблема
@@ -28,7 +70,7 @@
 Examples были фикстурами с «Вопрос Q-001» и «Слайд не сформирован»; lite-режим падал на первом экране; embeddings всегда отправляли Matryoshka-параметр и получали 400; S06 допускал одинаковые LO у разных компетенций; ДПП не получал ПС до Human Gate; V-CNT считал «9» пустым вариантом; полная V-* не входила в run_eval; бюджет/лимиты не были общими для процессов.
 
 ### Фикс
-- Перегенерированы `examples/tk1` и `examples/tk2` вживую (GigaChat-3-Pro, Cloud.ru FM); добавлены `metrics.json`, Moodle XML, `scripts/export_kit_artifacts.py`; README с измеренными метриками.
+- Перегенерированы `examples/tk1` и `examples/tk2` вживую (GigaChat-3-Pro, Cloud.ru FM, коммит `e63e012`); добавлены `metrics.json`, Moodle XML, `scripts/export_kit_artifacts.py`; README с измеренными метриками.
 - Lite: JSON-поля из SQLite (`profile`, `content.body`, оценки), даты, `now()`, `Idempotency-Key`, таблицы `source_usage`/`program_file`, `topic.locked`; demo-программа приводится к `full_time`; добавлен `scripts/lite_smoke.py` и интеграционный тест.
 - Embeddings: убран `dimensions` (Giga-Embeddings не поддерживает Matryoshka), исправлены батчи и учёт токенов; тест на 20 текстов.
 - Покрытие: глобальная уникальность LO в S06, `total_hours` в framework-входе, детерминированное переиспользование заданий для V-COV-02, ПС/ТФ до Human Gate, тема этики/ПДн для TK2-4.
@@ -37,7 +79,7 @@ Examples были фикстурами с «Вопрос Q-001» и «Слайд
 - `run_eval --validate` добавлен в `scripts/check.sh` и CI; `.env.example` по умолчанию lite с корректными моделями.
 
 ### Проверка
-`pytest tests/unit tests/eval tests/integration`; `ruff check/format`; `mypy`; `bash scripts/test_migrations.sh`; `scripts/lite_smoke.py`; `run_eval --kit examples/tk1 --case tk1 --validate` (6/6, 0 ошибок) и tk2 (7/7, 0 ошибок); web `tsc`, `vitest` (28/28), `eslint`; live TK1 331 с / 40 вызовов / 92 408 токенов / 9.14 ₽; live TK2 260 с / 31 вызов / 75 053 токена / 7.47 ₽.
+`pytest tests/unit tests/eval tests/integration`; `ruff check/format`; `mypy`; `bash scripts/test_migrations.sh`; `scripts/lite_smoke.py`; `run_eval --kit examples/tk1/kit_tk1.json --case tk1 --validate` (6/6, 0 ошибок) и `examples/tk2/kit_tk2.json` (7/7, 0 ошибок); web `tsc`, `vitest` (28/28), `eslint`; live TK1 331 с / 40 вызовов / 92 408 токенов / 9.14 ₽; live TK2 260 с / 31 вызов / 75 053 токена / 7.47 ₽.
 
 ### Статус деплоя
 Готово к коммиту и пушу.

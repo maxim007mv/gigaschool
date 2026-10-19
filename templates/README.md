@@ -6,7 +6,9 @@
    экспортёры [`docx_program.py`](../karkas/infra/exporters/docx_program.py) и
    [`pptx_slides.py`](../karkas/infra/exporters/pptx_slides.py) собирают файлы
    программно, без внешних шаблонов, по структуре Академии цифрового развития
-   (АЦР, 10 обязательных разделов согласно Д4 §5.12 и валидатору V-ACR-01).
+   (АЦР; полный перечень разделов — в
+   [`acr_reference.py`](../karkas/domain/acr_reference.py), проверка V-ACR-01).
+   Структура ДОП, ДПП ПК и стажировки различается.
 
 2. **Эталонные документы и шаблоны:**
    официальные образцы программ АЦР лежат в [`data/templates/`](../data/templates/):

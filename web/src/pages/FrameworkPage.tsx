@@ -19,21 +19,28 @@ import { formatStatus } from "../entities/formatters";
 import { ApiError } from "../shared/api/client";
 import { problemIssueMessages } from "../shared/api/problem";
 import {
+  STATUS_POLL_INTERVAL_MS,
+  USE_MOCKS,
   useApproveFramework,
   useFramework,
+  useGenerateFramework,
+  useProgram,
+  useProgramEvents,
   useRebalanceFramework,
   useRestoreVersion,
   useSaveFramework,
 } from "../shared/api/queries";
+import type { ProgressEventData } from "../shared/api/sse";
 import { T } from "../shared/i18n/ru";
 import { Badge } from "../shared/ui/Badge";
 import { Button } from "../shared/ui/Button";
 import { IconCheck } from "../shared/ui/icons";
+import { GenerationProgress, type GenerationFailure } from "../features/progress/GenerationProgress";
 import { ProgramStatusBar } from "../features/progress/ProgramStatusBar";
 import { Stepper } from "../shared/ui/Stepper";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/ui/Tabs";
 import { useToast } from "../shared/ui/Toast";
-import { ErrorState, PageSkeleton } from "../app/states";
+import { ErrorState, EmptyState, PageSkeleton } from "../app/states";
 import { CoverageMatrix } from "../features/coverage/CoverageMatrix";
 import { ConstraintBar } from "../features/hours/ConstraintBar";
 import { HoursGrid } from "../features/hours/HoursGrid";
@@ -52,11 +59,19 @@ export function FrameworkPage() {
   const id = programId ?? "";
   const toast = useToast();
 
-  const frameworkQuery = useFramework(id || null);
+  const programQuery = useProgram(id || null);
+  const programStatus = programQuery.data?.status;
+  const generating = programStatus === "framework_generating";
+  const frameworkQuery = useFramework(id || null, {
+    refetchInterval: generating ? STATUS_POLL_INTERVAL_MS : undefined,
+  });
+  const frameworkHasError = frameworkQuery.isError;
+  const refetchFramework = frameworkQuery.refetch;
   const saveFramework = useSaveFramework(id);
   const rebalance = useRebalanceFramework(id);
   const approve = useApproveFramework(id);
   const restoreVersion = useRestoreVersion(id);
+  const generateFramework = useGenerateFramework(id);
 
   const [draft, setDraft] = useState<LivePlan | null>(null);
   const [changes, setChanges] = useState<Map<CellKey, number>>(new Map());
@@ -64,9 +79,73 @@ export function FrameworkPage() {
   /** Желаемое состояние связей «тема ↔ результат», которых коснулся методист. */
   const [linkDraft, setLinkDraft] = useState<Map<string, boolean>>(new Map());
   const [tab, setTab] = useState("plan");
+  const [progress, setProgress] = useState<ProgressEventData | null>(null);
+  const [generationError, setGenerationError] = useState<GenerationFailure | null>(null);
 
   const version = frameworkQuery.data?.version;
   const canRollback = Boolean(version && version > 1);
+
+  // События воркера: прогресс, готовый каркас и окончательная ошибка сборки.
+  useProgramEvents(
+    USE_MOCKS ? null : id || null,
+    (event) => {
+      if (event.name === "progress") {
+        setProgress(event.payload);
+        setGenerationError(null);
+        return;
+      }
+      if (event.name === "framework_ready") {
+        setProgress(null);
+        setGenerationError(null);
+        toast.show("success", T.framework.readyToast);
+        void frameworkQuery.refetch();
+        void programQuery.refetch();
+        return;
+      }
+      if (event.name === "job_failed") {
+        if (event.payload.will_retry) {
+          toast.show("success", T.progress.retrying);
+          void programQuery.refetch();
+          return;
+        }
+        setProgress(null);
+        setGenerationError({
+          code: event.payload.code,
+          detail: event.payload.detail,
+        });
+        void frameworkQuery.refetch();
+        void programQuery.refetch();
+      }
+    },
+    Boolean(id) && !USE_MOCKS,
+  );
+
+  // Если опрос не успел поймать смену статуса, перечитываем каркас один раз
+  // при выходе программы из состояния сборки.
+  useEffect(() => {
+    if (programStatus && programStatus !== "framework_generating" && frameworkHasError) {
+      void refetchFramework();
+    }
+  }, [programStatus, frameworkHasError, refetchFramework]);
+
+  const retryFrameworkGeneration = async () => {
+    setGenerationError(null);
+    setProgress(null);
+    try {
+      await generateFramework.mutateAsync();
+      toast.show("success", T.clarify.building);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "JOB_IN_PROGRESS") {
+        // Задача уже идёт (например, воркер ещё держит её после сбоя):
+        // возвращаем экран в режим ожидания.
+        toast.show("success", "Сборка уже выполняется — дождитесь результата.");
+        void programQuery.refetch();
+        return;
+      }
+      toast.show("error", error instanceof Error ? error.message : T.app.error);
+      void programQuery.refetch();
+    }
+  };
 
   const rollbackToPrevious = async () => {
     if (!version || version <= 1) return;
@@ -75,6 +154,7 @@ export function FrameworkPage() {
       await restoreVersion.mutateAsync(target);
       toast.show("success", `Выполнен откат к версии ${target}`);
       void frameworkQuery.refetch();
+      void programQuery.refetch();
     } catch (err) {
       toast.show("error", err instanceof Error ? err.message : T.app.error);
     }
@@ -112,12 +192,86 @@ export function FrameworkPage() {
     [draft, constraints],
   );
 
-  if (frameworkQuery.isPending) return <PageSkeleton />;
-  if (frameworkQuery.isError) {
-    return <ErrorState message={T.app.error} onRetry={() => void frameworkQuery.refetch()} />;
-  }
+  if (programQuery.isPending || frameworkQuery.isPending) return <PageSkeleton />;
 
   const data = frameworkQuery.data;
+  const failure: GenerationFailure | null =
+    generationError ??
+    (programStatus === "failed"
+      ? {
+          code: null,
+          detail: "Сборка каркаса завершилась ошибкой. Сохранённая версия не изменилась.",
+        }
+      : null);
+  const frameworkGenerating = generating || data?.status === "framework_generating";
+
+  if (!data) {
+    if (frameworkGenerating || generateFramework.isPending) {
+      return (
+        <FrameworkWaitingScreen
+          programId={id}
+          progress={progress}
+          failure={failure}
+          onRetry={() => void retryFrameworkGeneration()}
+          retryBusy={generateFramework.isPending}
+        />
+      );
+    }
+    if (failure) {
+      return (
+        <FrameworkWaitingScreen
+          programId={id}
+          progress={null}
+          failure={failure}
+          onRetry={() => void retryFrameworkGeneration()}
+          retryBusy={generateFramework.isPending}
+        />
+      );
+    }
+    if (frameworkQuery.error instanceof ApiError && frameworkQuery.error.status === 404) {
+      return (
+        <div className="flex flex-col gap-lg">
+          <Stepper current={2} maxReached={2} />
+          {id ? <ProgramStatusBar programId={id} currentStep={2} /> : null}
+          <EmptyState
+            title={T.framework.emptyTitle}
+            hint={T.framework.emptyText}
+            action={
+              <div className="flex flex-wrap items-center gap-md">
+                <Button
+                  variant="primary"
+                  busy={generateFramework.isPending}
+                  onClick={() => void retryFrameworkGeneration()}
+                >
+                  {generateFramework.isPending ? T.clarify.building : T.framework.buildFramework}
+                </Button>
+                <Link
+                  to="/programs/$programId/clarify"
+                  params={{ programId: id }}
+                  className="text-base text-primary underline underline-offset-2"
+                >
+                  {T.framework.toClarify} →
+                </Link>
+              </div>
+            }
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-lg">
+        <Stepper current={2} maxReached={2} />
+        {id ? <ProgramStatusBar programId={id} currentStep={2} /> : null}
+        <ErrorState
+          message={`${T.framework.loadError}: ${
+            frameworkQuery.error instanceof Error ? frameworkQuery.error.message : T.app.error
+          }. ${T.framework.loadErrorHint}`}
+          onRetry={() => void frameworkQuery.refetch()}
+        />
+      </div>
+    );
+  }
+
   const approved = data.status === "framework_approved" || data.status.startsWith("kit");
 
   const currentHours = (topicRef: string, activity: Activity): number => {
@@ -269,6 +423,10 @@ export function FrameworkPage() {
               <Button
                 variant="secondary"
                 busy={restoreVersion.isPending}
+                disabled={frameworkGenerating}
+                disabledReason={
+                  frameworkGenerating ? "Дождитесь завершения сборки каркаса" : undefined
+                }
                 onClick={rollbackToPrevious}
                 title={`Откатить к версии ${(version ?? 2) - 1}`}
               >
@@ -287,6 +445,37 @@ export function FrameworkPage() {
           </div>
         </div>
       </header>
+
+      {frameworkGenerating && !failure ? (
+        <GenerationProgress
+          title={T.progress.stepsTitle}
+          description={`${T.framework.generatingText} Показана последняя сохранённая версия — она обновится, когда сборка завершится.`}
+          estimate={T.framework.generatingEstimate}
+          progress={progress}
+        />
+      ) : null}
+
+      {failure ? (
+        <GenerationProgress
+          title={T.progress.stepsTitle}
+          description={T.framework.generatingText}
+          estimate={T.framework.generatingEstimate}
+          failure={failure}
+          failureHint={T.framework.generationFailedHint}
+          onRetry={() => void retryFrameworkGeneration()}
+          retryBusy={generateFramework.isPending}
+          retryLabel={T.framework.retryGeneration}
+          actions={
+            <Link
+              to="/programs/$programId/clarify"
+              params={{ programId: id }}
+              className="text-base text-primary underline underline-offset-2"
+            >
+              {T.framework.toClarify} →
+            </Link>
+          }
+        />
+      ) : null}
 
       {approved ? (
         <p
@@ -333,8 +522,14 @@ export function FrameworkPage() {
                   <Button
                     variant="secondary"
                     onClick={() => void save()}
-                    disabled={!hasUnsaved || saveFramework.isPending || approved}
-                    disabledReason={approved ? "Каркас утверждён — для изменения часов верните его на доработку" : undefined}
+                    disabled={!hasUnsaved || saveFramework.isPending || approved || frameworkGenerating}
+                    disabledReason={
+                      approved
+                        ? "Каркас утверждён — для изменения часов верните его на доработку"
+                        : frameworkGenerating
+                          ? "Дождитесь завершения сборки каркаса"
+                          : undefined
+                    }
                     busy={saveFramework.isPending}
                   >
                     {T.hours.save}
@@ -344,10 +539,16 @@ export function FrameworkPage() {
                 <HoursGrid
                   plan={draft}
                   constraints={constraints}
-                  readOnly={approved}
-                  busy={approve.isPending || saveFramework.isPending}
-                  approveBlockedReason={approved ? undefined : approveBlockedReason}
-                  showApprove={!approved}
+                  readOnly={approved || frameworkGenerating}
+                  busy={approve.isPending || saveFramework.isPending || frameworkGenerating}
+                  approveBlockedReason={
+                    approved
+                      ? undefined
+                      : frameworkGenerating
+                        ? "Дождитесь завершения сборки каркаса."
+                        : approveBlockedReason
+                  }
+                  showApprove={!approved && !frameworkGenerating}
                   onCellChange={updateTopicWorkload}
                   onToggleLock={toggleLock}
                   onApprove={() => void approveFramework()}
@@ -359,7 +560,9 @@ export function FrameworkPage() {
                 result={liveResult}
                 busy={rebalance.isPending}
                 onRebalance={
-                  approved || hasUnsaved ? undefined : () => rebalance.mutate(undefined)
+                  approved || hasUnsaved || frameworkGenerating
+                    ? undefined
+                    : () => rebalance.mutate(undefined)
                 }
               />
             </div>
@@ -374,7 +577,7 @@ export function FrameworkPage() {
             topics={effectiveTopics}
             assessments={[]}
             showCounters={false}
-            readOnly={approved}
+            readOnly={approved || frameworkGenerating}
             onToggleLink={(outcomeRef, topicRef, nextLinked) => {
               // Операции отвязки в контракте PATCH /framework нет (Д4 §6.4):
               // не делаем вид, что отвязка сохранится.
@@ -418,6 +621,55 @@ export function FrameworkPage() {
           </section>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function FrameworkWaitingScreen({
+  programId,
+  progress,
+  failure,
+  onRetry,
+  retryBusy,
+}: {
+  programId: string;
+  progress: ProgressEventData | null;
+  failure: GenerationFailure | null;
+  onRetry: () => void;
+  retryBusy: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-lg">
+      <Stepper current={2} maxReached={2} />
+      {programId ? <ProgramStatusBar programId={programId} currentStep={2} /> : null}
+      <header className="flex flex-col gap-xs">
+        <h1 className="text-title font-bold text-ink">
+          {failure ? T.framework.generationFailed : T.framework.generatingTitle}
+        </h1>
+        <p className="max-w-[640px] text-base text-ink-muted">
+          {failure ? T.framework.generationFailedHint : T.framework.generatingText}
+        </p>
+      </header>
+      <GenerationProgress
+        title={T.progress.stepsTitle}
+        description={T.framework.generatingText}
+        estimate={T.framework.generatingEstimate}
+        progress={progress}
+        failure={failure}
+        failureHint={T.framework.generationFailedHint}
+        onRetry={onRetry}
+        retryBusy={retryBusy}
+        retryLabel={T.framework.retryGeneration}
+        actions={
+          <Link
+            to="/programs/$programId/clarify"
+            params={{ programId }}
+            className="text-base text-primary underline underline-offset-2"
+          >
+            {T.framework.toClarify} →
+          </Link>
+        }
+      />
     </div>
   );
 }

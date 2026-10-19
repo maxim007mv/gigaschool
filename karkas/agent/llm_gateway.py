@@ -25,10 +25,12 @@ import hashlib
 import json
 import random
 import time
+import weakref
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -42,9 +44,31 @@ from karkas.agent.skills._base import (
 )
 from karkas.eval.defense_metrics import estimate_gigachat3_pro_cost
 from karkas.logging_setup import get_logger
-from karkas.settings import Settings, get_settings
+from karkas.settings import (
+    APPROVED_GATEWAY_HOSTS,
+    RESERVED_EXTRA_BODY_KEYS,
+    Settings,
+    get_settings,
+)
 
 logger = get_logger("karkas.llm")
+
+#: Максимальный размер ответа модели по требованиям хаба (Д1 §7).
+MAX_OUTPUT_TOKENS: int = 4096
+
+#: Общие семафоры на процесс: несколько LlmGateway не должны вместе превышать
+#: LLM_CONCURRENCY. Ключ — event loop (тесты создают новый loop на тест) и лимит.
+_SHARED_LIMITERS: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[int, asyncio.Semaphore]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _shared_limiter(limit: int) -> asyncio.Semaphore:
+    """Семафор, общий для всех шлюзов процесса с тем же лимитом."""
+    loop = asyncio.get_running_loop()
+    limiter = _SHARED_LIMITERS.setdefault(loop, {}).setdefault(limit, asyncio.Semaphore(limit))
+    return limiter
+
 
 #: Классы задач, которые маршрутизируются на LLM (Д1 §7).
 ModelClass = Literal["struct", "bulk"]
@@ -269,18 +293,49 @@ class CloudRuHttpError(Exception):
 
 
 class CloudRuFMClient:
-    """Тонкий асинхронный HTTP-клиент к шлюзу Cloud.ru Foundation Models на httpx."""
+    """Тонкий асинхронный HTTP-клиент к шлюзу Cloud.ru Foundation Models на httpx.
+
+    Клиент сам страхует инварианты шлюза: хост только из allowlist, ключ не
+    попадает в текст ошибок, ``max_tokens`` не превышает лимит, а служебные
+    поля из ``extra_body`` не подменяют параметры запроса.
+    """
 
     def __init__(
         self,
         base_url: str,
         api_key: str,
         timeout: float = 120.0,
+        max_output_tokens: int = MAX_OUTPUT_TOKENS,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = base_url.strip().rstrip("/")
+        parsed = urlparse(self.base_url)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme not in ("http", "https") or not host:
+            raise ValueError(f"FM_BASE_URL должен быть абсолютным http(s)-URL, получено {base_url!r}")
+        if host not in APPROVED_GATEWAY_HOSTS:
+            raise ValueError(
+                f"Недопустимый хост шлюза {host!r}. Разрешены только хосты Cloud.ru FM: "
+                f"{', '.join(sorted(APPROVED_GATEWAY_HOSTS))}"
+            )
+        if not api_key.strip():
+            raise ValueError("FM_API_KEY не задан: клиент Cloud.ru FM без ключа не создаётся")
+        if timeout <= 0:
+            raise ValueError("LLM_TIMEOUT_S должен быть положительным")
+        if not 1 <= max_output_tokens <= MAX_OUTPUT_TOKENS:
+            raise ValueError(f"LLM_MAX_OUTPUT_TOKENS должен быть в диапазоне 1..{MAX_OUTPUT_TOKENS}")
         self.api_key = api_key
         self.timeout = timeout
+        self.max_output_tokens = max_output_tokens
         self.chat = self.Chat(self)
+
+    def _error_body(self, response: httpx.Response) -> str:
+        """Тело ошибки без ключа и с ограничением длины (для логов/исключений)."""
+        body = (response.text or "").strip()
+        if not body:
+            return "<пустой ответ шлюза>"
+        if self.api_key:
+            body = body.replace(self.api_key, "***")
+        return body[:2000]
 
     class Chat:
         def __init__(self, client: CloudRuFMClient) -> None:
@@ -299,13 +354,35 @@ class CloudRuFMClient:
                 extra_body = kwargs.pop("extra_body", None)
                 # Служебные поля (model/messages/max_tokens/response_format)
                 # должны побеждать extra_body, иначе конфиг обходит лимиты.
-                payload: dict[str, Any] = dict(extra_body) if isinstance(extra_body, dict) else {}
+                payload: dict[str, Any] = (
+                    {key: value for key, value in dict(extra_body).items() if key not in RESERVED_EXTRA_BODY_KEYS}
+                    if isinstance(extra_body, Mapping)
+                    else {}
+                )
                 payload.update(kwargs)
+                limit = self._client.max_output_tokens
+                requested = payload.get("max_tokens")
+                if isinstance(requested, bool) or not isinstance(requested, int) or not 0 < requested <= limit:
+                    if requested is not None:
+                        logger.warning("llm.max_tokens_clamped", requested=str(requested)[:50], limit=limit)
+                    payload["max_tokens"] = limit
                 async with httpx.AsyncClient(timeout=float(self._client.timeout)) as http_client:
                     response = await http_client.post(url, json=payload, headers=headers)
                     if response.status_code != 200:
-                        raise CloudRuHttpError(response.status_code, response.text or "<пустой ответ шлюза>")
-                    return response.json()
+                        raise CloudRuHttpError(response.status_code, self._client._error_body(response))
+                    if not (response.text or "").strip():
+                        # 200 с пустым телом — сбой шлюза, а не валидный ответ.
+                        raise CloudRuHttpError(response.status_code, "<пустой ответ шлюза>")
+                    try:
+                        data = response.json()
+                    except ValueError as exc:
+                        raise CloudRuHttpError(response.status_code, "<невалидный JSON в ответе шлюза>") from exc
+                    if not isinstance(data, dict):
+                        raise CloudRuHttpError(
+                            response.status_code,
+                            f"<ожидался JSON-объект, получен {type(data).__name__}>",
+                        )
+                    return data
 
 
 def _build_default_client(settings: Settings) -> Any | None:
@@ -316,6 +393,7 @@ def _build_default_client(settings: Settings) -> Any | None:
         base_url=settings.fm_base_url,
         api_key=settings.fm_api_key,
         timeout=float(settings.llm_timeout_s),
+        max_output_tokens=settings.llm_max_output_tokens,
     )
 
 
@@ -336,7 +414,14 @@ class LlmGateway:
         semaphore: asyncio.Semaphore | None = None,
     ) -> None:
         self._settings = settings if settings is not None else get_settings()
-        self._extra_body: dict[str, Any] = json.loads(self._settings.llm_extra_body_json or "{}")
+        loaded_extra_body = json.loads(self._settings.llm_extra_body_json or "{}")
+        # Защита в глубину: даже если Settings собран в обход валидатора,
+        # служебные поля не уходят в extra_body.
+        self._extra_body: dict[str, Any] = (
+            {key: value for key, value in loaded_extra_body.items() if key not in RESERVED_EXTRA_BODY_KEYS}
+            if isinstance(loaded_extra_body, dict)
+            else {}
+        )
         self._client = client if client is not None else _build_default_client(self._settings)
         self._cache: CacheProtocol = cache if cache is not None else InMemoryCache()
         self._meter: MeterProtocol = meter if meter is not None else NullMeter()
@@ -355,6 +440,15 @@ class LlmGateway:
                 model_id = self._settings.model_for(model_class)
                 if model_id:
                     self._clients.setdefault(model_id, self._client)
+            # Один Cloud.ru-клиент обслуживает любую модель шлюза; без этого
+            # backup-модель считалась «нечем вызвать» и предохранитель не
+            # переключался (make_gateway не передаёт client_factory).
+            # Если фабрика задана явно, она приоритетнее: тесты/вызывающий код
+            # могут готовить для backup отдельный клиент.
+            if self._client_factory is None:
+                for backup_id in self._backup_models.values():
+                    if backup_id:
+                        self._clients.setdefault(backup_id, self._client)
 
     # --- Публичный API -----------------------------------------------------
 
@@ -499,7 +593,12 @@ class LlmGateway:
         if backup:
             self._assert_allowed(backup)
             backup_state = self._circuit(backup)
-            if backup_state.opened_at is None or now - backup_state.opened_at >= cooldown:
+            if backup_state.opened_at is None:
+                return backup
+            if now - backup_state.opened_at >= cooldown:
+                # half-open для резервной модели: пробуем снова и сбрасываем окно
+                backup_state.opened_at = None
+                backup_state.failures.clear()
                 return backup
         left = max(0.0, cooldown - (now - state.opened_at))
         raise CircuitOpenError(
@@ -530,7 +629,10 @@ class LlmGateway:
 
     def _limiter(self) -> asyncio.Semaphore:
         if self._semaphore is None:
-            self._semaphore = asyncio.Semaphore(self._settings.llm_concurrency)
+            # Семафор общий на процесс/event loop: несколько LlmGateway
+            # (например, на разные программы) не должны в сумме превышать
+            # LLM_CONCURRENCY.
+            self._semaphore = _shared_limiter(self._settings.llm_concurrency)
         return self._semaphore
 
     def _register_failure(self, model: str) -> None:

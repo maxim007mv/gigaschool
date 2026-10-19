@@ -49,7 +49,8 @@ async def record_llm_call(
             "pt": prompt_tokens,
             "ct": completion_tokens,
             "latency": latency_ms,
-            "cost": cost_rub,
+            # sqlite3 не умеет Decimal — в lite пишем float, в PostgreSQL оставляем Decimal.
+            "cost": float(cost_rub) if uses_sqlite() else cost_rub,
             "cache_hit": (1 if cache_hit else 0) if uses_sqlite() else bool(cache_hit),
             "ok": (1 if ok else 0) if uses_sqlite() else bool(ok),
         },
@@ -187,7 +188,7 @@ async def cache_put(
 async def purge_expired_cache(session: AsyncSession) -> int:
     now = "datetime('now')" if uses_sqlite() else "now()"
     result = await session.execute(text(f"DELETE FROM llm_cache WHERE expires_at <= {now}"))
-    return int(result.rowcount or 0)
+    return int(getattr(result, "rowcount", 0) or 0)
 
 
 def utcnow() -> datetime:

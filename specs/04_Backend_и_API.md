@@ -537,6 +537,12 @@ KitV1 — каноническая сериализация комплекта. 
 | V-REQ-01 | Запрос | Явные пожелания брифа выполнены: число вопросов, слайды для указанных занятий, форма ИА | error |
 | V-REA-01 | Реалистичность | Уровень результатов соответствует объёму; разрыв с пожеланием заказчика показан в отчёте | warning |
 | V-SMP-01 | Образец | Ошибки в приложенном образце найдены и не перенесены (заявленные итоги ≠ вычисленным) | warning |
+| V-ACR-01 | Шаблон | Экспортированный .docx содержит разделы эталона АЦР для ДОП / ДПП ПК / стажировки | error |
+| V-CNT-01 | Контент | Планы лекций и слайды: структура, заголовки, заметки докладчика, не более 6 пунктов на слайде | error / warning |
+| V-CNT-02 | Контент | Тестовые вопросы: непустые формулировки, ≥ 2 вариантов, без дублей | error / warning |
+| V-CNT-03 | Контент | Задания семинаров имеют критерии оценки (rubric) | error |
+| V-CNT-04 | Контент | Результаты обучения непустые и без шаблонных заглушек | error |
+| V-CNT-05 | Контент | Трудовые функции привязаны к профстандарту, коды непустые | error |
 
 Таблица 4.6 — Правила самопроверки
 
@@ -1129,7 +1135,8 @@ JWT: access 15 мин, refresh 14 дней с ротацией и отзывом
 <th><p># settings.py (pydantic-settings, значения из окружения)</p>
 <p>FM_BASE_URL="https://foundation-models.api.cloud.ru/v1" FM_API_KEY=***</p>
 <p>MODEL_STRUCT="&lt;id из /v1/models&gt;" MODEL_BULK="&lt;id&gt;" MODEL_EMBED="&lt;id&gt;" MODEL_RERANK="&lt;id&gt;"</p>
-<p>MODEL_ALLOWLIST="&lt;ids через запятую&gt;" LLM_CONCURRENCY=8 LLM_TIMEOUT_S=90 LLM_CACHE_TTL_H=168</p>
+<p>MODEL_ALLOWLIST="&lt;ids через запятую&gt;" LLM_CONCURRENCY=2 LLM_TIMEOUT_S=120 LLM_CACHE_TTL_H=168</p>
+<p>LLM_MAX_OUTPUT_TOKENS=4096 DAILY_BUDGET_RUB=100 LLM_CIRCUIT_FAILURES=10 LLM_CIRCUIT_WINDOW_S=60 LLM_CIRCUIT_COOLDOWN_S=5</p>
 <p>FRAMEWORK_SLO_S=180 KIT_TIMEOUT_MIN=20 MAX_QUESTIONS=5 MIN_ASSESSMENTS_PER_OUTCOME=2</p>
 <p>PLAGIARISM_NGRAM=5 PLAGIARISM_MAX_OVERLAP=0.15 DUP_COSINE=0.92</p>
 <p>DATABASE_URL=postgresql+asyncpg://… S3_ENDPOINT=… S3_BUCKET_SRC=karkas-src S3_BUCKET_ART=karkas-artifacts</p>

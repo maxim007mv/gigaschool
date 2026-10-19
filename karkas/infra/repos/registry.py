@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import Any
 
@@ -12,6 +13,21 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.infra.sql_dialect import uses_sqlite
+
+
+def _json_list(value: Any) -> list[Any]:
+    """SQLite отдаёт JSON-массивы строкой, PostgreSQL — list."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value or "[]")
+        except ValueError:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
 
 
 async def search_prof_standards(session: AsyncSession, q: str, *, limit: int = 10) -> list[dict[str, Any]]:
@@ -93,7 +109,13 @@ async def labor_functions(session: AsyncSession, prof_standard_code: str) -> lis
         .mappings()
         .all()
     )
-    return [dict(r) for r in rows]
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        data = dict(row)
+        for key in ("actions", "skills", "knowledge"):
+            data[key] = _json_list(data.get(key))
+        result.append(data)
+    return result
 
 
 async def normative_acts(

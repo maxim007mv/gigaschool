@@ -30,6 +30,21 @@ def _coerce_json(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _coerce_json_list(value: Any) -> list[Any]:
+    """SQLite отдаёт JSON-списки строкой, PostgreSQL — list."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value or "[]")
+        except ValueError:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
 async def create_program(
     session: AsyncSession,
     *,
@@ -132,10 +147,18 @@ async def list_programs(
     if cursor:
         cursor_ts, _, cursor_id = cursor.partition("|")
         try:
-            params["cursor_ts"] = datetime_type.fromisoformat(cursor_ts)
-            params["cursor_id"] = uuid.UUID(cursor_id)
+            parsed_ts = datetime_type.fromisoformat(cursor_ts)
+            parsed_id = uuid.UUID(cursor_id)
         except (ValueError, TypeError) as exc:
             raise ValueError("Некорректный cursor пагинации") from exc
+        if uses_sqlite():
+            # sqlite3 не умеет биндить datetime/UUID, а updated_at хранится
+            # текстом без микросекунд (datetime('now')).
+            params["cursor_ts"] = parsed_ts.strftime("%Y-%m-%d %H:%M:%S")
+            params["cursor_id"] = str(parsed_id)
+        else:
+            params["cursor_ts"] = parsed_ts
+            params["cursor_id"] = parsed_id
         sql += " AND (updated_at, id) < (:cursor_ts, :cursor_id)"
     sql += " ORDER BY updated_at DESC, id DESC LIMIT :limit"
     rows = (await session.execute(text(sql), params)).mappings().all()
@@ -382,7 +405,12 @@ async def get_questions(session: AsyncSession, program_id: str) -> list[dict[str
         .mappings()
         .all()
     )
-    return [dict(r) for r in rows]
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        data = dict(row)
+        data["options"] = _coerce_json_list(data.get("options"))
+        result.append(data)
+    return result
 
 
 async def save_answers(
@@ -626,7 +654,13 @@ async def get_version(session: AsyncSession, program_id: str, version: int) -> d
         .mappings()
         .first()
     )
-    return dict(row) if row else None
+    if not row:
+        return None
+    data = dict(row)
+    # PostgreSQL jsonb отдаёт dict, SQLite — строку. Без нормализации
+    # restore/diff падали в lite-режиме на KitV1.model_validate(str).
+    data["snapshot"] = _coerce_json(data.get("snapshot"))
+    return data
 
 
 async def audit(

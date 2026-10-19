@@ -22,6 +22,10 @@ from pathlib import Path
 
 import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация V-ACR
 from karkas.domain.kit import KitV1, Usage
+from karkas.domain.kit_fixup import apply_kit_fixup
+from karkas.domain.validators import ValidationContext, run_validation
+from karkas.eval.checklists import run_checklist
+from karkas.eval.official_cases import OFFICIAL_CASES
 from karkas.infra.exporters import (
     export_docx_program,
     export_docx_report,
@@ -54,16 +58,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--metrics", type=Path, help="JSON live-отчёта (usage/timings/checklist)")
     parser.add_argument("--out", type=Path, required=True, help="Каталог примера (examples/tk1)")
     parser.add_argument("--prefix", required=True, help="Префикс имён файлов (tk1)")
+    parser.add_argument("--case", help="Кейс tk1…tk5: применить kit_fixup с брифом кейса")
     args = parser.parse_args(argv)
 
     if not args.kit.is_file():
         print(f"Файл не найден: {args.kit}")
         return 2
     kit = _load_kit(args.kit)
+    case_key = args.case.lower() if args.case else None
+    if case_key:
+        official = OFFICIAL_CASES.get(case_key)
+        if official is None:
+            print(f"Неизвестный кейс: {args.case}")
+            return 2
+        kit = apply_kit_fixup(kit, brief=official.request_text)
     metrics: dict = {}
     if args.metrics and args.metrics.is_file():
         metrics = json.loads(args.metrics.read_text(encoding="utf-8"))
         kit = _apply_metrics(kit, metrics)
+    if metrics and case_key:
+        # Метрики должны соответствовать финальным артефактам, а не промежуточному
+        # прогону: пересчитываем полный официальный чек-лист и V-*.
+        results = run_checklist(kit, case_key)
+        report = run_validation(ValidationContext(kit=kit, stage="kit"))
+        errors = [issue for issue in report.issues if issue.severity == "error"]
+        metrics["checklist_passed"] = sum(1 for result in results if result.passed)
+        metrics["checklist_total"] = len(results)
+        metrics["checklist_failed"] = [f"{result.item_id}: {result.detail}" for result in results if not result.passed]
+        metrics["validation_ok"] = not errors
+        metrics["validation_errors"] = len(errors)
+        metrics["validation_warnings"] = sum(1 for issue in report.issues if issue.severity == "warning")
+        metrics["validation_messages"] = [f"{issue.rule_code}: {issue.message}" for issue in errors]
 
     args.out.mkdir(parents=True, exist_ok=True)
     prefix = args.prefix

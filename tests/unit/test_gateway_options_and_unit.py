@@ -65,13 +65,25 @@ async def test_extra_body_and_max_tokens_sent_when_configured() -> None:
     assert sent["max_tokens"] == 777
 
 
-async def test_options_absent_by_default() -> None:
+async def test_default_max_tokens_is_always_sent() -> None:
     client = _RecordingClient()
-    gateway = LlmGateway(client=client, settings=_settings(llm_max_output_tokens=0))
+    gateway = LlmGateway(client=client, settings=_settings())
     await _call(gateway)
     sent = client.chat.completions.kwargs[0]
+    assert sent["max_tokens"] == 4096  # лимит хаба не отключается конфигом
     assert "extra_body" not in sent
-    assert "max_tokens" not in sent
+
+
+async def test_gateway_filters_reserved_extra_body_keys() -> None:
+    """Даже если настройку поменяли в обход валидатора, служебные поля не уходят."""
+    client = _RecordingClient()
+    settings = _settings()
+    settings.llm_extra_body_json = '{"max_tokens": 99999, "model": "evil", "reasoning": {"enabled": false}}'
+    gateway = LlmGateway(client=client, settings=settings)
+    await _call(gateway)
+    sent = client.chat.completions.kwargs[0]
+    assert sent["max_tokens"] == 4096
+    assert sent["extra_body"] == {"reasoning": {"enabled": False}}
 
 
 def test_explicit_unit_is_passed_as_is() -> None:

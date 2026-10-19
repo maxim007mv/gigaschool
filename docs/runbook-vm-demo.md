@@ -21,18 +21,28 @@ cp .env.example .env
 
 ## 3. Переменные `.env` (имена без значений)
 
+`.env.example` по умолчанию включает lite-режим: `KARKAS_LITE=1`, `DATABASE_URL`
+закомментирован, модели `MODEL_STRUCT`/`MODEL_BULK`/`MODEL_EMBED` уже заполнены.
+Этот режим подходит для локального демо на SQLite.
+
 Обязательные для генерации и `/readyz`:
 
-- `JWT_SECRET` (в prod не оставлять пустым)
+- `JWT_SECRET` — в prod не менее 32 символов, без placeholder (в `.env.example`
+  строка закомментирована, её нужно задать)
 - `FM_API_KEY`, `FM_BASE_URL`
 - `MODEL_STRUCT`, `MODEL_BULK`, `MODEL_EMBED` (например `ai-sage/Giga-Embeddings-instruct-3B`), при необходимости `MODEL_RERANK`
-- `DATABASE_URL` — в compose по умолчанию `postgresql+asyncpg://karkas:karkas@postgres:5432/karkas`
+- `DATABASE_URL` — только для PostgreSQL; в compose это
+  `postgresql+asyncpg://karkas:karkas@postgres:5432/karkas`, при этом задайте
+  `KARKAS_LITE=0` и раскомментируйте строку `DATABASE_URL`.
 
-Опционально: `S3_*`, `TARIFFS_JSON`, `MODEL_ALLOWLIST`. Полный список — `.env.example`.
+Опционально: `S3_*`, `TARIFFS_JSON`, `MODEL_ALLOWLIST`, `DAILY_BUDGET_RUB` (по умолчанию
+100 ₽/сутки; в `.env.example` не выведен). Полный список — `.env.example` и
+`karkas/settings.py`.
 
 ## 4. Вариант A — быстрый демо на :8000 (хакатон)
 
-Без Docker, один процесс API + один воркер:
+Без Docker, один процесс API + один воркер (`--concurrency 1`); семафор шлюза —
+не более 2 LLM-запросов на команду:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
@@ -42,9 +52,15 @@ bash scripts/serve.sh
 
 Проверка: `curl -s http://127.0.0.1:8000/healthz` и `curl -s http://127.0.0.1:8000/api/v1/healthz` → `{"status":"ok",...}`.
 
-Миграции при PostgreSQL: ` .venv/bin/python -m migrations.runner` и `--demo` для сидов `900_*`, `901_demo_password.sql` (без фиктивных usage-рядов).
+Миграции при PostgreSQL: `.venv/bin/python -m migrations.runner` и `--demo` для
+сидов `900_*`, `901_demo_password.sql` (без фиктивных usage-рядов). В lite-режиме
+тот же раннер применяет `migrations/sqlite/001–004`.
 
 ## 5. Вариант B — Docker Compose
+
+Перед запуском compose в `.env` задайте `KARKAS_LITE=0` и раскомментируйте
+`DATABASE_URL` — иначе api/worker/migrate унаследуют lite-режим из `.env.example`
+и будут работать каждый со своей SQLite-базой внутри контейнера.
 
 ```bash
 docker compose -f deploy/docker-compose.yml build

@@ -44,9 +44,20 @@ from karkas.domain.kit import (
     Topic,
     Workload,
 )
-from karkas.infra.sql_dialect import uses_sqlite
+from karkas.infra.sql_dialect import json_param, uses_sqlite
 
 CONTACT = ("lecture", "practice", "lab")
+
+
+def _enum_param(name: str, sql_type: str) -> str:
+    """Плейсхолдер enum-колонки.
+
+    В SQLite ``CAST('practice' AS activity_type)`` даёт NUMERIC affinity и
+    превращает любую нечисловую строку в ``0`` — все виды работ схлопывались
+    в одно значение и падали на PK ``topic_workload``. В lite-режиме enum
+    хранится текстом, поэтому CAST не нужен.
+    """
+    return f":{name}" if uses_sqlite() else f"CAST(:{name} AS {sql_type})"
 
 
 def _json_dict(value: Any) -> dict[str, Any]:
@@ -644,17 +655,17 @@ async def save_kit(
     if solver_mode and not uses_sqlite():
         await session.execute(text("SET LOCAL karkas.solver = 'on'"))
     if update_header:
-        sql = """
+        sql = f"""
                 UPDATE program SET
                     title = :title,
-                    kind = CAST(:kind AS program_kind),
-                    form = CAST(:form AS program_form),
+                    kind = {_enum_param("kind", "program_kind")},
+                    form = {_enum_param("form", "program_form")},
                     total_hours = :total_hours,
                     final_att_hours = :final_att_hours,
                     final_att_form = :final_att_form,
                     goal = :goal,
-                    profile = CAST(:profile AS jsonb),
-                    constraints = CAST(:constraints AS jsonb)
+                    profile = {json_param("profile")},
+                    constraints = {json_param("constraints")}
                 WHERE id = :pid
         """
         params: dict[str, Any] = {
@@ -749,9 +760,9 @@ async def save_kit(
             oid = (
                 await session.execute(
                     text(
-                        """
+                        f"""
                         INSERT INTO learning_outcome (id, program_id, competency_id, ref, type, text, bloom_level, ord)
-                        VALUES (:oid, :pid, :cid, :ref, CAST(:type AS outcome_type), :text, :bloom, :ord)
+                        VALUES (:oid, :pid, :cid, :ref, {_enum_param("type", "outcome_type")}, :text, :bloom, :ord)
                         RETURNING id
                         """
                     ),
@@ -793,9 +804,11 @@ async def save_kit(
             )
         ).scalar_one()
         for t_number, topic in enumerate(module.topics, start=1):
+            # locked есть и в PostgreSQL (text[]), и в SQLite (TEXT с JSON):
+            # иначе повторный save_kit терял закреплённые ячейки.
             topic_sql = """
-                INSERT INTO topic (id, program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form)
-                VALUES (:tid, :pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form)
+                INSERT INTO topic (id, program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form, locked)
+                VALUES (:tid, :pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form, :locked)
                 RETURNING id
             """
             topic_params: dict[str, Any] = {
@@ -810,22 +823,16 @@ async def save_kit(
                 "practicality": topic.practicality,
                 "complexity": topic.complexity,
                 "control_form": topic.control_form,
+                "locked": (json.dumps(list(topic.locked), ensure_ascii=False) if uses_sqlite() else list(topic.locked)),
             }
-            if not uses_sqlite():
-                topic_sql = """
-                    INSERT INTO topic (id, program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form, locked)
-                    VALUES (:tid, :pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form, :locked)
-                    RETURNING id
-                """
-                topic_params["locked"] = list(topic.locked)
             topic_id = (await session.execute(text(topic_sql), topic_params)).scalar_one()
             topic_ids[topic.ref] = str(topic_id)
             for (activity, mode), hours in _split_distance(topic.workload).items():
                 await session.execute(
                     text(
-                        """
+                        f"""
                         INSERT INTO topic_workload (topic_id, activity, mode, hours)
-                        VALUES (:tid, CAST(:activity AS activity_type), CAST(:mode AS delivery_mode), :hours)
+                        VALUES (:tid, {_enum_param("activity", "activity_type")}, {_enum_param("mode", "delivery_mode")}, :hours)
                         """
                     ),
                     {"tid": topic_id, "activity": activity, "mode": mode, "hours": hours},
@@ -844,9 +851,9 @@ async def save_kit(
         for session_row in calendar.sessions:
             await session.execute(
                 text(
-                    """
+                    f"""
                     INSERT INTO calendar_session (id, program_id, seq, week_no, day_no, topic_id, activity, mode, hours)
-                    VALUES (:sid, :pid, :seq, :week, :day, :topic_id, :activity, CAST(:mode AS delivery_mode), :hours)
+                    VALUES (:sid, :pid, :seq, :week, :day, :topic_id, :activity, {_enum_param("mode", "delivery_mode")}, :hours)
                     """
                 ),
                 {
@@ -866,9 +873,9 @@ async def save_kit(
     for block in kit.content.module_programs + kit.content.lecture_plans + kit.content.slides + kit.content.sections:
         await session.execute(
             text(
-                """
+                f"""
                 INSERT INTO content_block (id, program_id, ref, kind, module_id, topic_id, body, stale, generated_by)
-                VALUES (:bid, :pid, :ref, :kind, :module_id, :topic_id, CAST(:body AS jsonb), :stale, :generated_by)
+                VALUES (:bid, :pid, :ref, :kind, :module_id, :topic_id, {json_param("body")}, :stale, :generated_by)
                 """
             ),
             {
@@ -902,13 +909,14 @@ async def save_kit(
         item_id = (
             await session.execute(
                 text(
-                    """
+                    f"""
                     INSERT INTO assessment_item
                         (id, program_id, ref, kind, topic_id, module_id, stem, qtype, options, answer_key, rubric, difficulty, content_hash)
                     VALUES
-                        (:aid, :pid, :ref, CAST(:kind AS assessment_kind), :topic_id,
+                        (:aid, :pid, :ref, {_enum_param("kind", "assessment_kind")}, :topic_id,
                          (SELECT id FROM module WHERE program_id = :pid AND ref = :mref),
-                         :stem, :qtype, CAST(:options AS jsonb), CAST(:answer_key AS jsonb), CAST(:rubric AS jsonb), :difficulty, :hash)
+                         :stem, :qtype, {json_param("options")}, {json_param("answer_key")},
+                         {json_param("rubric")}, :difficulty, :hash)
                     RETURNING id
                     """
                 ),
@@ -953,10 +961,10 @@ async def save_kit(
         source_id = (
             await session.execute(
                 text(
-                    """
+                    f"""
                     INSERT INTO source (id, program_id, ref, section, citation, url, isbn, normative_act_id, status, evidence)
                     VALUES (:srcid, :pid, :ref, :section, :citation, :url, :isbn, :act_id,
-                            CAST(:status AS verify_status), CAST(:evidence AS jsonb))
+                            {_enum_param("status", "verify_status")}, {json_param("evidence")})
                     RETURNING id
                     """
                 ),
@@ -993,9 +1001,9 @@ async def save_report(session: AsyncSession, program_id: str, version: int, repo
     run_id = (
         await session.execute(
             text(
-                """
+                f"""
                 INSERT INTO validation_run (id, program_id, version, scope, passed, summary, duration_ms)
-                VALUES (:runid, :pid, :version, :scope, :passed, CAST(:summary AS jsonb), :duration)
+                VALUES (:runid, :pid, :version, :scope, :passed, {json_param("summary")}, :duration)
                 RETURNING id
                 """
             ),
@@ -1013,9 +1021,9 @@ async def save_report(session: AsyncSession, program_id: str, version: int, repo
     for issue in report.issues:
         await session.execute(
             text(
-                """
+                f"""
                 INSERT INTO validation_issue (run_id, rule_code, severity, entity_ref, message, fix_hint)
-                VALUES (:rid, :rule, CAST(:severity AS issue_severity), :ref, :message, CAST(:fix AS jsonb))
+                VALUES (:rid, :rule, {_enum_param("severity", "issue_severity")}, :ref, :message, {json_param("fix")})
                 """
             ),
             {

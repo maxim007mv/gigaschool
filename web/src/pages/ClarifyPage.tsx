@@ -126,7 +126,9 @@ export function ClarifyPage() {
             params={{ programId: id }}
             className="inline-flex min-h-[36px] items-center justify-center rounded-btn bg-primary px-lg py-sm font-medium text-white hover:bg-primary-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            {T.clarify.buildFramework}
+            {status === "framework_generating"
+              ? "Сборка идёт — открыть прогресс"
+              : T.clarify.buildFramework}
           </Link>
         </section>
       ) : questions.length === 0 ? (

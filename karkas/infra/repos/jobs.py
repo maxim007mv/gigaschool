@@ -132,7 +132,7 @@ async def find_by_idempotency(
         sql += " AND p.org_id = :org_id"
         params["org_id"] = org_id
     row = (await session.execute(text(sql), params)).mappings().first()
-    return dict(row) if row else None
+    return _parse_json_fields(row) if row else None
 
 
 def _parse_json_fields(row: Any) -> dict[str, Any]:

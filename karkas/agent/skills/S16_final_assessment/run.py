@@ -11,8 +11,8 @@ from karkas.agent.skills._base import SkillContext, SkillSpec, complete_structur
 DIR = "S16_final_assessment"
 METADATA = SkillSpec(code="S16", name="Итоговая аттестация", dir=DIR, model_class="bulk", depends_on=("S10",))
 
-KINDS: tuple[str, ...] = ("interview_question", "final_project", "exam_task")
-KINDS_REQUIRING_RUBRIC: tuple[str, ...] = ("final_project", "exam_task")
+KINDS: tuple[str, ...] = ("interview_question", "final_project", "exam_task", "portfolio_item")
+KINDS_REQUIRING_RUBRIC: tuple[str, ...] = ("final_project", "exam_task", "portfolio_item")
 DEFAULT_LEVELS: list[str] = ["выполнено", "не выполнено"]
 
 
@@ -24,7 +24,7 @@ class CriterionOut(BaseModel):
 
 class ItemOut(BaseModel):
     ref: str = ""
-    kind: Literal["interview_question", "final_project", "exam_task", ""] = "interview_question"
+    kind: Literal["interview_question", "final_project", "exam_task", "portfolio_item", ""] = "interview_question"
     stem: str = ""
     rubric: list[CriterionOut] = Field(default_factory=list)
     outcome_refs: list[str] = Field(default_factory=list)

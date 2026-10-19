@@ -55,9 +55,9 @@ export KARKAS_EVAL_API_KEY="<X-Api-Key>"
 - [`examples/tk1/`](examples/tk1/) — ДОП «Первые шаги в Python» (16 ч, школьники 8–9 классов);
 - [`examples/tk2/`](examples/tk2/) — ДПП ПК «Искусственный интеллект в работе учителя» (36 ч, педагоги).
 
-В каждом комплекте: программа `.docx` (10 разделов по эталону АЦР), презентация `.pptx`,
-модель `kit.json`, тесты GIFT и Moodle XML, `report.docx` и `metrics.json` с измеренными
-временем, токенами и стоимостью.
+В каждом комплекте: программа `.docx` (структура АЦР; полноту разделов проверяет
+V-ACR-01), презентация `.pptx`, модель `kit.json`, тесты GIFT и Moodle XML, `report.docx`
+и `metrics.json` с измеренными временем, токенами и стоимостью.
 
 Команда быстрой проверки качества комплекта без ключа к LLM:
 
@@ -88,7 +88,7 @@ V-CNT, V-LNG и остальные); код возврата ненулевой 
 
 | Показатель | ТК-1 (16 ч) | ТК-2 (36 ч) |
 |------------|------------:|------------:|
-| Чек-лист проекта | **6/6** | **7/7** |
+| Полный официальный чек-лист | **12/12** | **11/11** |
 | Полная самопроверка | **0 ошибок**, 5 предупреждений | **0 ошибок**, 7 предупреждений |
 | Wall time | **331.1 с** | **260.2 с** |
 | Каркас / комплект | 53.5 / 271.8 с | 12.0 / 230.3 с |
@@ -131,7 +131,8 @@ karkas/
 │                  dependency_graph, framework_ops, kit (KitV1), templates/*.yaml
 ├─ infra/          db, repos, jobs (очередь), storage (S3), ingest, exporters, metrics
 └─ worker.py       цикл воркера очереди
-migrations/        SQL-миграции 001–009 + раннер (python -m migrations.runner)
+migrations/        PostgreSQL 001–009 + lite/SQLite 001–004 + раннер
+                   (python -m migrations.runner)
 web/               SPA методиста (React 18 + TS + Vite)
 tests/             unit / integration / eval / contract
 specs/             спецификации Д1–Д5 (извлечены из .docx)
@@ -160,12 +161,13 @@ cp .env.example .env
 Для reasoning-моделей с длинным «скрытым» выводом задайте `LLM_MAX_OUTPUT_TOKENS>=1000` (см. вебинар по моделям).
 
 По умолчанию `.env.example` включает lite-режим (SQLite) — этого достаточно для
-демо и примеров. Для PostgreSQL 16+/17 + pgvector поставьте `KARKAS_LITE=0`,
-раскомментируйте `DATABASE_URL` и примените миграции:
+демо и примеров; раннер применит `migrations/sqlite/001–004`. Для PostgreSQL 16+/17
++ pgvector поставьте `KARKAS_LITE=0`, раскомментируйте `DATABASE_URL` и примените
+миграции `migrations/sql/001–009`:
 
 ```bash
 .venv/bin/python -m migrations.runner --demo   # демо-программа 248 ч
-bash scripts/serve.sh                          # API + UI на :8000 (воркер внутри, LLM ≤2 запросов)
+bash scripts/serve.sh                          # API + UI :8000 (API/воркер по 1 процессу, LLM ≤2)
 ```
 
 Для кликабельных ссылок на выгрузки в local storage задайте `PUBLIC_API_BASE=http://<хост>:8000` (по умолчанию `http://127.0.0.1:8000`).
@@ -189,7 +191,10 @@ cd web && npm install && npm run dev           # http://localhost:5173 → /api 
 .venv/bin/python scripts/export_eval_cases.py  # пересобрать tk*.json из reference_kits
 ```
 
-LLM для хакатона: только модели Cloud.ru Foundation Models (`FM_BASE_URL`), `max_tokens ≤ 4096`, не более 2 параллельных запросов (см. `docs/hub/hub_notes.md`).
+LLM для хакатона: только модели Cloud.ru Foundation Models (`FM_BASE_URL`), не более
+2 параллельных запросов **на команду**, `max_tokens ≤ 4096`, дневной бюджет 100 ₽
+(считается по `llm_call`), circuit breaker 10 ошибок за 60 с → пауза 5 с
+(см. `docs/hub/hub_notes.md`).
 
 ## Тесты (обязательный пайплайн проекта — AGENTS.md)
 

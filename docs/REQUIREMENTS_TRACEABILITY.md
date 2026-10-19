@@ -12,7 +12,7 @@
 | Открытые ТК-1…ТК-5 | `data/eval/tk*.json`, `checklists.py` | `test_data_kits.py`, `scripts/run_eval.py` |
 | Произвольный kit JSON | `scripts/run_eval.py --kit … --case tkN` | `tests/eval/test_run_eval_kit_mode.py` |
 | Live LLM + метрики защиты | `karkas/eval/live_run.py`, `defense_metrics.py` | `run_eval.py --live --case tk1` (нужен API + ключ) |
-| Cloud.ru лимиты (2 concurrent, 4096 tokens, 120s) | `settings.py`, `llm_gateway.py` | unit gateway, `.env.example` |
+| Cloud.ru лимиты (2 concurrent на команду, 4096 tokens, 120s, 100 ₽/сутки по `llm_call`, circuit 10/5) | `settings.py`, `llm_gateway.py` | unit gateway, `settings.py` |
 | Одна команда демо | `scripts/serve.sh` | README |
 
 ## Продуктовый бриф (`product_brief_karkas.md`) — покрытие и пробелы

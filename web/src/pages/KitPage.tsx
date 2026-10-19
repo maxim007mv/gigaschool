@@ -22,6 +22,7 @@ import {
 } from "../entities/formatters";
 import { ApiError } from "../shared/api/client";
 import {
+  STATUS_POLL_INTERVAL_MS,
   USE_MOCKS,
   useCreateEdit,
   useExport,
@@ -30,14 +31,18 @@ import {
   useGenerateKit,
   useKit,
   useRegenerateKitPart,
+  useProgram,
   useProgramEvents,
   useUsage,
 } from "../shared/api/queries";
+import type { ProgressEventData } from "../shared/api/sse";
 import { T } from "../shared/i18n/ru";
 import { Badge } from "../shared/ui/Badge";
 import { Button } from "../shared/ui/Button";
 import { cx } from "../shared/ui/cx";
+import { GenerationProgress, type GenerationFailure } from "../features/progress/GenerationProgress";
 import { ProgramStatusBar } from "../features/progress/ProgramStatusBar";
+import { regenerationFor } from "../features/regeneration/target";
 import { Stepper } from "../shared/ui/Stepper";
 import { useToast } from "../shared/ui/Toast";
 import { ErrorState, PageSkeleton } from "../app/states";
@@ -59,7 +64,15 @@ export function KitPage() {
   const id = programId ?? "";
   const toast = useToast();
 
-  const kitQuery = useKit(id || null);
+  const programQuery = useProgram(id || null);
+  const programStatus = programQuery.data?.status;
+  const kitGenerating = programStatus === "kit_generating";
+  const kitUpdating = programStatus === "kit_updating";
+  const kitQuery = useKit(id || null, {
+    refetchInterval: kitGenerating || kitUpdating ? STATUS_POLL_INTERVAL_MS : false,
+  });
+  const kitHasError = kitQuery.isError;
+  const refetchKit = kitQuery.refetch;
   const frameworkQuery = useFramework(id || null);
   const generateKit = useGenerateKit(id);
   const createEdit = useCreateEdit(id);
@@ -69,6 +82,9 @@ export function KitPage() {
   const [selection, setSelection] = useState<Selection>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [exportId, setExportId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressEventData | null>(null);
+  const [generationError, setGenerationError] = useState<GenerationFailure | null>(null);
+  const [generationRequested, setGenerationRequested] = useState(false);
 
   const exportStatus = useExportStatus(exportId);
 
@@ -77,18 +93,102 @@ export function KitPage() {
     USE_MOCKS ? null : id || null,
     (event) => {
       if (event.name === "progress") {
-        toast.show("success", `${event.payload.label} — ${event.payload.done} из ${event.payload.total}`);
+        setProgress(event.payload);
+        setGenerationError(null);
+        return;
       }
       if (event.name === "kit_ready") {
-        toast.show("success", "Комплект готов");
+        setProgress(null);
+        setGenerationError(null);
+        setGenerationRequested(false);
+        toast.show("success", T.kit.readyToast);
         void kitQuery.refetch();
+        void frameworkQuery.refetch();
+        void programQuery.refetch();
+        return;
+      }
+      if (event.name === "kit_regenerated") {
+        setProgress(null);
+        setGenerationError(null);
+        toast.show("success", T.kit.regeneratedToast);
+        void kitQuery.refetch();
+        void programQuery.refetch();
+        return;
+      }
+      if (event.name === "edit_applied") {
+        toast.show("success", T.kit.editAppliedToast);
+        void kitQuery.refetch();
+        void programQuery.refetch();
+        return;
       }
       if (event.name === "job_failed") {
-        toast.show("error", `Ошибка сборки: ${event.payload.detail}`);
+        if (event.payload.will_retry) {
+          toast.show("success", T.progress.retrying);
+          void programQuery.refetch();
+          return;
+        }
+        setProgress(null);
+        setGenerationRequested(false);
+        const busy = programStatus === "kit_generating" || programStatus === "kit_updating";
+        if (busy || !kitQuery.data) {
+          setGenerationError({ code: event.payload.code, detail: event.payload.detail });
+        }
+        toast.show("error", `Сборка остановилась: ${event.payload.detail}`);
+        void programQuery.refetch();
+        void kitQuery.refetch();
       }
     },
     Boolean(id) && !USE_MOCKS,
   );
+
+  // Статус вернулся в kit_review — материалы готовы; после сбоя воркер
+  // восстанавливает прежний статус, и ожидание нужно снять.
+  useEffect(() => {
+    if (programStatus === "kit_review") {
+      setProgress(null);
+      setGenerationError(null);
+      setGenerationRequested(false);
+      // Подхватываем результат, даже если событие kit_ready/kit_regenerated
+      // потерялось при обрыве SSE.
+      void refetchKit();
+      return;
+    }
+    if (programStatus === "framework_approved") {
+      setGenerationRequested(false);
+    }
+  }, [programStatus, refetchKit]);
+
+  // Страховка на случай пропущенного SSE: как только статус стал kit_review,
+  // подтягиваем комплект, даже если предыдущий запрос завершился ошибкой.
+  useEffect(() => {
+    if (programStatus === "kit_review" && kitHasError) {
+      void refetchKit();
+    }
+  }, [programStatus, kitHasError, refetchKit]);
+
+  const startKitGeneration = async () => {
+    setGenerationError(null);
+    setProgress(null);
+    setGenerationRequested(true);
+    try {
+      await generateKit.mutateAsync();
+      toast.show("success", T.kit.generating);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "JOB_IN_PROGRESS") {
+        toast.show("success", "Сборка уже выполняется — дождитесь результата.");
+        void programQuery.refetch();
+        return;
+      }
+      setGenerationRequested(false);
+      const detail = error instanceof Error ? error.message : T.app.error;
+      setGenerationError({
+        code: error instanceof ApiError ? error.code : null,
+        detail,
+      });
+      toast.show("error", detail);
+      void programQuery.refetch();
+    }
+  };
 
   const kit = kitQuery.data ?? null;
 
@@ -121,32 +221,94 @@ export function KitPage() {
     return null;
   }, [selection]);
 
-  const regenerateParts = useMemo((): Array<"slides" | "tests" | "lecture_plan" | "module_program" | "tasks"> => {
-    if (!selection || selection.kind !== "block") return ["slides", "tests", "lecture_plan"];
-    if (selection.block.kind === "slides") return ["slides"];
-    if (selection.block.kind === "lecture_plan") return ["lecture_plan"];
-    if (selection.block.kind === "module_program") return ["module_program"];
-    return ["slides", "tests", "lecture_plan"];
-  }, [selection]);
+  const regeneration = useMemo(() => regenerationFor(selection), [selection]);
 
-  if (kitQuery.isPending) return <PageSkeleton />;
+  if (programQuery.isPending || kitQuery.isPending) return <PageSkeleton />;
+
+  if (programQuery.isError && !programQuery.data) {
+    return (
+      <div className="flex flex-col gap-lg">
+        <Stepper current={4} maxReached={4} />
+        <ErrorState
+          message="Не удалось определить статус программы. Повторите загрузку — сборка продолжится на сервере."
+          onRetry={() => void programQuery.refetch()}
+        />
+      </div>
+    );
+  }
+
+  const generationFailure: GenerationFailure | null =
+    generationError ??
+    (programStatus === "failed"
+      ? {
+          code: null,
+          detail: "Сборка комплекта завершилась ошибкой. Сохранённые материалы не изменились.",
+        }
+      : null);
+  const awaitingKit = generateKit.isPending || generationRequested;
+
+  // Во время полной сборки комплекта старые материалы не показываем:
+  // GET /kit в этом статусе ещё отвечает ошибкой.
+  if (kitGenerating) {
+    return (
+      <KitWaitingScreen
+        programId={id}
+        progress={progress}
+        failure={generationFailure}
+        onRetry={() => void startKitGeneration()}
+        retryBusy={generateKit.isPending}
+      />
+    );
+  }
+
+  if (!kit && generationFailure) {
+    return (
+      <KitWaitingScreen
+        programId={id}
+        progress={null}
+        failure={generationFailure}
+        onRetry={() => void startKitGeneration()}
+        retryBusy={generateKit.isPending}
+      />
+    );
+  }
+
+  if (!kit && (kitUpdating || awaitingKit)) {
+    return (
+      <KitWaitingScreen
+        programId={id}
+        progress={progress}
+        failure={null}
+        onRetry={() => void startKitGeneration()}
+        retryBusy={generateKit.isPending}
+      />
+    );
+  }
 
   // Human Gate: комплект недоступен до утверждения каркаса.
   if (kitQuery.isError) {
     const error = kitQuery.error;
     const gate = error instanceof ApiError && error.code === "GATE_NOT_PASSED";
-    const frameworkApproved = frameworkQuery.data?.status === "framework_approved";
-    return (
-      <div className="flex flex-col gap-lg">
-        <Stepper current={4} maxReached={frameworkApproved ? 4 : 2} />
-        <section className="flex flex-col items-start gap-md rounded-card border border-warning/30 bg-warning-bg p-xl">
-          <h1 className="text-title font-bold text-ink">
-            {gate || !frameworkApproved ? T.kit.gateTitle : T.kit.noKit}
-          </h1>
-          <p className="max-w-[640px] text-base text-warning">
-            {gate || !frameworkApproved ? T.kit.gateText : T.kit.generateEstimate}
-          </p>
-          {gate || !frameworkApproved ? (
+    const notFound = error instanceof ApiError && error.status === 404;
+    const frameworkStatus = frameworkQuery.data?.status;
+    const approvedStatus =
+      programStatus === "framework_approved" ||
+      programStatus?.startsWith("kit") ||
+      frameworkStatus === "framework_approved" ||
+      frameworkStatus?.startsWith("kit");
+    const canStartKit = programStatus === "framework_approved";
+
+    if (gate || !approvedStatus) {
+      return (
+        <div className="flex flex-col gap-lg">
+          <Stepper current={4} maxReached={frameworkStatus === "framework_approved" ? 4 : 2} />
+          <section className="flex flex-col items-start gap-md rounded-card border border-warning/30 bg-warning-bg p-xl">
+            <h1 className="text-title font-bold text-ink">
+              {gate || !approvedStatus ? T.kit.gateTitle : T.kit.noKit}
+            </h1>
+            <p className="max-w-[640px] text-base text-warning">
+              {gate || !approvedStatus ? T.kit.gateText : T.kit.generateEstimate}
+            </p>
             <Link
               to="/programs/$programId/framework"
               params={{ programId: id }}
@@ -154,22 +316,36 @@ export function KitPage() {
             >
               {T.kit.gateButton}
             </Link>
-          ) : (
-            <Button
-              variant="primary"
-              busy={generateKit.isPending}
-              onClick={() =>
-                void generateKit
-                  .mutateAsync()
-                  .then(() => toast.show("success", T.kit.generating))
-                  .catch((err: unknown) =>
-                    toast.show("error", err instanceof Error ? err.message : T.app.error),
-                  )
-              }
-            >
-              {generateKit.isPending ? T.kit.generating : T.kit.generate}
-            </Button>
-          )}
+          </section>
+        </div>
+      );
+    }
+
+    if (!notFound || !canStartKit) {
+      return (
+        <div className="flex flex-col gap-lg">
+          <Stepper current={4} maxReached={4} />
+          <ProgramStatusBar programId={id} currentStep={4} />
+          <ErrorState
+            message={`Не удалось открыть комплект: ${
+              error instanceof Error ? error.message : T.app.error
+            }. Повторите загрузку.`}
+            onRetry={() => void kitQuery.refetch()}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-lg">
+        <Stepper current={4} maxReached={4} />
+        <ProgramStatusBar programId={id} currentStep={4} />
+        <section className="flex flex-col items-start gap-md rounded-card border border-warning/30 bg-warning-bg p-xl">
+          <h1 className="text-title font-bold text-ink">{T.kit.noKit}</h1>
+          <p className="max-w-[640px] text-base text-warning">{T.kit.generateEstimate}</p>
+          <Button variant="primary" busy={generateKit.isPending} onClick={() => void startKitGeneration()}>
+            {generateKit.isPending ? T.kit.generating : T.kit.generate}
+          </Button>
         </section>
       </div>
     );
@@ -214,14 +390,25 @@ export function KitPage() {
           <Button
             variant="secondary"
             title={T.kit.regenerateHint}
-            disabled={!editTargetRef || regeneratePart.isPending}
-            disabledReason={!editTargetRef ? "Сначала выберите тему или модуль" : undefined}
+            disabled={
+              !regeneration.allowed || regeneratePart.isPending || kitUpdating || generateKit.isPending
+            }
+            disabledReason={
+              !regeneration.allowed
+                ? regeneration.reason
+                : kitUpdating
+                  ? T.kit.regenerateBusy
+                  : undefined
+            }
             onClick={async () => {
-              if (!editTargetRef) return;
+              const target = regeneration.target;
+              if (!target) return;
+              setGenerationError(null);
+              setProgress(null);
               try {
                 await regeneratePart.mutateAsync({
-                  targetRef: editTargetRef,
-                  parts: regenerateParts,
+                  targetRef: target.ref,
+                  parts: target.parts,
                 });
                 toast.show("success", T.kit.regenerateStarted);
               } catch (err) {
@@ -233,6 +420,25 @@ export function KitPage() {
           </Button>
         </div>
       </header>
+
+      {kitUpdating ? (
+        <GenerationProgress
+          title={T.kit.updatingTitle}
+          description={T.kit.updatingText}
+          estimate={T.kit.updatingEstimate}
+          progress={progress}
+        />
+      ) : null}
+
+      {generationFailure ? (
+        <GenerationProgress
+          title={T.kit.generationFailed}
+          description={T.kit.generatingText}
+          estimate={T.kit.generatingEstimatePage}
+          failure={generationFailure}
+          failureHint={T.kit.generationFailedHint}
+        />
+      ) : null}
 
       <div className="grid grid-cols-1 gap-lg xl:grid-cols-[240px_1fr_340px]">
         <KitTree kit={kit} selection={selection} onSelect={setSelection} />
@@ -302,6 +508,55 @@ export function KitPage() {
           // edit_applied и перезапросом комплекта (см. useProgramEvents).
           return result;
         }}
+      />
+    </div>
+  );
+}
+
+function KitWaitingScreen({
+  programId,
+  progress,
+  failure,
+  onRetry,
+  retryBusy,
+}: {
+  programId: string;
+  progress: ProgressEventData | null;
+  failure: GenerationFailure | null;
+  onRetry: () => void;
+  retryBusy: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-lg">
+      <Stepper current={4} maxReached={4} />
+      <ProgramStatusBar programId={programId} currentStep={4} />
+      <header className="flex flex-col gap-xs">
+        <h1 className="text-title font-bold text-ink">
+          {failure ? T.kit.generationFailed : T.kit.generatingTitle}
+        </h1>
+        <p className="max-w-[640px] text-base text-ink-muted">
+          {failure ? T.kit.generationFailedHint : T.kit.generatingText}
+        </p>
+      </header>
+      <GenerationProgress
+        title={T.progress.stepsTitle}
+        description={T.kit.generatingText}
+        estimate={T.kit.generatingEstimatePage}
+        progress={progress}
+        failure={failure}
+        failureHint={T.kit.generationFailedHint}
+        onRetry={onRetry}
+        retryBusy={retryBusy}
+        retryLabel={T.kit.retryGeneration}
+        actions={
+          <Link
+            to="/programs/$programId/framework"
+            params={{ programId }}
+            className="text-base text-primary underline underline-offset-2"
+          >
+            ← К часам
+          </Link>
+        }
       />
     </div>
   );

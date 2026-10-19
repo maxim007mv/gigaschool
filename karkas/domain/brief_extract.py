@@ -115,9 +115,15 @@ def extract_final_attestation(brief: str) -> str | None:
     lowered = brief.lower()
     if re.search(r"\bэкзамен\w*\b", lowered):
         return "Экзамен"
+    if re.search(r"портфолио", lowered):
+        return "Зачёт по портфолио"
     if re.search(r"итогов\w*\s+аттестац", lowered) and re.search(r"защит", lowered):
         return "Проект/защита"
-    if re.search(r"защит\w*\s+проект", lowered) or re.search(r"проект\w*\s+на\s+защит", lowered):
+    if (
+        re.search(r"защит\w*[^.]{0,40}проект", lowered)
+        or re.search(r"защищ\w*[^.]{0,40}проект", lowered)
+        or re.search(r"проект\w*\s+на\s+защит", lowered)
+    ):
         return "Проект/защита"
     if re.search(r"\bсобеседован", lowered):
         return "Собеседование"

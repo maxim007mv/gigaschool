@@ -32,7 +32,16 @@ APPROVED_GATEWAY_HOSTS: frozenset[str] = frozenset(
 
 #: Ключи extra_body, которые нельзя переопределять: они уже заданы шлюзом.
 RESERVED_EXTRA_BODY_KEYS: frozenset[str] = frozenset(
-    {"model", "messages", "max_tokens", "response_format", "temperature", "stream", "input"}
+    {
+        "model",
+        "messages",
+        "max_tokens",
+        "max_completion_tokens",
+        "response_format",
+        "temperature",
+        "stream",
+        "input",
+    }
 )
 
 #: Белый список разрешённых моделей Cloud.ru FM (GigaChat-3-Pro, Reasoning, Giga-Embeddings)
@@ -89,11 +98,12 @@ class Settings(BaseSettings):
     @field_validator("fm_base_url")
     @classmethod
     def _validate_fm_base_url(cls, value: str) -> str:
-        if not value.strip():
-            return value
+        value = value.strip()
         parsed = urlparse(value)
         host = (parsed.hostname or "").lower()
-        if host and host not in APPROVED_GATEWAY_HOSTS:
+        if not value or parsed.scheme not in ("http", "https") or not host:
+            raise ValueError(f"FM_BASE_URL должен быть абсолютным http(s)-URL шлюза Cloud.ru FM, получено {value!r}")
+        if host not in APPROVED_GATEWAY_HOSTS:
             raise ValueError(
                 f"Недопустимый хост шлюза {host!r}. Разрешены только хосты Cloud.ru FM: "
                 f"{', '.join(sorted(APPROVED_GATEWAY_HOSTS))}"
@@ -119,7 +129,7 @@ class Settings(BaseSettings):
             )
         return value
 
-    llm_max_output_tokens: int = Field(default=4096, ge=0, le=4096)  # хаб: max_tokens ≤ 4096
+    llm_max_output_tokens: int = Field(default=4096, ge=1, le=4096)  # хаб: max_tokens ≤ 4096, 0 не отключает лимит
     llm_max_repairs: int = Field(default=2, ge=0)  # «ремонт» JSON до 2 раз
     llm_backoff_base_s: float = 1.0  # 1 → 2 → 4 с + джиттер
     llm_circuit_failures: int = 10  # 10 ошибок за окно → размыкание (сеть шлюза бывает нестабильной)
@@ -179,10 +189,26 @@ class Settings(BaseSettings):
     @property
     def allowed_models(self) -> tuple[str, ...]:
         """Allowlist моделей: только они допускаются к вызову (ЗАД-13)."""
-        explicit = tuple(m.strip() for m in self.model_allowlist.split(",") if m.strip())
+        explicit = tuple(dict.fromkeys(m.strip() for m in self.model_allowlist.split(",") if m.strip()))
         if explicit:
             return explicit
-        return tuple(m for m in (self.model_struct, self.model_bulk, self.model_embed, self.model_rerank) if m)
+        # Без явного MODEL_ALLOWLIST разрешены настроенные основные и резервные
+        # модели: иначе backup-модель проходила валидацию настроек, но не могла
+        # быть вызвана при разомкнутом предохранителе.
+        return tuple(
+            dict.fromkeys(
+                m
+                for m in (
+                    self.model_struct,
+                    self.model_bulk,
+                    self.model_embed,
+                    self.model_rerank,
+                    self.model_struct_backup,
+                    self.model_bulk_backup,
+                )
+                if m
+            )
+        )
 
     def model_for(self, model_class: ModelClass) -> str:
         """Роутинг класса задач на конкретную модель (Д1 §7)."""
@@ -207,14 +233,22 @@ class Settings(BaseSettings):
         ):
             raise ValueError("JWT_SECRET обязателен в проде: не менее 32 символов, без placeholder-значений")
         if self.environment != "test":
-            explicit_allowlist = tuple(m.strip() for m in self.model_allowlist.split(",") if m.strip())
+            explicit_allowlist = tuple(dict.fromkeys(m.strip() for m in self.model_allowlist.split(",") if m.strip()))
             unknown_allowlist = sorted(set(explicit_allowlist) - APPROVED_MODELS)
             if unknown_allowlist:
                 raise ValueError(
                     "MODEL_ALLOWLIST может только сужать белый список Cloud.ru FM; "
                     f"неизвестные модели: {', '.join(unknown_allowlist)}"
                 )
-            allowed = APPROVED_MODELS | set(explicit_allowlist)
+            # Явный allowlist сужает набор: все настроенные модели (включая
+            # резервные) обязаны в нём присутствовать, иначе конфигурация
+            # стартует, а вызов падает уже во время генерации.
+            if explicit_allowlist:
+                allowed = set(explicit_allowlist)
+                target = f"MODEL_ALLOWLIST ({', '.join(explicit_allowlist)})"
+            else:
+                allowed = set(APPROVED_MODELS)
+                target = f"белый список разрешённых моделей Cloud.ru FM: {', '.join(sorted(APPROVED_MODELS))}"
             for label, model_name in (
                 ("MODEL_STRUCT", self.model_struct),
                 ("MODEL_BULK", self.model_bulk),
@@ -224,10 +258,7 @@ class Settings(BaseSettings):
                 ("MODEL_BULK_BACKUP", self.model_bulk_backup),
             ):
                 if model_name and model_name not in allowed:
-                    raise ValueError(
-                        f"{label}={model_name!r} не входит в белый список разрешённых моделей Cloud.ru FM: "
-                        f"{', '.join(sorted(APPROVED_MODELS))}"
-                    )
+                    raise ValueError(f"{label}={model_name!r} не входит в {target}")
         return self
 
 

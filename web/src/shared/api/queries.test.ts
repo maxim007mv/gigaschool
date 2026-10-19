@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FrameworkApiResponse, KitV1, Report } from "../../entities/kit";
-import { frameworkFromApi } from "./queries";
+import { frameworkFromApi, isProgramBusy } from "./queries";
 
 function kit(): KitV1 {
   return {
@@ -114,5 +114,19 @@ describe("frameworkFromApi", () => {
     expect(data.checks.passed).toBe(false);
     expect(data.checks.issues[0].rule_code).toBe("V-HRS-01");
     expect(data.checks.issues[0].message).toContain("15 из 16");
+  });
+});
+
+describe("isProgramBusy", () => {
+  it("опрашивает программу, пока идёт каркас или комплект", () => {
+    expect(isProgramBusy("framework_generating")).toBe(true);
+    expect(isProgramBusy("kit_generating")).toBe(true);
+    expect(isProgramBusy("kit_updating")).toBe(true);
+  });
+
+  it("не опрашивает программу в спокойных статусах", () => {
+    expect(isProgramBusy("framework_review")).toBe(false);
+    expect(isProgramBusy("kit_review")).toBe(false);
+    expect(isProgramBusy(undefined)).toBe(false);
   });
 });

@@ -1,9 +1,9 @@
 /**
  * SSE-клиент потока событий программы: GET /programs/{id}/events (Д4 §6.7).
  *
- * События: progress, needs_input, framework_ready, kit_ready, edit_applied,
- * export_ready, job_failed. При обрыве — переподключение с Last-Event-ID,
- * чтобы сервер продолжил поток без потери событий.
+ * События: progress, needs_input, framework_ready, kit_ready, kit_regenerated,
+ * edit_applied, export_ready, job_failed. При обрыве — переподключение с
+ * Last-Event-ID, чтобы сервер продолжил поток без потери событий.
  */
 
 import { getAccessToken } from "./client";
@@ -32,6 +32,12 @@ export interface KitReadyEventData {
   report: { passed: boolean };
 }
 
+export interface KitRegeneratedEventData {
+  target_ref: string;
+  version: number;
+  parts: string[];
+}
+
 export interface EditAppliedEventData {
   edit_id: string;
   version: number;
@@ -55,6 +61,7 @@ export interface ProgramEventMap {
   needs_input: NeedsInputEventData;
   framework_ready: FrameworkReadyEventData;
   kit_ready: KitReadyEventData;
+  kit_regenerated: KitRegeneratedEventData;
   edit_applied: EditAppliedEventData;
   export_ready: ExportReadyEventData;
   job_failed: JobFailedEventData;
@@ -68,6 +75,7 @@ export type ProgramEvent =
   | { name: "needs_input"; payload: NeedsInputEventData }
   | { name: "framework_ready"; payload: FrameworkReadyEventData }
   | { name: "kit_ready"; payload: KitReadyEventData }
+  | { name: "kit_regenerated"; payload: KitRegeneratedEventData }
   | { name: "edit_applied"; payload: EditAppliedEventData }
   | { name: "export_ready"; payload: ExportReadyEventData }
   | { name: "job_failed"; payload: JobFailedEventData };
@@ -77,6 +85,7 @@ export const PROGRAM_EVENT_NAMES: ReadonlyArray<ProgramEventName> = [
   "needs_input",
   "framework_ready",
   "kit_ready",
+  "kit_regenerated",
   "edit_applied",
   "export_ready",
   "job_failed",

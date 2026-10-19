@@ -7,7 +7,12 @@ import re
 from functools import partial
 from typing import Any
 
-from karkas.domain.brief_extract import derive_goal, extract_program_title, extract_unit_hours
+from karkas.domain.brief_extract import (
+    derive_goal,
+    extract_final_attestation,
+    extract_program_title,
+    extract_unit_hours,
+)
 from karkas.domain.calendar import calendar as build_calendar_sessions
 from karkas.domain.gaps import merge_gaps
 from karkas.domain.hours import Constraints, Plan
@@ -17,6 +22,7 @@ from karkas.domain.kit import (
     Calendar,
     CalendarSession,
     ContentBlock,
+    Criterion,
     DeliveryMode,
     KitV1,
     LaborFunctionRef,
@@ -131,6 +137,68 @@ def _attach_module_refs(kit: KitV1, slides: list[ContentBlock]) -> list[ContentB
         mod = block.module_ref or topic_to_module.get(block.topic_ref or "")
         out.append(block.model_copy(update={"module_ref": mod or block.module_ref}))
     return out
+
+
+def _ensure_first_session_slides(
+    kit: KitV1,
+    slides: list[ContentBlock],
+    gaps: list[str],
+    brief: str,
+) -> list[ContentBlock]:
+    """Если бриф просит слайды первых двух занятий — обеспечить блоки для их тем.
+
+    S13 иногда возвращает блок только для первой темы. Здесь нет новых
+    педагогических фактов: заголовок и пункты берутся из темы и её РО.
+    """
+    lowered = brief.lower()
+    if "слайд" not in lowered:
+        return slides
+    if not (re.search(r"перв\w*\s+дв\w*\s+занят", lowered) or re.search(r"занят\w*\s+1\s*и\s*2", lowered)):
+        return slides
+    calendar = kit.framework.calendar
+    session_topic_refs = (
+        [session.topic_ref for session in sorted(calendar.sessions, key=lambda row: row.seq) if session.topic_ref]
+        if calendar
+        else []
+    )
+    target_refs = list(dict.fromkeys(session_topic_refs))[:2]
+    if not target_refs:
+        target_refs = [topic.ref for topic in kit.iter_topics()][:2]
+
+    outcomes = {outcome.ref: outcome for outcome in kit.iter_outcomes()}
+    topics = {topic.ref: topic for topic in kit.iter_topics()}
+    module_of = {topic.ref: module.ref for module in kit.framework.modules for topic in module.topics}
+    existing = {block.topic_ref for block in slides}
+    result = list(slides)
+    for topic_ref in target_refs:
+        if topic_ref in existing:
+            continue
+        topic = topics.get(topic_ref)
+        if topic is None:
+            continue
+        bullets = [outcomes[ref].text for ref in topic.outcome_refs if ref in outcomes and outcomes[ref].text.strip()][
+            :5
+        ] or [topic.title]
+        result.append(
+            ContentBlock(
+                ref=f"SL-{topic.ref}",
+                kind="slides",
+                module_ref=module_of.get(topic.ref),
+                topic_ref=topic.ref,
+                body={
+                    "title": topic.title,
+                    "slides": [
+                        {
+                            "title": topic.title,
+                            "bullets": bullets,
+                            "notes": "Слайд собран из темы и результатов обучения (S13 не вернул отдельный блок).",
+                        }
+                    ],
+                },
+            )
+        )
+        gaps.append(f"{topic.ref}: добавлен слайд для одного из первых двух занятий (S13 не вернул блок)")
+    return result
 
 
 def _sanitize_assessments(items: list[Assessment]) -> list[Assessment]:
@@ -705,9 +773,57 @@ def _ensure_outcome_assessment_coverage(
     return assessments
 
 
+def _final_form_label(brief: str) -> str | None:
+    """Форма ИА из брифа в терминах карточки программы."""
+    extracted = extract_final_attestation(brief)
+    return {
+        "Проект/защита": "защита проекта",
+        "Зачёт по портфолио": "зачёт по портфолио",
+        "Экзамен": "экзамен",
+        "Собеседование": "собеседование",
+        "Тест": "тест",
+    }.get(extracted or "")
+
+
+def _ensure_portfolio_assessment(
+    kit: KitV1,
+    assessments: list[Assessment],
+    gaps: list[str],
+    *,
+    form: str,
+) -> list[Assessment]:
+    """Форма «зачёт по портфолио» требует портфолио из трёх материалов (TK2-7)."""
+    if "портфолио" not in form.lower():
+        return assessments
+    if any(item.kind == "portfolio_item" for item in assessments):
+        return assessments
+    outcome_refs = [outcome.ref for outcome in kit.iter_outcomes()][:2]
+    if not outcome_refs:
+        return assessments
+    assessments.append(
+        Assessment(
+            ref="PF-01",
+            kind="portfolio_item",
+            stem=(
+                "Портфолио из трёх материалов: план урока, задания для учеников "
+                "и проверочная работа, созданные с помощью ИИ."
+            ),
+            rubric=[
+                Criterion(criterion="полнота портфолио (три материала)", max_points=3.0),
+                Criterion(criterion="качество и уместность материалов", max_points=3.0),
+                Criterion(criterion="рефлексия по безопасному использованию ИИ", max_points=3.0),
+            ],
+            outcome_refs=outcome_refs,
+        )
+    )
+    gaps.append("PF-01: добавлено портфолио из трёх материалов (форма ИА — зачёт по портфолио)")
+    return assessments
+
+
 def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     """Привести комплект к требованиям самопроверки без повторных вызовов LLM."""
     brief_text = (brief or "").strip()
+    brief_final_form = _final_form_label(brief_text) if brief_text else None
     title = kit.program.title
     if brief_text:
         quoted = extract_program_title(brief_text)
@@ -753,6 +869,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
 
     lecture_plans = [_ensure_lecture_structure(b) for b in kit.content.lecture_plans]
     slides = _ensure_slide_blocks(_attach_module_refs(kit, list(kit.content.slides)))
+    slides = _ensure_first_session_slides(kit, slides, gaps, brief_text)
     modules_fw = list(kit.framework.modules)
     if kit.program.form == "internship":
         modules_fw = _ensure_module_attestation_forms(modules_fw)
@@ -765,6 +882,8 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
         _sanitize_assessments(list(kit.content.assessments)),
     )
     assessments = _ensure_outcome_assessment_coverage(kit_with_modules, assessments, gaps)
+    final_form = brief_final_form or kit.framework.final_attestation.form
+    assessments = _ensure_portfolio_assessment(kit_with_modules, assessments, gaps, form=final_form)
     sources = _ensure_normative_sources(kit, _sanitize_sources(kit, list(kit.content.sources)))
     profile = kit.profile.model_copy(update={"glossary": _ensure_school_glossary(kit)})
     sections = _ensure_sections(kit, list(kit.content.sections))
@@ -774,7 +893,16 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     legal = kit.program.legal_basis
     if not legal:
         legal = build_program_legal_basis(kit.program.kind, [])
-    program = kit.program.model_copy(update={"title": title, "legal_basis": legal})
+    final_attestation = kit.framework.final_attestation
+    if brief_final_form and final_attestation.form != brief_final_form:
+        final_attestation = final_attestation.model_copy(update={"form": brief_final_form})
+    program = kit.program.model_copy(
+        update={
+            "title": title,
+            "legal_basis": legal,
+            "final_attestation": final_attestation.model_copy(),
+        }
+    )
 
     tasks = list(kit.framework.tasks or [])
     if not tasks and competencies:
@@ -788,6 +916,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
             "calendar": calendar,
             "competencies": competencies,
             "modules": modules_fw,
+            "final_attestation": final_attestation,
         }
     )
     content = kit.content.model_copy(

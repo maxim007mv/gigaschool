@@ -6,7 +6,7 @@
  * режимах одинаковые (entities/kit.ts), поэтому страницы не меняются.
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   useMutation,
   useQuery,
@@ -37,6 +37,7 @@ import type {
   KitV1,
   ProgramDetails,
   ProgramListResponse,
+  ProgramStatus,
   QuestionsResponse,
   RebalanceResponse,
   Report,
@@ -80,6 +81,27 @@ export function frameworkFromApi(payload: FrameworkApiResponse, report: Report |
 export const USE_MOCKS: boolean =
   (import.meta.env.DEV || import.meta.env.MODE === "test") &&
   import.meta.env.VITE_USE_MOCKS !== "0";
+
+/** Период опроса, пока идёт фоновая сборка (каркас или комплект). */
+export const STATUS_POLL_INTERVAL_MS = 2500;
+
+/**
+ * Статусы, в которых программа занята фоновой сборкой. Пока такой статус
+ * актуален, экраны опрашивают сервер и сами подхватывают результат.
+ */
+export function isProgramBusy(status: ProgramStatus | null | undefined): boolean {
+  return (
+    status === "framework_generating" ||
+    status === "kit_generating" ||
+    status === "kit_updating"
+  );
+}
+
+/** Опции периодического опроса запроса (refetchInterval TanStack Query). */
+export interface QueryPollingOptions {
+  /** Период опроса в миллисекундах; false — опрос выключен. */
+  refetchInterval?: number | false;
+}
 
 // Демонстрационное состояние моков: каркас программы p-100 считается
 // утверждённым после вызова framework:approve.
@@ -159,6 +181,10 @@ export function useProgram(programId: string | null): UseQueryResult<ProgramDeta
       }
       return (await apiFetch<ProgramDetails>(`/programs/${programId}`)).data;
     },
+    // Пока идёт сборка, статус программы меняется сам — обновляем его без F5.
+    refetchInterval: (query) =>
+      isProgramBusy(query.state.data?.status) ? STATUS_POLL_INTERVAL_MS : false,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -175,7 +201,10 @@ export function useQuestions(programId: string | null): UseQueryResult<Questions
   });
 }
 
-export function useFramework(programId: string | null): UseQueryResult<FrameworkData> {
+export function useFramework(
+  programId: string | null,
+  options: QueryPollingOptions = {},
+): UseQueryResult<FrameworkData> {
   return useQuery({
     queryKey: queryKeys.framework(programId ?? ""),
     enabled: Boolean(programId),
@@ -203,10 +232,23 @@ export function useFramework(programId: string | null): UseQueryResult<Framework
       }
       return withEtag(frameworkFromApi(response.data, report), response.etag);
     },
+    // Пока каркас собирается, первый GET может отвечать 404. Экран задаёт
+    // опрос по статусу программы; если статус пришёл в самом каркасе —
+    // продолжаем опрос, пока он не сменится на framework_review.
+    refetchInterval: (query) => {
+      if (options.refetchInterval !== undefined) return options.refetchInterval;
+      return query.state.data?.status === "framework_generating"
+        ? STATUS_POLL_INTERVAL_MS
+        : false;
+    },
+    refetchIntervalInBackground: true,
   });
 }
 
-export function useKit(programId: string | null): UseQueryResult<KitData> {
+export function useKit(
+  programId: string | null,
+  options: QueryPollingOptions = {},
+): UseQueryResult<KitData> {
   return useQuery({
     queryKey: queryKeys.kit(programId ?? ""),
     enabled: Boolean(programId),
@@ -225,6 +267,10 @@ export function useKit(programId: string | null): UseQueryResult<KitData> {
       const response = await apiFetch<KitV1>(`/programs/${programId}/kit`);
       return withEtag(response.data, response.etag);
     },
+    // Пока комплект собирается, GET /kit отвечает 409/404 — опрос нужен,
+    // чтобы сразу показать готовые материалы без перезагрузки страницы.
+    refetchInterval: options.refetchInterval ?? false,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -396,6 +442,7 @@ export function useSubmitAnswers(programId: string) {
 // ---------------------------------------------------------------------------
 
 export function useGenerateFramework(programId: string) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (): Promise<{ job_id: string }> => {
       if (USE_MOCKS) {
@@ -403,6 +450,13 @@ export function useGenerateFramework(programId: string) {
         return { job_id: "job-framework-mock" };
       }
       return (await apiFetch<{ job_id: string }>(`/programs/${programId}/framework:generate`, { method: "POST" })).data;
+    },
+    onSuccess: () => {
+      // Сразу перечитываем статус: экран каркаса перейдёт в режим ожидания,
+      // не дожидаясь истечения staleTime.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.program(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.framework(programId) });
+      void queryClient.invalidateQueries({ queryKey: ["programs"] });
     },
   });
 }
@@ -535,6 +589,7 @@ export function useApproveFramework(programId: string) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.framework(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.program(programId) });
       void queryClient.invalidateQueries({ queryKey: ["programs"] });
     },
   });
@@ -560,7 +615,12 @@ export function useGenerateKit(programId: string) {
       ).data;
     },
     onSuccess: () => {
+      // Статус kit_generating приходит из программы: экран комплекта
+      // показывает ожидание и не предлагает запустить сборку повторно.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.program(programId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.kit(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.report(programId) });
+      void queryClient.invalidateQueries({ queryKey: ["programs"] });
     },
   });
 }
@@ -584,8 +644,12 @@ export function useRegenerateKitPart(programId: string) {
       ).data;
     },
     onSuccess: () => {
+      // kit_updating: экран показывает ход пересборки, повторная кнопка
+      // блокируется до возврата в kit_review.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.program(programId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.kit(programId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.report(programId) });
+      void queryClient.invalidateQueries({ queryKey: ["programs"] });
     },
   });
 }
@@ -615,6 +679,7 @@ export function useCreateEdit(programId: string) {
     },
     onSuccess: (_data, vars) => {
       if (!vars.dryRun) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.program(programId) });
         void queryClient.invalidateQueries({ queryKey: queryKeys.kit(programId) });
         void queryClient.invalidateQueries({ queryKey: queryKeys.report(programId) });
       }
@@ -654,8 +719,14 @@ export function useRestoreVersion(programId: string) {
       ).data;
     },
     onSuccess: () => {
+      // Восстановленный снимок становится новой версией и снова проходит
+      // Human Gate: обновляем каркас, статус программы и комплект.
       void queryClient.invalidateQueries({ queryKey: queryKeys.versions(programId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.framework(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.program(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.kit(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.report(programId) });
+      void queryClient.invalidateQueries({ queryKey: ["programs"] });
     },
   });
 }
@@ -797,16 +868,21 @@ export function useProgramEvents(
   onEvent: (event: ProgramEvent) => void,
   enabled = true,
 ): void {
+  const handlerRef = useRef(onEvent);
+
+  // Обработчик всегда читает актуальные данные страницы, но подписка
+  // не пересоздаётся на каждом рендере.
+  useEffect(() => {
+    handlerRef.current = onEvent;
+  }, [onEvent]);
+
   useEffect(() => {
     if (!programId || !enabled) return;
     const stream = openProgramEvents(programId, {
-      onEvent,
+      onEvent: (event) => handlerRef.current(event),
       maxRetries: 5,
     });
     return () => stream.close();
-    // onEvent намеренно не в зависимостях: подписка не пересоздаётся на каждом
-    // рендере; обработчик читает актуальное состояние на стороне вызова.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onEvent стабилен по контракту SSE
   }, [programId, enabled]);
 }
 

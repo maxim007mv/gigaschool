@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 from karkas.agent.llm_gateway import (
     CircuitOpenError,
+    CloudRuFMClient,
+    CloudRuHttpError,
     DailyBudgetExceededError,
     LlmBadOutput,
     LlmGateway,
@@ -18,6 +20,7 @@ from karkas.agent.llm_gateway import (
     ModelNotAllowedError,
     TransientError,
 )
+from karkas.agent.skills._base import InMemoryCache
 from karkas.settings import Settings
 
 
@@ -80,6 +83,14 @@ class _FakeChat:
         self.completions = _FakeCompletions(client)
 
 
+class _ConcurrencyTracker:
+    """Общий счётчик одновременных вызовов для нескольких клиентов."""
+
+    def __init__(self) -> None:
+        self.active = 0
+        self.max_active = 0
+
+
 class FakeClient:
     """HTTP-клиент Cloud.ru FM, отвечающий по сценарию.
 
@@ -87,11 +98,14 @@ class FakeClient:
     Exception (будет брошено) или async-функция (model, messages, temperature).
     """
 
-    def __init__(self, script: list | None = None, *, delay: float = 0.0) -> None:
+    def __init__(
+        self, script: list | None = None, *, delay: float = 0.0, tracker: _ConcurrencyTracker | None = None
+    ) -> None:
         self.script = list(script or [])
         self.calls: list[dict] = []
         self.active = 0
         self.max_active = 0
+        self._tracker = tracker
         self.delay = delay
         self.chat = _FakeChat(self)
 
@@ -104,7 +118,11 @@ class FakeClient:
         **kwargs: object,
     ) -> _Response:
         self.active += 1
-        self.max_active = max(self.max_active, self.active)
+        if self._tracker is None:
+            self.max_active = max(self.max_active, self.active)
+        else:
+            self._tracker.active += 1
+            self._tracker.max_active = max(self._tracker.max_active, self._tracker.active)
         try:
             self.calls.append(
                 {
@@ -128,6 +146,8 @@ class FakeClient:
             return _Response(content, finish_reason)
         finally:
             self.active -= 1
+            if self._tracker is not None:
+                self._tracker.active -= 1
 
 
 class FakeMeter:
@@ -200,6 +220,173 @@ def make_gateway(client: FakeClient, meter: FakeMeter | None = None, **overrides
         settings=make_settings(**overrides),
         sleep=noop_sleep,
     )
+
+
+class _FakeHttpResponse:
+    def __init__(self, status_code: int, text: str = "", payload: object = None) -> None:
+        self.status_code = status_code
+        self.text = text
+        self._payload = payload
+
+    def json(self) -> object:
+        if self._payload is None:
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+        return self._payload
+
+
+class _FakeAsyncClient:
+    """Подмена httpx.AsyncClient: запоминает URL/заголовки/JSON и отдаёт сценарий."""
+
+    instances: list[_FakeAsyncClient] = []
+    requests: list[dict] = []
+    responses: list[_FakeHttpResponse] = []
+
+    def __init__(self, *, timeout: float) -> None:
+        self.timeout = timeout
+        type(self).instances.append(self)
+
+    async def __aenter__(self) -> _FakeAsyncClient:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    async def post(self, url: str, *, json: dict, headers: dict) -> _FakeHttpResponse:
+        type(self).requests.append({"url": url, "json": json, "headers": headers})
+        return type(self).responses.pop(0)
+
+
+@pytest.fixture
+def fake_httpx(monkeypatch: pytest.MonkeyPatch) -> type[_FakeAsyncClient]:
+    import karkas.agent.llm_gateway as gateway_module
+
+    _FakeAsyncClient.instances = []
+    _FakeAsyncClient.requests = []
+    _FakeAsyncClient.responses = []
+    monkeypatch.setattr(gateway_module.httpx, "AsyncClient", _FakeAsyncClient)
+    return _FakeAsyncClient
+
+
+async def test_cloudru_client_posts_expected_request(fake_httpx: type[_FakeAsyncClient]) -> None:
+    fake_httpx.responses = [
+        _FakeHttpResponse(
+            200, '{"choices": []}', {"choices": [], "usage": {"prompt_tokens": 1, "completion_tokens": 2}}
+        )
+    ]
+    client = CloudRuFMClient(
+        "https://foundation-models.api.cloud.ru/v1/",
+        "secret-key",
+        timeout=42,
+        max_output_tokens=4096,
+    )
+    result = await client.chat.completions.create(
+        model="GigaChat/GigaChat-3-Pro",
+        messages=[{"role": "user", "content": "hi"}],
+        temperature=0.2,
+        response_format={"type": "json_object"},
+        max_tokens=1024,
+        extra_body={"reasoning": {"enabled": False}},
+    )
+    assert result["usage"]["prompt_tokens"] == 1
+    request = fake_httpx.requests[0]
+    assert request["url"] == "https://foundation-models.api.cloud.ru/v1/chat/completions"
+    assert request["headers"] == {
+        "Authorization": "Bearer secret-key",
+        "Content-Type": "application/json",
+    }
+    assert request["json"] == {
+        "model": "GigaChat/GigaChat-3-Pro",
+        "messages": [{"role": "user", "content": "hi"}],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+        "max_tokens": 1024,
+        "reasoning": {"enabled": False},
+    }
+    assert fake_httpx.instances[0].timeout == 42.0
+
+
+async def test_cloudru_client_http_error_redacts_key(fake_httpx: type[_FakeAsyncClient]) -> None:
+    fake_httpx.responses = [_FakeHttpResponse(400, "bad request, key secret-key leaked")]
+    client = CloudRuFMClient("https://foundation-models.api.cloud.ru/v1", "secret-key")
+    with pytest.raises(CloudRuHttpError) as excinfo:
+        await client.chat.completions.create(model="m", messages=[])
+    message = str(excinfo.value)
+    assert message.startswith("HTTP 400:")
+    assert "bad request" in message
+    assert "secret-key" not in message
+    assert "***" in message
+
+
+@pytest.mark.parametrize("status", [200, 400, 502])
+async def test_cloudru_client_empty_body_has_clear_error(fake_httpx: type[_FakeAsyncClient], status: int) -> None:
+    fake_httpx.responses = [_FakeHttpResponse(status, "")]
+    client = CloudRuFMClient("https://foundation-models.api.cloud.ru/v1", "secret-key")
+    with pytest.raises(CloudRuHttpError, match="пустой ответ шлюза"):
+        await client.chat.completions.create(model="m", messages=[])
+
+
+async def test_cloudru_client_invalid_json_has_clear_error(fake_httpx: type[_FakeAsyncClient]) -> None:
+    fake_httpx.responses = [_FakeHttpResponse(200, "not-json")]
+    client = CloudRuFMClient("https://foundation-models.api.cloud.ru/v1", "secret-key")
+    with pytest.raises(CloudRuHttpError, match="невалидный JSON"):
+        await client.chat.completions.create(model="m", messages=[])
+
+
+async def test_cloudru_client_extra_body_cannot_override_service_fields(
+    fake_httpx: type[_FakeAsyncClient],
+) -> None:
+    fake_httpx.responses = [_FakeHttpResponse(200, "{}", {})]
+    client = CloudRuFMClient("https://foundation-models.api.cloud.ru/v1", "secret-key")
+    await client.chat.completions.create(
+        model="good-model",
+        messages=[{"role": "user", "content": "x"}],
+        max_tokens=1000,
+        response_format={"type": "json_object"},
+        extra_body={
+            "model": "evil-model",
+            "messages": [{"role": "user", "content": "evil"}],
+            "max_tokens": 99999,
+            "max_completion_tokens": 99999,
+            "response_format": {"type": "text"},
+            "temperature": 9.9,
+            "stream": True,
+            "reasoning": {"enabled": False},
+        },
+    )
+    sent = fake_httpx.requests[0]["json"]
+    assert sent["model"] == "good-model"
+    assert sent["messages"] == [{"role": "user", "content": "x"}]
+    assert sent["max_tokens"] == 1000
+    assert sent["response_format"] == {"type": "json_object"}
+    assert "temperature" not in sent
+    assert "stream" not in sent
+    assert "max_completion_tokens" not in sent
+    assert sent["reasoning"] == {"enabled": False}
+
+
+async def test_cloudru_client_clamps_max_tokens(fake_httpx: type[_FakeAsyncClient]) -> None:
+    fake_httpx.responses = [_FakeHttpResponse(200, "{}", {}), _FakeHttpResponse(200, "{}", {})]
+    client = CloudRuFMClient("https://foundation-models.api.cloud.ru/v1", "secret-key", max_output_tokens=1000)
+    await client.chat.completions.create(model="m", messages=[], max_tokens=99999)
+    await client.chat.completions.create(model="m", messages=[])
+    assert fake_httpx.requests[0]["json"]["max_tokens"] == 1000
+    assert fake_httpx.requests[1]["json"]["max_tokens"] == 1000
+
+
+@pytest.mark.parametrize(
+    ("base_url", "api_key", "max_tokens"),
+    [
+        ("https://evil.example/v1", "key", 4096),
+        ("ftp://foundation-models.api.cloud.ru/v1", "key", 4096),
+        ("/v1", "key", 4096),
+        ("https://foundation-models.api.cloud.ru/v1", "  ", 4096),
+        ("https://foundation-models.api.cloud.ru/v1", "key", 0),
+        ("https://foundation-models.api.cloud.ru/v1", "key", 5000),
+    ],
+)
+def test_cloudru_client_rejects_unsafe_configuration(base_url: str, api_key: str, max_tokens: int) -> None:
+    with pytest.raises(ValueError):
+        CloudRuFMClient(base_url, api_key, max_output_tokens=max_tokens)
 
 
 async def test_valid_answer_first_try() -> None:
@@ -446,6 +633,30 @@ async def test_circuit_breaker_switches_to_backup_model() -> None:
     assert len(primary.calls) == 3
 
 
+async def test_backup_model_works_with_single_default_client() -> None:
+    """make_gateway не передаёт client_factory: backup обязан использовать тот же клиент."""
+    now = [0.0]
+    client = FakeClient([ApiError(429), ApiError(429), ApiError(429), '{"name": "backup", "n": 9}'])
+    settings = make_settings(
+        llm_circuit_failures=3,
+        llm_circuit_cooldown_s=100,
+        model_struct_backup="model-backup",
+    )
+    gateway = LlmGateway(
+        client=client,
+        backup_models={"struct": "model-backup"},
+        settings=settings,
+        sleep=noop_sleep,
+        clock=lambda: now[0],
+    )
+    with pytest.raises(TransientError):
+        await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)
+    result = await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)
+    assert result.name == "backup"
+    assert client.calls[-1]["model"] == "model-backup"
+    assert len(client.calls) == 4
+
+
 async def test_parallelism_limited_by_semaphore() -> None:
     client = FakeClient(['{"name": "a", "n": 1}'] * 10, delay=0.01)
     gateway = LlmGateway(
@@ -459,6 +670,25 @@ async def test_parallelism_limited_by_semaphore() -> None:
     )
     assert client.max_active <= 2
     assert client.max_active >= 1
+
+
+async def test_concurrency_limit_is_shared_between_gateway_instances() -> None:
+    """Несколько LlmGateway не должны в сумме превышать LLM_CONCURRENCY."""
+    tracker = _ConcurrencyTracker()
+    clients = [
+        FakeClient(['{"name": "a", "n": 1}'] * 6, delay=0.01, tracker=tracker),
+        FakeClient(['{"name": "b", "n": 2}'] * 6, delay=0.01, tracker=tracker),
+    ]
+    settings = make_settings(llm_concurrency=2)
+    gateways = [LlmGateway(client=client, cache=NoCache(), settings=settings, sleep=noop_sleep) for client in clients]
+    await asyncio.gather(
+        *(
+            gateway.complete_json("S01", "struct", [{"role": "user", "content": f"q{i}"}], Out)
+            for i, gateway in enumerate(gateways * 6)
+        )
+    )
+    assert tracker.max_active <= 2
+    assert tracker.max_active >= 1
 
 
 async def test_missing_client_raises_unavailable() -> None:
@@ -518,3 +748,103 @@ async def test_daily_budget_limit_blocks_excessive_calls() -> None:
     )
     with pytest.raises(DailyBudgetExceededError, match="Превышен дневной бюджет"):
         await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)
+    assert client.calls == []
+
+
+class FailingBudgetMeter(FakeMeter):
+    """Учёт в БД недоступен: запрос расхода падает."""
+
+    async def spent_today_rub(self) -> Decimal:
+        raise RuntimeError("db down")
+
+
+async def test_budget_db_failure_falls_back_to_local_counter() -> None:
+    """Недоступная БД не блокирует генерацию, но локальный счётчик продолжает работать."""
+    client = FakeClient(['{"name": "a", "n": 1}'])
+    gateway = make_gateway(client, FailingBudgetMeter(), daily_budget_rub=Decimal("100.0"))
+    result = await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)
+    assert result.name == "a"
+    gateway._total_spent_rub = Decimal("100.0")
+    with pytest.raises(DailyBudgetExceededError, match="Превышен дневной бюджет"):
+        await gateway.complete_json("S01", "struct", [{"role": "user", "content": "y"}], Out)
+    assert len(client.calls) == 1
+
+
+async def test_budget_takes_max_of_local_and_db_not_sum() -> None:
+    """Локальный счётчик и сумма в БД — один и тот же расход, не двойной счёт."""
+    gateway = make_gateway(FakeClient([]), BudgetMeter(Decimal("50.0")))
+    gateway._total_spent_rub = Decimal("40.0")
+    assert await gateway._spent_today_rub() == Decimal("50.0")
+    gateway._total_spent_rub = Decimal("70.0")
+    assert await gateway._spent_today_rub() == Decimal("70.0")
+
+
+async def test_cache_hit_is_served_after_budget_exhausted() -> None:
+    """Кэш не тратит токены, поэтому отдаётся даже при исчерпанном бюджете."""
+    cache = InMemoryCache()
+    settings = make_settings(daily_budget_rub=Decimal("100.0"))
+    messages = [{"role": "user", "content": "same"}]
+    first_gateway = LlmGateway(
+        client=FakeClient(['{"name": "cached", "n": 1}']),
+        cache=cache,
+        meter=BudgetMeter(Decimal("0")),
+        settings=settings,
+        sleep=noop_sleep,
+    )
+    first = await first_gateway.complete_json("S01", "struct", messages, Out)
+
+    second_gateway = LlmGateway(
+        client=FakeClient([]),
+        cache=cache,
+        meter=BudgetMeter(Decimal("100.0")),
+        settings=settings,
+        sleep=noop_sleep,
+    )
+    second = await second_gateway.complete_json("S01", "struct", messages, Out)
+    assert first == second
+    assert second.name == "cached"
+
+
+async def test_pg_meter_returns_zero_when_db_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from karkas.agent import pipeline
+
+    class BrokenSession:
+        async def __aenter__(self) -> None:
+            raise OSError("db down")
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    def broken_factory():
+        return BrokenSession()
+
+    monkeypatch.setattr(pipeline, "get_session_factory", lambda: broken_factory)
+    meter = pipeline.PgMeter(org_id="00000000-0000-0000-0000-000000000001")
+    assert await meter.spent_today_rub() == Decimal("0")
+
+
+async def test_org_spent_today_counts_only_today_and_org(monkeypatch: pytest.MonkeyPatch) -> None:
+    """SQL lite-режима: сутки по МСК и только своя организация."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from karkas.infra.repos import usage as usage_repo
+
+    monkeypatch.setattr(usage_repo, "uses_sqlite", lambda: True)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("CREATE TABLE llm_call (created_at TEXT NOT NULL, org_id TEXT NOT NULL, cost_rub REAL NOT NULL)")
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO llm_call (created_at, org_id, cost_rub) VALUES "
+                "(datetime('now'), 'org-1', 1.0), (datetime('now'), 'org-1', 0.25), "
+                "(datetime('now', '-1 day'), 'org-1', 5.0), (datetime('now'), 'org-2', 10.0)"
+            )
+        )
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as session:
+        spent = await usage_repo.org_spent_today(session, "org-1")
+    await engine.dispose()
+    assert spent == Decimal("1.25")
