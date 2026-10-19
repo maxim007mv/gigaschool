@@ -45,7 +45,7 @@ def _settings(**overrides: Any) -> Settings:
         llm_max_repairs=0,
     )
     base.update(overrides)
-    return Settings(**base)
+    return Settings(_env_file=None, **base)  # не зависеть от локального .env
 
 
 async def _call(gateway: LlmGateway) -> None:

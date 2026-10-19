@@ -131,7 +131,7 @@ karkas/
 │                  dependency_graph, framework_ops, kit (KitV1), templates/*.yaml
 ├─ infra/          db, repos, jobs (очередь), storage (S3), ingest, exporters, metrics
 └─ worker.py       цикл воркера очереди
-migrations/        PostgreSQL 001–009 + lite/SQLite 001–004 + раннер
+migrations/        PostgreSQL 001–009; lite: 001 + sqlite/002–005 + раннер
                    (python -m migrations.runner)
 web/               SPA методиста (React 18 + TS + Vite)
 tests/             unit / integration / eval / contract
@@ -152,8 +152,8 @@ cp .env.example .env
 
 | Переменная | Назначение |
 |------------|------------|
-| `FM_BASE_URL` | REST API шлюза Cloud.ru Foundation Models |
-| `FM_API_KEY` | Ключ доступа |
+| `FM_BASE_URL` / `LLM_BASE_URL` | REST API шлюза Cloud.ru Foundation Models (на ВМ хакатона `LLM_*` уже заданы) |
+| `FM_API_KEY` / `LLM_API_KEY` | Ключ доступа |
 | `MODEL_STRUCT` | Каркас, компетенции (напр. `GigaChat/GigaChat-3-Pro`) |
 | `MODEL_BULK` | Массовая генерация содержания |
 | `MODEL_EMBED` | Эмбеддинги (`ai-sage/Giga-Embeddings-instruct-3B`) |
@@ -161,7 +161,7 @@ cp .env.example .env
 Для reasoning-моделей с длинным «скрытым» выводом задайте `LLM_MAX_OUTPUT_TOKENS>=1000` (см. вебинар по моделям).
 
 По умолчанию `.env.example` включает lite-режим (SQLite) — этого достаточно для
-демо и примеров; раннер применит `migrations/sqlite/001–004`. Для PostgreSQL 16+/17
+демо и примеров; раннер применит lite `001` + `migrations/sqlite/002–005`. Для PostgreSQL 16+/17
 + pgvector поставьте `KARKAS_LITE=0`, раскомментируйте `DATABASE_URL` и примените
 миграции `migrations/sql/001–009`:
 

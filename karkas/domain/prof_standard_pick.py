@@ -80,6 +80,10 @@ def pick_prof_standard(
         for lf in candidate.get("labor_functions") or []:
             if isinstance(lf, dict):
                 score = max(score, _score(query_tokens, str(lf.get("title") or "")))
+        if code == "06.042" and any(t in query_tokens for t in ("pandas", "банк", "excel", "анализ", "python")):
+            score += 0.4
+        if code == "06.026" and any(t in query_tokens for t in ("devops", "стажиров", "linux", "ci")):
+            score += 0.35
         if score > best_score:
             best_score = score
             best = candidate

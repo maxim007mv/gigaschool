@@ -27,5 +27,5 @@
   "validation_warnings": 7,
   "validation_messages": [],
   "detail": null,
-  "kit_path": "/Users/damir/Documents/hack/gigaschool/data/eval/reports/tk2_live_kit.json"
+  "kit_path": "data/eval/reports/tk2_live_kit.json"
 }

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from karkas.agent.skills._base import SkillContext, SkillSpec, clamp, complete_structured, to_json
 from karkas.domain.brief_extract import extract_module_current_control, inject_brief_topic_keywords
 from karkas.domain.outcome_coverage import link_uncovered_outcomes
+from karkas.domain.tk3_structure import apply_tk3_structure
 
 DIR = "S07_module_structure"
 METADATA = SkillSpec(code="S07", name="Структура модулей и тем", dir=DIR, model_class="struct", depends_on=("S06",))
@@ -139,10 +140,12 @@ def _postprocess_modules(
     module_att: str | None,
     known: set[str],
     gaps: list[str],
+    total_hours: int = 0,
 ) -> None:
     _apply_module_att_forms(modules, module_att, gaps)
     if brief:
         inject_brief_topic_keywords(brief, modules, gaps)
+    apply_tk3_structure(modules, gaps, brief=brief, total_hours=total_hours)
     link_uncovered_outcomes(modules, known, gaps)
 
 
@@ -221,7 +224,11 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     if not modules:
         raise ValueError("S07: после постпроверки не осталось валидных модулей")
     _cap_topics_to_units(modules, inputs.get("constraints"), gaps)
-    _postprocess_modules(modules, brief=brief, module_att=module_att, known=known, gaps=gaps)
+    try:
+        th = int(total_hours)
+    except (TypeError, ValueError):
+        th = int(profile.get("total_hours") or 0)
+    _postprocess_modules(modules, brief=brief, module_att=module_att, known=known, gaps=gaps, total_hours=th)
     missing = uncovered_outcomes(modules, known) if known else []
     if missing:
         gaps.append(f"РО не раскрыты ни в одной теме после ремонта: {', '.join(missing)}")

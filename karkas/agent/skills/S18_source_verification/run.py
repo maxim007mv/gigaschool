@@ -19,6 +19,12 @@ _PLACEHOLDER_AUTHOR_RE = re.compile(
     r"\b(иванов\s+и\.?\s*и\.?|петров\s+п\.?\s*п\.?)\b",
     re.IGNORECASE,
 )
+# ISBN из примеров промптов (S17 и ранних версий): модель копирует их в реальные списки.
+_PROMPT_EXAMPLE_ISBNS: frozenset[str] = frozenset({"9785446112340", "9785091123456"})
+
+
+def _isbn_digits(value: object) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit() or ch in "Xx")
 
 
 def isbn13_valid(value: str) -> bool:
@@ -107,9 +113,16 @@ def verify_source(source: dict[str, Any], bundle: RegistryBundle | None, today: 
     status = "unverified"
     evidence: dict[str, Any] = dict(source.get("evidence") or {})
     citation = str(source.get("citation") or "")
-    if section in ("main", "additional") and _PLACEHOLDER_AUTHOR_RE.search(citation):
+    example_isbn = _isbn_digits(source.get("isbn")) in _PROMPT_EXAMPLE_ISBNS or any(
+        isbn in _isbn_digits(citation) for isbn in _PROMPT_EXAMPLE_ISBNS
+    )
+    if section in ("main", "additional") and (_PLACEHOLDER_AUTHOR_RE.search(citation) or example_isbn):
         status = "unverified"
-        evidence["reason"] = "типовой автор-заглушка — требуется подтверждение по каталогу"
+        evidence["reason"] = (
+            "ISBN скопирован из примера промпта — требуется подтверждение по каталогу"
+            if example_isbn
+            else "типовой автор-заглушка — требуется подтверждение по каталогу"
+        )
         result = dict(source)
         result["status"] = status
         result["evidence"] = evidence

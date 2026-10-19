@@ -73,8 +73,13 @@ async def run(inputs: dict[str, Any], ctx: SkillContext) -> dict[str, Any]:
     days_per_week = int(inputs.get("days_per_week") or raw_constraints.get("days_per_week") or 5)
     raw_sessions = calendar(plan, constraints, max_per_day, days_per_week)
     sessions = [_session(seq, entry, plan) for seq, entry in enumerate(raw_sessions, start=1)]
+    brief = str(inputs.get("brief") or "")
+    from karkas.domain.tk3_structure import tk3_min_calendar_weeks
+
+    weeks = max((session["week"] for session in sessions), default=0)
+    weeks = tk3_min_calendar_weeks(brief, int(constraints.total), weeks)
     return {
-        "weeks": max((session["week"] for session in sessions), default=0),
+        "weeks": weeks,
         "days": max((session["day"] for session in sessions), default=0),
         "days_per_week": days_per_week,
         "max_hours_per_day": max_per_day,

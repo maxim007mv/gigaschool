@@ -41,6 +41,8 @@ jobs:
           PGUSER: postgres
           KARKAS_TEST_DATABASE_URL: postgresql+asyncpg://postgres@127.0.0.1:5432/postgres
         run: .venv/bin/pytest tests --ignore=tests/payments_audit -q
+      - name: Eval reference kits (skeleton fixtures)
+        run: .venv/bin/python scripts/run_eval.py --skeleton-fixture
       - name: Eval examples (full validation)
         run: |
           .venv/bin/python scripts/run_eval.py --kit examples/tk1/kit_tk1.json --case tk1 --validate

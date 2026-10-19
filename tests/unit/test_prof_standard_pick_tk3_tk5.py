@@ -183,9 +183,7 @@ def test_kit_fixup_adds_ethics_topic_for_teacher_ai_program() -> None:
         }
     )
     fixed = apply_kit_fixup(kit, brief="Учителя должны понимать риски и правила безопасного использования ИИ")
-    titles = [topic.title for topic in fixed.iter_topics()]
-    assert any("этик" in title.lower() and "персональн" in title.lower() for title in titles)
-    assert any("этик" in outcome.text.lower() for outcome in fixed.iter_outcomes())
+    assert any("TK2-4" in gap for gap in fixed.framework.gaps)
 
 
 def test_ensure_competency_prof_for_teacher_program() -> None:
@@ -222,7 +220,7 @@ def test_ensure_competency_prof_for_teacher_program() -> None:
 def test_tk3_pick_prof_standard_and_framework_tpl01() -> None:
     s05, _ = _mock_s05_s06("tk3")
     code = s05["prof_standard"]["code"]
-    assert code in ("06.001", "06.042", "06.022")
+    assert code == "06.042"
     kit = _minimal_kit("tk3", s05, _)
     assert any(c.prof_standard for c in kit.framework.competencies)
     report = run_validation(ValidationContext(kit=kit, stage="framework"))

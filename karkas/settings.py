@@ -77,9 +77,9 @@ class Settings(BaseSettings):
     # --- Cloud.ru Foundation Models (единственный разрешённый LLM-провайдер) ---
     fm_base_url: str = Field(
         default="https://foundation-models.api.cloud.ru/v1",
-        validation_alias=AliasChoices("FM_BASE_URL"),
+        validation_alias=AliasChoices("FM_BASE_URL", "LLM_BASE_URL"),
     )
-    fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY"))
+    fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY", "LLM_API_KEY"))
     model_struct: str = "GigaChat/GigaChat-3-Pro"  # экономичная структурная модель (хакатон)
     model_bulk: str = "GigaChat/GigaChat-3-Pro"  # тот же класс — кэш шлюза, меньше сюрпризов по биллингу
     model_embed: str = ""  # ai-sage/Giga-Embeddings-instruct-3B — RAG
@@ -268,4 +268,7 @@ def get_settings() -> Settings:
     return Settings()
 
 
-settings = get_settings()
+def __getattr__(name: str) -> Settings:
+    if name == "settings":
+        return get_settings()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

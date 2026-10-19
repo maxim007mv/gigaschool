@@ -43,7 +43,10 @@ _CODE_SNIPPET_RE = re.compile(
     re.IGNORECASE,
 )
 
-_SINGLE_TOKEN_CODE_RE = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_.]*\s*\(.*\)|[A-Za-z0-9_]+)$")
+# Идентификаторы и конструкции языка: print(), my_var, My-Var, if-else, person.age, кортежи (1, 'a', True).
+_SINGLE_TOKEN_CODE_RE = re.compile(
+    r"^(?:[A-Za-z_][A-Za-z0-9_.]*\s*\(.*\)|[A-Za-z0-9_]+(?:[-.][A-Za-z0-9_]+)*|\(.*,.*\))$"
+)
 _EXPRESSION_CODE_RE = re.compile(r"[=<>{};\[\]]")
 
 _COMMAND_SNIPPET_RE = re.compile(

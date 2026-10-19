@@ -1243,11 +1243,16 @@ def run_common_checklist(kit: KitV1) -> list[CheckResult]:
     return [fn(kit) for fn in _COMMON]
 
 
-def run_checklist(kit: KitV1, case_key: str) -> list[CheckResult]:
+def run_checklist(kit: KitV1, case_key: str, *, skeleton_fixture: bool = False) -> list[CheckResult]:
     """case_key: tk1, tk2, … tk5 (нижний регистр)."""
+    from karkas.eval.skeleton_fixture import apply_skeleton_na
+
     key = case_key.lower().strip()
     fns = _BY_CASE.get(key, ())
-    return run_common_checklist(kit) + [fn(kit) for fn in fns]
+    results = run_common_checklist(kit) + [fn(kit) for fn in fns]
+    if skeleton_fixture:
+        results = apply_skeleton_na(results, key)
+    return results
 
 
 def format_report(results: list[CheckResult]) -> str:

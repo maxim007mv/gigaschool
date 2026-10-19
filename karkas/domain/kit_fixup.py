@@ -22,7 +22,6 @@ from karkas.domain.kit import (
     Calendar,
     CalendarSession,
     ContentBlock,
-    Criterion,
     DeliveryMode,
     KitV1,
     LaborFunctionRef,
@@ -165,9 +164,7 @@ def _ensure_first_session_slides(
     if not target_refs:
         target_refs = [topic.ref for topic in kit.iter_topics()][:2]
 
-    outcomes = {outcome.ref: outcome for outcome in kit.iter_outcomes()}
     topics = {topic.ref: topic for topic in kit.iter_topics()}
-    module_of = {topic.ref: module.ref for module in kit.framework.modules for topic in module.topics}
     existing = {block.topic_ref for block in slides}
     result = list(slides)
     for topic_ref in target_refs:
@@ -176,28 +173,7 @@ def _ensure_first_session_slides(
         topic = topics.get(topic_ref)
         if topic is None:
             continue
-        bullets = [outcomes[ref].text for ref in topic.outcome_refs if ref in outcomes and outcomes[ref].text.strip()][
-            :5
-        ] or [topic.title]
-        result.append(
-            ContentBlock(
-                ref=f"SL-{topic.ref}",
-                kind="slides",
-                module_ref=module_of.get(topic.ref),
-                topic_ref=topic.ref,
-                body={
-                    "title": topic.title,
-                    "slides": [
-                        {
-                            "title": topic.title,
-                            "bullets": bullets,
-                            "notes": "Слайд собран из темы и результатов обучения (S13 не вернул отдельный блок).",
-                        }
-                    ],
-                },
-            )
-        )
-        gaps.append(f"{topic.ref}: добавлен слайд для одного из первых двух занятий (S13 не вернул блок)")
+        gaps.append(f"{topic.ref}: нет слайдов S13 для одного из первых занятий — запустите повторную генерацию S13")
     return result
 
 
@@ -562,32 +538,8 @@ def _ensure_ethics_topic(
     if target is None:
         return modules, competencies
 
-    new_title = f"Этика, риски и защита персональных данных: {target.title}"
-    target_ref = target.ref
-    linked = set(target.outcome_refs)
-    updated_modules: list[Module] = []
-    for module in modules:
-        topics = [
-            topic.model_copy(update={"title": new_title}) if topic.ref == target_ref else topic
-            for topic in module.topics
-        ]
-        updated_modules.append(module.model_copy(update={"topics": topics}))
-
-    updated_competencies = []
-    for competency in competencies:
-        outcomes = []
-        for outcome in competency.outcomes:
-            if outcome.ref in linked and "этик" not in outcome.text.lower():
-                text = (
-                    outcome.text.rstrip(". ")
-                    + ". Соблюдает этику, оценивает риски и защищает персональные данные учеников."
-                )
-                outcomes.append(outcome.model_copy(update={"text": text}))
-            else:
-                outcomes.append(outcome)
-        updated_competencies.append(competency.model_copy(update={"outcomes": outcomes}))
-    gaps.append(f"{target_ref}: тема дополнена этикой, рисками и защитой персональных данных (TK2-4)")
-    return updated_modules, updated_competencies
+    gaps.append("TK2-4: нет отдельной темы об этике, рисках и защите персональных данных — уточните S07/S11")
+    return modules, competencies
 
 
 def _ensure_school_glossary(kit: KitV1) -> dict[str, str]:
@@ -800,23 +752,7 @@ def _ensure_portfolio_assessment(
     outcome_refs = [outcome.ref for outcome in kit.iter_outcomes()][:2]
     if not outcome_refs:
         return assessments
-    assessments.append(
-        Assessment(
-            ref="PF-01",
-            kind="portfolio_item",
-            stem=(
-                "Портфолио из трёх материалов: план урока, задания для учеников "
-                "и проверочная работа, созданные с помощью ИИ."
-            ),
-            rubric=[
-                Criterion(criterion="полнота портфолио (три материала)", max_points=3.0),
-                Criterion(criterion="качество и уместность материалов", max_points=3.0),
-                Criterion(criterion="рефлексия по безопасному использованию ИИ", max_points=3.0),
-            ],
-            outcome_refs=outcome_refs,
-        )
-    )
-    gaps.append("PF-01: добавлено портфолио из трёх материалов (форма ИА — зачёт по портфолио)")
+    gaps.append("TK2-7: форма ИА — зачёт по портфолио, но S16 не вернул portfolio_item — повторите генерацию S16")
     return assessments
 
 

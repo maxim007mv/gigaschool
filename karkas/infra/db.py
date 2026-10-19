@@ -54,7 +54,7 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     async with factory() as session:
         try:
             yield session
-        except Exception:
+        except Exception:  # noqa: BLE001 — откат при любой ошибке обработчика запроса
             await session.rollback()
             raise
 

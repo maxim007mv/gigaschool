@@ -44,9 +44,17 @@ def _load_case(path: Path) -> tuple[str, KitV1, dict | None]:
     return case_key, kit, None
 
 
-def _score_kit(case_key: str, kit: KitV1, meta: dict | None, label: str, *, validate: bool = False) -> int:
+def _score_kit(
+    case_key: str,
+    kit: KitV1,
+    meta: dict | None,
+    label: str,
+    *,
+    validate: bool = False,
+    skeleton_fixture: bool = False,
+) -> int:
     official = OFFICIAL_CASES.get(case_key)
-    results = run_checklist(kit, case_key)
+    results = run_checklist(kit, case_key, skeleton_fixture=skeleton_fixture)
     print(f"=== {label} ({case_key}) ===")
     if meta:
         print(f"Запрос: {meta.get('title', '')}")
@@ -74,6 +82,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", help="Ключ кейса tk1…tk5")
     parser.add_argument("--kit", type=Path, help="Произвольный KitV1 JSON (с --case)")
     parser.add_argument("--validate", action="store_true", help="Плюс полная самопроверка run_validation (V-*)")
+    parser.add_argument(
+        "--skeleton-fixture",
+        action="store_true",
+        help="Пункты, зависящие от полного комплекта (слайды, тесты, журнал), считать N/A",
+    )
     parser.add_argument("--live", action="store_true", help="Сквозной прогон через API (нужен KARKAS_EVAL_API_KEY)")
     parser.add_argument("--api", default="http://127.0.0.1:8000", help="Базовый URL API для --live")
     parser.add_argument(
@@ -112,7 +125,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Файл не найден: {args.kit}", file=sys.stderr)
             return 2
         kit = _load_kit_file(args.kit)
-        return _score_kit(args.case.lower(), kit, None, args.kit.name, validate=args.validate)
+        return _score_kit(
+            args.case.lower(),
+            kit,
+            None,
+            args.kit.name,
+            validate=args.validate,
+            skeleton_fixture=args.skeleton_fixture,
+        )
 
     paths: list[Path]
     if args.paths:
@@ -133,7 +153,15 @@ def main(argv: list[str] | None = None) -> int:
     for path in paths:
         case_key, kit, meta = _load_case(path)
         case_key = (args.case or case_key).lower()
-        code = _score_kit(case_key, kit, meta, path.name, validate=args.validate)
+        skeleton = args.skeleton_fixture or bool((meta or {}).get("skeleton_fixture")) or path.parent == DEFAULT_DIR
+        code = _score_kit(
+            case_key,
+            kit,
+            meta,
+            path.name,
+            validate=args.validate,
+            skeleton_fixture=skeleton,
+        )
         exit_code = max(exit_code, code)
     return exit_code
 

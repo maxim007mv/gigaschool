@@ -186,3 +186,16 @@ def test_reserved_extra_body_covers_max_completion_tokens_alias() -> None:
 def test_prod_rejects_placeholder_jwt_secret() -> None:
     with pytest.raises(ValueError, match="JWT_SECRET"):
         Settings(environment="prod", jwt_secret="change-me-in-prod")
+
+
+def test_llm_env_aliases_configure_gateway(monkeypatch) -> None:
+    """ВМ хакатона задаёт LLM_BASE_URL/LLM_API_KEY: шлюз должен считаться настроенным."""
+    from karkas.settings import Settings
+
+    for name in ("FM_BASE_URL", "FM_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LLM_BASE_URL", "https://hub.gigaschool.ru/api/v1/llm/v1")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    s = Settings(_env_file=None)
+    assert s.fm_base_url == "https://hub.gigaschool.ru/api/v1/llm/v1"
+    assert s.fm_api_key == "test-key"

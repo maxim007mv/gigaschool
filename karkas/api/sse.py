@@ -66,6 +66,7 @@ class PgNotifyBridge:
         self.origin = origin
         self._on_event = on_event
         self._conn: Any | None = None
+        self._notify_lock: asyncio.Lock | None = None
         self._last_failure = 0.0
 
     @staticmethod
@@ -84,7 +85,7 @@ class PgNotifyBridge:
 
             self._conn = await asyncpg.connect(self._dsn())
             await self._conn.add_listener(self.CHANNEL, self._handle)
-        except (asyncpg.PostgresError, OSError, ConnectionError, TimeoutError, RuntimeError):
+        except (asyncpg.PostgresError, asyncpg.InterfaceError, OSError, ConnectionError, TimeoutError, RuntimeError):
             self._conn = None
             self._last_failure = time.monotonic()
 
@@ -107,22 +108,30 @@ class PgNotifyBridge:
             return
         import asyncpg
 
+        if self._notify_lock is None:
+            self._notify_lock = asyncio.Lock()
         try:
             # Соединение живёт в своём loop; страховочный таймаут не даёт
             # подвесить publish при кросс-loop вызове или мёртвом сокете.
-            await asyncio.wait_for(
-                self._conn.execute(
-                    "SELECT pg_notify($1, $2)",
-                    self.CHANNEL,
-                    json.dumps(payload, ensure_ascii=False, default=str),
-                ),
-                timeout=5.0,
-            )
-        except (asyncpg.PostgresError, OSError, ConnectionError, TimeoutError, RuntimeError):
+            # Lock: одно asyncpg-соединение не допускает параллельных операций
+            # (воркер с concurrency 2 публикует события одновременно).
+            async with self._notify_lock:
+                conn = self._conn
+                if conn is None:
+                    return
+                await asyncio.wait_for(
+                    conn.execute(
+                        "SELECT pg_notify($1, $2)",
+                        self.CHANNEL,
+                        json.dumps(payload, ensure_ascii=False, default=str),
+                    ),
+                    timeout=5.0,
+                )
+        except (asyncpg.PostgresError, asyncpg.InterfaceError, OSError, ConnectionError, TimeoutError, RuntimeError):
             conn = self._conn
             self._conn = None
             if conn is not None:
-                with contextlib.suppress(asyncpg.PostgresError, OSError, RuntimeError):
+                with contextlib.suppress(asyncpg.PostgresError, asyncpg.InterfaceError, OSError, RuntimeError):
                     conn.terminate()  # sync, безопасно из любого потока
             self._last_failure = time.monotonic()
 
