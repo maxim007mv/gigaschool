@@ -40,6 +40,8 @@ APPROVED_MODELS: frozenset[str] = frozenset(
         "GigaChat/Reasoning",
         "GigaChat-Reasoning",
         "Reasoning",
+        "ai-sage/GigaChat3.5-432B-A28B-Reasoning",
+        "GigaChat3.5-432B-A28B-Reasoning",
         "ai-sage/Giga-Embeddings-instruct-3B",
         "Giga-Embeddings-instruct-3B",
         "ai-sage/Giga-Embeddings",
@@ -155,7 +157,7 @@ class Settings(BaseSettings):
     rate_per_min_api_key: int = 30
 
     # --- Egress ------------------------------------------------------------
-    egress_allowlist: str = "foundation-models.api.cloud.ru,pypi.org"
+    egress_allowlist: str = "foundation-models.api.cloud.ru,hub.gigaschool.ru,pypi.org"
 
     # --- Прочее ------------------------------------------------------------
     tariffs_json: str = "{}"  # {"<model>": {"in": 0.0, "out": 0.0}} руб. за 1M токенов

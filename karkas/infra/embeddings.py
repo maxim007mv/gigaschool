@@ -2,6 +2,10 @@
 
 Модель — settings.model_embed (Giga-Embeddings). Вызовы идут только в
 Cloud.ru Foundation Models (allowlist); ключ — из окружения.
+
+Важно: Giga-Embeddings-instruct-3B не поддерживает Matryoshka-эмбеддинги,
+поэтому параметр ``dimensions`` в запрос не передаётся (шлюз отвечает 400).
+Векторы приводятся к 1024 измерениям на стороне клиента.
 """
 
 from __future__ import annotations
@@ -14,6 +18,18 @@ import httpx
 
 from karkas.agent.llm_gateway import CloudRuHttpError, TransientError
 from karkas.settings import settings
+
+EMBEDDING_DIM = 1024
+
+
+def _normalize_vector(raw_vec: Any) -> list[float]:
+    """Привести вектор к 1024 измерениям (Giga-Embeddings отдаёт 1024)."""
+    vec = list(raw_vec)
+    if len(vec) > EMBEDDING_DIM:
+        return vec[:EMBEDDING_DIM]
+    if len(vec) < EMBEDDING_DIM:
+        return vec + [0.0] * (EMBEDDING_DIM - len(vec))
+    return vec
 
 
 async def embed_texts(
@@ -40,13 +56,11 @@ async def embed_texts(
             batch = list(texts[start : start + batch_size])
             started = time.monotonic()
             try:
+                # dimensions не передаём: модель Giga-Embeddings не поддерживает
+                # Matryoshka-эмбеддинги и отвечает 400 на этот параметр.
                 resp = await client.post(
                     url,
-                    json={
-                        "model": settings.model_embed,
-                        "input": batch,
-                        "dimensions": 1024,
-                    },
+                    json={"model": settings.model_embed, "input": batch},
                     headers=headers,
                 )
                 if resp.status_code != 200:
@@ -63,32 +77,30 @@ async def embed_texts(
                     f"embeddings: модель {settings.model_embed!r} недоступна или запрос неверен "
                     f"({type(exc).__name__}: {exc})"
                 ) from exc
-            usage = response.get("usage") or {}
+
+            usage = (response.get("usage") or {}) if isinstance(response, dict) else {}
             prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
             latency_ms = (time.monotonic() - started) * 1000.0
-        if meter is not None:
-            from karkas.agent.skills._base import maybe_await
+            if meter is not None:
+                from karkas.agent.skills._base import maybe_await
 
-            await maybe_await(
-                meter.record(
-                    skill,
-                    settings.model_embed,
-                    prompt_tokens,
-                    0,
-                    latency_ms,
-                    ok=True,
-                    cache_hit=False,
+                await maybe_await(
+                    meter.record(
+                        skill,
+                        settings.model_embed,
+                        prompt_tokens,
+                        0,
+                        latency_ms,
+                        ok=True,
+                        cache_hit=False,
+                    )
                 )
-            )
-        items = response.get("data", []) if isinstance(response, dict) else getattr(response, "data", [])
-        for item in items:
-            raw_vec = item.get("embedding") if isinstance(item, dict) else getattr(item, "embedding", [])
-            vec = list(raw_vec)
-            if len(vec) > 1024:
-                vec = vec[:1024]
-            elif len(vec) < 1024:
-                vec = vec + [0.0] * (1024 - len(vec))
-            vectors.append(vec)
+
+            items = response.get("data", []) if isinstance(response, dict) else getattr(response, "data", [])
+            for item in items:
+                raw_vec = item.get("embedding") if isinstance(item, dict) else getattr(item, "embedding", [])
+                vectors.append(_normalize_vector(raw_vec))
+
     if len(vectors) != len(texts):
         raise ValueError(f"embeddings: получено {len(vectors)} векторов на {len(texts)} текстов")
     return vectors

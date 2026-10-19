@@ -75,6 +75,8 @@ class PgNotifyBridge:
     async def ensure_started(self) -> None:
         if self._conn is not None:
             return
+        if settings.karkas_lite or settings.uses_sqlite:
+            return
         if time.monotonic() - self._last_failure < self.RECONNECT_COOLDOWN_S:
             return
         try:
