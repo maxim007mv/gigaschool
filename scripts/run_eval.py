@@ -16,6 +16,7 @@ from pathlib import Path
 
 import karkas.infra.exporters.bootstrap  # noqa: F401 — V-ACR в run_checklist
 from karkas.domain.kit import KitV1
+from karkas.domain.validators import ValidationContext, run_validation
 from karkas.eval.checklists import format_report, run_checklist
 from karkas.eval.official_cases import OFFICIAL_CASES
 
@@ -43,7 +44,7 @@ def _load_case(path: Path) -> tuple[str, KitV1, dict | None]:
     return case_key, kit, None
 
 
-def _score_kit(case_key: str, kit: KitV1, meta: dict | None, label: str) -> int:
+def _score_kit(case_key: str, kit: KitV1, meta: dict | None, label: str, *, validate: bool = False) -> int:
     official = OFFICIAL_CASES.get(case_key)
     results = run_checklist(kit, case_key)
     print(f"=== {label} ({case_key}) ===")
@@ -52,8 +53,19 @@ def _score_kit(case_key: str, kit: KitV1, meta: dict | None, label: str) -> int:
     elif official:
         print(f"Запрос: {official.title}")
     print(format_report(results))
+    failed = [r for r in results if not r.passed]
+    exit_code = 1 if failed else 0
+    if validate:
+        report = run_validation(ValidationContext(kit=kit, stage="kit"))
+        errors = [i for i in report.issues if i.severity == "error"]
+        warnings = [i for i in report.issues if i.severity == "warning"]
+        print(f"Полная самопроверка: {len(errors)} ошибок, {len(warnings)} предупреждений")
+        for issue in errors:
+            print(f"  [ERROR] {issue.rule_code}: {issue.message}")
+        if errors:
+            exit_code = 1
     print()
-    return 0 if all(r.passed for r in results) else 1
+    return exit_code
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -61,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("paths", nargs="*", help="Пути к JSON (tk*.json или kit)")
     parser.add_argument("--case", help="Ключ кейса tk1…tk5")
     parser.add_argument("--kit", type=Path, help="Произвольный KitV1 JSON (с --case)")
+    parser.add_argument("--validate", action="store_true", help="Плюс полная самопроверка run_validation (V-*)")
     parser.add_argument("--live", action="store_true", help="Сквозной прогон через API (нужен KARKAS_EVAL_API_KEY)")
     parser.add_argument("--api", default="http://127.0.0.1:8000", help="Базовый URL API для --live")
     parser.add_argument(
@@ -89,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Live прогон не удался: {exc}", file=sys.stderr)
             return 1
         print(report.to_markdown())
-        return 0 if report.status == "completed" and not report.checklist_failed else 1
+        return 0 if report.status == "completed" and not report.checklist_failed and report.validation_ok else 1
 
     if args.kit:
         if not args.case:
@@ -99,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Файл не найден: {args.kit}", file=sys.stderr)
             return 2
         kit = _load_kit_file(args.kit)
-        return _score_kit(args.case.lower(), kit, None, args.kit.name)
+        return _score_kit(args.case.lower(), kit, None, args.kit.name, validate=args.validate)
 
     paths: list[Path]
     if args.paths:
@@ -120,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     for path in paths:
         case_key, kit, meta = _load_case(path)
         case_key = (args.case or case_key).lower()
-        code = _score_kit(case_key, kit, meta, path.name)
+        code = _score_kit(case_key, kit, meta, path.name, validate=args.validate)
         exit_code = max(exit_code, code)
     return exit_code
 

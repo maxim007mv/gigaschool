@@ -150,6 +150,75 @@ def _minimal_kit(case_id: str, s05: dict, competencies_raw: list) -> KitV1:
     )
 
 
+def test_kit_fixup_adds_ethics_topic_for_teacher_ai_program() -> None:
+    """TK2-4: тема этики/рисков/ПДн должна быть явно в названии темы и РО."""
+    from karkas.domain.kit_fixup import apply_kit_fixup
+
+    kit = _minimal_kit(
+        "tk2",
+        {
+            "prof_standard": {"code": "01.001", "title": "Педагог"},
+            "labor_functions": [{"code": "A/01.1", "title": "Организация и проведение занятий"}],
+        },
+        [{"title": "Применение ИИ в педагогической деятельности"}],
+    )
+    kit = kit.model_copy(
+        update={
+            "program": kit.program.model_copy(update={"title": "Искусственный интеллект в работе учителя"}),
+            "framework": kit.framework.model_copy(
+                update={
+                    "modules": [
+                        module.model_copy(
+                            update={
+                                "topics": [
+                                    topic.model_copy(update={"title": "Безопасное использование ИИ"})
+                                    for topic in module.topics
+                                ]
+                            }
+                        )
+                        for module in kit.framework.modules
+                    ]
+                }
+            ),
+        }
+    )
+    fixed = apply_kit_fixup(kit, brief="Учителя должны понимать риски и правила безопасного использования ИИ")
+    titles = [topic.title for topic in fixed.iter_topics()]
+    assert any("этик" in title.lower() and "персональн" in title.lower() for title in titles)
+    assert any("этик" in outcome.text.lower() for outcome in fixed.iter_outcomes())
+
+
+def test_ensure_competency_prof_for_teacher_program() -> None:
+    """ДПП про учителей получает ПС 01.001 до Human Gate, а не только в kit_fixup."""
+    from karkas.domain.kit_fixup import ensure_competency_prof
+
+    kit = _minimal_kit(
+        "tk2",
+        {
+            "prof_standard": {"code": "01.001", "title": "Педагог"},
+            "labor_functions": [{"code": "A/01.1", "title": "Организация и проведение занятий"}],
+        },
+        [{"title": "Применение ИИ в педагогической деятельности"}],
+    )
+    kit = kit.model_copy(
+        update={
+            "program": kit.program.model_copy(update={"title": "Искусственный интеллект в работе учителя"}),
+            "framework": kit.framework.model_copy(
+                update={
+                    "competencies": [
+                        c.model_copy(update={"prof_standard": None, "labor_functions": []})
+                        for c in kit.framework.competencies
+                    ]
+                }
+            ),
+        }
+    )
+    fixed = ensure_competency_prof(kit, list(kit.framework.competencies))
+    assert fixed[0].prof_standard is not None
+    assert fixed[0].prof_standard.code == "01.001"
+    assert fixed[0].labor_functions[0].code == "A/01.1"
+
+
 def test_tk3_pick_prof_standard_and_framework_tpl01() -> None:
     s05, _ = _mock_s05_s06("tk3")
     code = s05["prof_standard"]["code"]

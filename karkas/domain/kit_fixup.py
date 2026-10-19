@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import partial
 from typing import Any
 
 from karkas.domain.brief_extract import derive_goal, extract_program_title, extract_unit_hours
@@ -22,10 +23,12 @@ from karkas.domain.kit import (
     Module,
     ProfStandardRef,
     Source,
+    Topic,
     find_topic,
 )
 from karkas.domain.legal_basis import build_program_legal_basis
 from karkas.domain.prof_standard_pick import prof_standards_gap_section_text
+from karkas.settings import settings
 
 _LAYOUT_TITLES = frozenset({"title_and_content", "title", "title_only", "content"})
 
@@ -443,7 +446,7 @@ def _prof_link_for_program(kit: KitV1) -> tuple[str, str, str, str] | None:
     return None
 
 
-def _ensure_competency_prof(kit: KitV1, competencies: list) -> list:
+def ensure_competency_prof(kit: KitV1, competencies: list) -> list:
     if kit.program.kind == "dop" or any(c.prof_standard for c in competencies):
         return competencies
     link = _prof_link_for_program(kit)
@@ -461,6 +464,62 @@ def _ensure_competency_prof(kit: KitV1, competencies: list) -> list:
         )
         for c in competencies
     ]
+
+
+def _ensure_ethics_topic(
+    kit: KitV1,
+    modules: list[Module],
+    competencies: list,
+    gaps: list[str],
+    brief: str,
+) -> tuple[list[Module], list]:
+    """Для программ про ИИ у учителей нужна явная тема этики/рисков/ПДн (TK2-4)."""
+    blob = f"{brief} {kit.program.title} {kit.profile.audience or ''} {kit.framework.goal or ''}".lower()
+    if kit.program.kind == "dop" or not any(key in blob for key in ("риск", "этик", "персональн", "пдн", "безопасн")):
+        return modules, competencies
+    topic_blob = " ".join(topic.title.lower() for module in modules for topic in module.topics)
+    if all(key in topic_blob for key in ("этик", "персональн", "риск")):
+        return modules, competencies
+
+    target: Topic | None = None
+    for module in modules:
+        for topic in module.topics:
+            if any(key in topic.title.lower() for key in ("безопас", "риск", "этик")):
+                target = topic
+                break
+        if target is not None:
+            break
+    if target is None:
+        target = next((topic for module in modules for topic in module.topics), None)
+    if target is None:
+        return modules, competencies
+
+    new_title = f"Этика, риски и защита персональных данных: {target.title}"
+    target_ref = target.ref
+    linked = set(target.outcome_refs)
+    updated_modules: list[Module] = []
+    for module in modules:
+        topics = [
+            topic.model_copy(update={"title": new_title}) if topic.ref == target_ref else topic
+            for topic in module.topics
+        ]
+        updated_modules.append(module.model_copy(update={"topics": topics}))
+
+    updated_competencies = []
+    for competency in competencies:
+        outcomes = []
+        for outcome in competency.outcomes:
+            if outcome.ref in linked and "этик" not in outcome.text.lower():
+                text = (
+                    outcome.text.rstrip(". ")
+                    + ". Соблюдает этику, оценивает риски и защищает персональные данные учеников."
+                )
+                outcomes.append(outcome.model_copy(update={"text": text}))
+            else:
+                outcomes.append(outcome)
+        updated_competencies.append(competency.model_copy(update={"outcomes": outcomes}))
+    gaps.append(f"{target_ref}: тема дополнена этикой, рисками и защитой персональных данных (TK2-4)")
+    return updated_modules, updated_competencies
 
 
 def _ensure_school_glossary(kit: KitV1) -> dict[str, str]:
@@ -591,6 +650,61 @@ def _rebuild_calendar(kit: KitV1, *, unit_hours: int, max_hours_per_day: int, da
     )
 
 
+def _ensure_outcome_assessment_coverage(
+    kit: KitV1,
+    assessments: list[Assessment],
+    gaps: list[str],
+) -> list[Assessment]:
+    """Довести покрытие РО до минимума, переиспользуя существующие задания.
+
+    Тексты заданий пишет модель; код только связывает уже созданные оценочные
+    средства с РО той же темы. Если подходящих заданий нет, в отчёт попадает
+    понятный пробел, а не выдуманный вопрос.
+    """
+    minimum = max(1, int(settings.min_assessments_per_outcome))
+    by_outcome: dict[str, list[int]] = {}
+    for index, assessment in enumerate(assessments):
+        for outcome_ref in assessment.outcome_refs:
+            by_outcome.setdefault(outcome_ref, []).append(index)
+
+    def _rank(index: int, outcome_type: str) -> tuple[int, str]:
+        assessment = assessments[index]
+        if outcome_type == "experience":
+            kind_rank = 0 if assessment.kind in ("seminar_task", "final_project") else 1
+        else:
+            kind_rank = 0 if assessment.kind in ("test_question", "exam_task") else 1
+        return kind_rank, assessment.ref
+
+    for outcome in kit.iter_outcomes():
+        have = by_outcome.setdefault(outcome.ref, [])
+        if len(have) >= minimum:
+            continue
+        topic_refs = {topic.ref for topic in kit.iter_topics() if outcome.ref in topic.outcome_refs}
+        candidates = [
+            index
+            for index, assessment in enumerate(assessments)
+            if index not in have and assessment.topic_ref in topic_refs
+        ]
+
+        candidates.sort(key=partial(_rank, outcome_type=outcome.type))
+        for index in candidates:
+            if len(have) >= minimum:
+                break
+            assessment = assessments[index]
+            refs = list(assessment.outcome_refs)
+            if outcome.ref in refs:
+                continue
+            refs.append(outcome.ref)
+            assessments[index] = assessment.model_copy(update={"outcome_refs": refs})
+            have.append(index)
+        if len(have) < minimum:
+            gaps.append(
+                f"{outcome.ref}: покрыт {len(have)} оценочными средствами из {minimum} — "
+                "добавьте задание по теме вручную (V-COV-02)"
+            )
+    return assessments
+
+
 def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     """Привести комплект к требованиям самопроверки без повторных вызовов LLM."""
     brief_text = (brief or "").strip()
@@ -622,7 +736,7 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
         calendar = _rebuild_calendar(kit, unit_hours=unit, max_hours_per_day=max_day, days_per_week=days_pw)
         calendar = _balance_ia_in_calendar(calendar, final_h)
 
-    competencies = _ensure_competency_prof(kit, list(kit.framework.competencies))
+    competencies = ensure_competency_prof(kit, list(kit.framework.competencies))
     if kit.program.kind == "dop":
         competencies = [c.model_copy(update={"prof_standard": None, "labor_functions": []}) for c in competencies]
     elif (
@@ -642,15 +756,19 @@ def apply_kit_fixup(kit: KitV1, *, brief: str | None = None) -> KitV1:
     modules_fw = list(kit.framework.modules)
     if kit.program.form == "internship":
         modules_fw = _ensure_module_attestation_forms(modules_fw)
+    modules_fw, competencies = _ensure_ethics_topic(kit, modules_fw, competencies, gaps, brief_text)
+    kit_with_modules = kit.model_copy(
+        update={"framework": kit.framework.model_copy(update={"modules": modules_fw, "competencies": competencies})}
+    )
     assessments = _ensure_internship_interviews(
-        kit.model_copy(update={"framework": kit.framework.model_copy(update={"modules": modules_fw})}),
+        kit_with_modules,
         _sanitize_assessments(list(kit.content.assessments)),
     )
+    assessments = _ensure_outcome_assessment_coverage(kit_with_modules, assessments, gaps)
     sources = _ensure_normative_sources(kit, _sanitize_sources(kit, list(kit.content.sources)))
     profile = kit.profile.model_copy(update={"glossary": _ensure_school_glossary(kit)})
     sections = _ensure_sections(kit, list(kit.content.sections))
     sections = _ensure_prof_standard_gap_section(kit, sections, competencies)
-    kit_with_modules = kit.model_copy(update={"framework": kit.framework.model_copy(update={"modules": modules_fw})})
     module_programs = _ensure_module_programs(kit_with_modules, list(kit.content.module_programs))
 
     legal = kit.program.legal_basis

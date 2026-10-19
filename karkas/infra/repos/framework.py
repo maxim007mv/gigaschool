@@ -43,8 +43,39 @@ from karkas.domain.kit import (
     Topic,
     Workload,
 )
+from karkas.infra.sql_dialect import uses_sqlite
 
 CONTACT = ("lecture", "practice", "lab")
+
+
+def _json_dict(value: Any) -> dict[str, Any]:
+    """JSON-колонка: PostgreSQL отдаёт dict, SQLite — строку."""
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value or "{}")
+        except ValueError:
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _json_list(value: Any) -> list[Any]:
+    """JSON-список: PostgreSQL отдаёт list, SQLite — строку."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value or "[]")
+        except ValueError:
+            return []
+        return list(parsed) if isinstance(parsed, list) else []
+    return []
 
 
 class LockVersionConflict(RuntimeError):
@@ -257,7 +288,7 @@ async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
                 complexity=r["complexity"],
                 practicality=float(r["practicality"]),
                 weight=float(r["weight"]),
-                locked=list(r.get("locked") or []),
+                locked=_json_list(r.get("locked")),
             )
         )
 
@@ -273,8 +304,8 @@ async def load_kit(session: AsyncSession, program_id: str) -> KitV1 | None:
         for r in module_rows
     ]
 
-    profile_json: dict[str, Any] = dict(program["profile"] or {})
-    constraints_json: dict[str, Any] = dict(program["constraints"] or {})
+    profile_json = _json_dict(program["profile"])
+    constraints_json = _json_dict(program["constraints"])
     program_constraints = ProgramConstraints(
         **{k: v for k, v in constraints_json.items() if k in ProgramConstraints.model_fields}
     )
@@ -397,7 +428,7 @@ async def _load_content(session: AsyncSession, program_id: str, outcome_ref_by_i
             kind=r["kind"],
             module_ref=r["module_ref"],
             topic_ref=r["topic_ref"],
-            body=r["body"] or {},
+            body=_json_dict(r["body"]),
             generated_by=r["generated_by"],
             stale=r["stale"],
         )
@@ -447,9 +478,9 @@ async def _load_content(session: AsyncSession, program_id: str, outcome_ref_by_i
         item_refs = sorted(outcome_refs_by_item.get(str(r["id"]), []))
         if not item_refs:
             continue  # оценочное средство без РО недопустимо (V-COV-04)
-        options = [AssessmentOption(**o) for o in (r["options"] or [])] if r["options"] else []
-        answer_key = AnswerKey(**r["answer_key"]) if r["answer_key"] else None
-        rubric = [Criterion(**c) for c in (r["rubric"] or [])] if r["rubric"] else []
+        options = [AssessmentOption(**o) for o in _json_list(r["options"])]
+        answer_key = AnswerKey(**_json_dict(r["answer_key"])) if r["answer_key"] else None
+        rubric = [Criterion(**c) for c in _json_list(r["rubric"])]
         assessments.append(
             Assessment(
                 ref=r["ref"],
@@ -512,7 +543,7 @@ async def _load_content(session: AsyncSession, program_id: str, outcome_ref_by_i
             isbn=r["isbn"],
             normative_act_ref=r["act_number"],
             status=r["status"],
-            evidence=r["evidence"] or {},
+            evidence=_json_dict(r["evidence"]),
             topic_refs=sorted(topics_by_source.get(str(r["id"]), [])),
         )
         for r in source_rows
@@ -556,7 +587,7 @@ async def _load_report(session: AsyncSession, program_id: str, version: int) -> 
         .mappings()
         .all()
     )
-    summary = run["summary"] or {}
+    summary = _json_dict(run["summary"])
     return Report(
         passed=run["passed"],
         version=run["version"],
@@ -568,7 +599,7 @@ async def _load_report(session: AsyncSession, program_id: str, version: int) -> 
                 severity=r["severity"],
                 entity_ref=r["entity_ref"],
                 message=r["message"],
-                fix_hint=r["fix_hint"],
+                fix_hint=_json_dict(r["fix_hint"]),
             )
             for r in issues_rows
         ],
@@ -609,7 +640,7 @@ async def save_kit(
     версия не изменилась (иначе LockVersionConflict → 412), поэтому конкурентные
     PATCH не теряют изменения молча.
     """
-    if solver_mode:
+    if solver_mode and not uses_sqlite():
         await session.execute(text("SET LOCAL karkas.solver = 'on'"))
     if update_header:
         sql = """
@@ -758,30 +789,31 @@ async def save_kit(
             )
         ).scalar_one()
         for t_number, topic in enumerate(module.topics, start=1):
-            topic_id = (
-                await session.execute(
-                    text(
-                        """
-                        INSERT INTO topic (program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form, locked)
-                        VALUES (:pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form, :locked)
-                        RETURNING id
-                        """
-                    ),
-                    {
-                        "pid": program_id,
-                        "mid": module_id,
-                        "ref": topic.ref,
-                        "number": t_number,
-                        "title": topic.title,
-                        "summary": topic.summary,
-                        "weight": topic.weight,
-                        "practicality": topic.practicality,
-                        "complexity": topic.complexity,
-                        "control_form": topic.control_form,
-                        "locked": list(topic.locked),
-                    },
-                )
-            ).scalar_one()
+            topic_sql = """
+                INSERT INTO topic (program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form)
+                VALUES (:pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form)
+                RETURNING id
+            """
+            topic_params: dict[str, Any] = {
+                "pid": program_id,
+                "mid": module_id,
+                "ref": topic.ref,
+                "number": t_number,
+                "title": topic.title,
+                "summary": topic.summary,
+                "weight": topic.weight,
+                "practicality": topic.practicality,
+                "complexity": topic.complexity,
+                "control_form": topic.control_form,
+            }
+            if not uses_sqlite():
+                topic_sql = """
+                    INSERT INTO topic (program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form, locked)
+                    VALUES (:pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form, :locked)
+                    RETURNING id
+                """
+                topic_params["locked"] = list(topic.locked)
+            topic_id = (await session.execute(text(topic_sql), topic_params)).scalar_one()
             topic_ids[topic.ref] = str(topic_id)
             for (activity, mode), hours in _split_distance(topic.workload).items():
                 await session.execute(

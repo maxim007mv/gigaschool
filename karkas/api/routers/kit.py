@@ -81,6 +81,12 @@ async def get_kit(
     """Комплект целиком (KitV1) с ETag снимка версии."""
     program = await get_program_or_404(session, program_id, principal)
     assert_access(principal, program)
+    if program["status"] not in KIT_OK_STATUSES:
+        raise GateNotPassed()
+    if program["status"] == "framework_approved":
+        # Каркас утверждён, но комплект ещё не генерировали. UI по 404
+        # показывает кнопку «Сгенерировать комплект».
+        raise NotFound("Комплект ещё не собран")
     kit = await framework_repo.load_kit(session, program_id)
     if kit is None:
         raise NotFound("Комплект ещё не собран")
@@ -101,6 +107,10 @@ async def get_kit_item(
     """Один элемент комплекта и его связи (для ленивой загрузки на фронте)."""
     program = await get_program_or_404(session, program_id, principal)
     assert_access(principal, program)
+    if program["status"] not in KIT_OK_STATUSES:
+        raise GateNotPassed()
+    if program["status"] == "framework_approved":
+        raise NotFound("Комплект ещё не собран")
     kit = await framework_repo.load_kit(session, program_id)
     if kit is None:
         raise NotFound("Комплект ещё не собран")

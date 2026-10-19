@@ -18,3 +18,4 @@ var/
 *.log
 logs/
 e2e*/
+data/eval/reports/

@@ -56,6 +56,26 @@ async def record_llm_call(
     )
 
 
+async def org_spent_today(session: AsyncSession, org_id: str) -> Decimal:
+    """Сумма cost_rub по организации за текущие сутки (сброс по МСК, как у хаба)."""
+    if uses_sqlite():
+        sql = """
+            SELECT coalesce(sum(cost_rub), 0) FROM llm_call
+            WHERE org_id = :org
+              AND date(created_at, '+3 hours') = date('now', '+3 hours')
+        """
+        params: dict[str, Any] = {"org": org_id}
+    else:
+        sql = """
+            SELECT coalesce(sum(cost_rub), 0) FROM llm_call
+            WHERE org_id = CAST(:org AS uuid)
+              AND created_at >= date_trunc('day', now() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow'
+        """
+        params = {"org": org_id}
+    row = (await session.execute(text(sql), params)).scalar_one_or_none()
+    return Decimal(str(row or 0))
+
+
 async def program_usage(session: AsyncSession, program_id: str) -> dict[str, Any] | None:
     if uses_sqlite():
         row = (

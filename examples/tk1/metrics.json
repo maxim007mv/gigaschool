@@ -1,0 +1,31 @@
+{
+  "case_id": "tk1",
+  "started_at": "2026-10-19T13:11:00.642760+00:00",
+  "finished_at": "2026-10-19T13:16:31.726136+00:00",
+  "status": "completed",
+  "program_id": "c9a2c870-c8f6-4f65-b5f6-4fef46c45189",
+  "run_id": "37732589-f6ae-435e-bc58-940edab54899",
+  "timings_s": {
+    "kit_s": 271.8,
+    "total_s": 330.5,
+    "intake_s": 5.0,
+    "skeleton_s": 53.5,
+    "framework_s": 53.5,
+    "wall_s": 331.1
+  },
+  "usage": {
+    "calls": 40,
+    "tokens": 92408,
+    "cost_rub": "9.1400"
+  },
+  "cost_rub": "9.1400",
+  "checklist_passed": 6,
+  "checklist_total": 6,
+  "checklist_failed": [],
+  "validation_ok": true,
+  "validation_errors": 0,
+  "validation_warnings": 5,
+  "validation_messages": [],
+  "detail": null,
+  "kit_path": "/Users/damir/Documents/hack/gigaschool/data/eval/reports/tk1_live_kit.json"
+}

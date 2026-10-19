@@ -64,6 +64,7 @@ def normalize_competencies(
     competencies: list[dict[str, Any]] = []
     gaps: list[str] = []
     used_refs: set[str] = set()
+    used_outcome_refs: set[str] = set()
     for index, item in enumerate(items, start=1):
         ref = item.ref.strip()
         if not _COMPETENCY_RE.match(ref) or ref in used_refs:
@@ -76,17 +77,20 @@ def normalize_competencies(
             gaps.append(f"{ref}: пустое название — компетенция исключена")
             continue
         outcomes: list[dict[str, Any]] = []
-        seen_outcomes: set[str] = set()
         for order, outcome in enumerate(item.outcomes, start=1):
             text = outcome.text.strip()
             if not text:
                 continue
             outcome_ref = outcome.ref.strip()
-            if not _OUTCOME_RE.match(outcome_ref) or outcome_ref in seen_outcomes:
+            if not _OUTCOME_RE.match(outcome_ref) or outcome_ref in used_outcome_refs:
                 outcome_ref = f"LO{ref[1:]}.{order}"
-            if outcome_ref in seen_outcomes:
-                continue
-            seen_outcomes.add(outcome_ref)
+            # Уникальность должна быть глобальной по программе: в БД стоит
+            # UNIQUE(program_id, ref), а модель может повторить LO1.2 у C1 и C2.
+            suffix = order
+            while outcome_ref in used_outcome_refs:
+                suffix += 1
+                outcome_ref = f"LO{ref[1:]}.{suffix}"
+            used_outcome_refs.add(outcome_ref)
             outcomes.append({"ref": outcome_ref, "type": outcome.type, "text": text})
         missing = [kind_name for kind_name in OUTCOME_TYPES if not any(o["type"] == kind_name for o in outcomes)]
         if missing:

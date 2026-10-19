@@ -41,6 +41,28 @@ def test_cnt_flags_placeholder_and_missing_notes() -> None:
     assert any(i.fix_hint and i.fix_hint.get("endpoint") == "kit:regenerate" for i in report.issues)
 
 
+def test_cnt_accepts_single_character_numeric_options() -> None:
+    """Варианты «9», «A», «B» — валидные ответы, а не пустые строки."""
+    kit = build_minimal_kit()
+    kit.content.assessments = [
+        Assessment(
+            ref="Q-1",
+            kind="test_question",
+            topic_ref="T1.1",
+            stem="Что выведет этот код?",
+            qtype="single",
+            options=[
+                AssessmentOption(id="a", text="9"),
+                AssessmentOption(id="b", text="10"),
+            ],
+            answer_key=AnswerKey(correct=["a"]),
+            outcome_refs=["LO1.1"],
+        )
+    ]
+    report = run_validation(ValidationContext(kit=kit, stage="kit"))
+    assert not any(i.rule_code == "V-CNT-02" for i in report.issues)
+
+
 def test_cnt_test_distractor_quality() -> None:
     kit = build_minimal_kit()
     kit.content.assessments = [

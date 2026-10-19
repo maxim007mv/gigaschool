@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="multichoice">
+    <name>
+      <text>Q-001</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое утверждение о генеративных нейросетях является верным?</text>
+    </questiontext>
+    <idnumber>Q-001</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Генеративные нейросети создают новый контент на основе обучающих данных и могут использоваться для генерации текстов, изображений и других материалов.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Генеративные нейросети способны самостоятельно обучаться на новых данных без участия человека.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Генеративные нейросети работают только с числовыми данными и не могут обрабатывать текст.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Генеративные нейросети не имеют ограничений и всегда выдают абсолютно точную информацию.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002</text>
+    </name>
+    <questiontext format="html">
+      <text>Какой из перечисленных сервисов является генеративной нейросетью, доступной в России?</text>
+    </questiontext>
+    <idnumber>Q-002</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Google Drive</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Kandinsky</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Microsoft Excel</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Zoom</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003</text>
+    </name>
+    <questiontext format="html">
+      <text>Что важно учитывать при использовании генеративных нейросетей в работе с детьми?</text>
+    </questiontext>
+    <idnumber>Q-003</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Необходимо обеспечить конфиденциальность персональных данных и контролировать качество сгенерированного контента.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Можно передавать нейросети любые личные данные учеников без ограничений.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Генеративные нейросети всегда выдают только проверенную и безопасную информацию.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Использование нейросетей не требует соблюдения правил информационной безопасности.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-2</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое требование обязательно при формулировании запроса к нейросети для генерации заданий для младших школьников?</text>
+    </questiontext>
+    <idnumber>Q-001-2</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Указать возраст обучающихся и желаемый уровень сложности</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Запросить задания только по сложным темам без пояснений</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Использовать только технические термины и профессиональный жаргон</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Запросить задания без учёта возрастных особенностей</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-2</text>
+    </name>
+    <questiontext format="html">
+      <text>Что из перечисленного является примером безопасного использования ИИ при работе с детьми?</text>
+    </questiontext>
+    <idnumber>Q-002-2</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Передача персональных данных обучающихся нейросети без согласия родителей</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Использование нейросетей только для генерации учебного контента без доступа к персональным данным</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Применение нейросетей для контроля поведения детей в классе</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Создание аватаров обучающихся с использованием их фотографий</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-2</text>
+    </name>
+    <questiontext format="html">
+      <text>Учитель хочет сгенерировать план урока для 5 класса с использованием нейросети. Какой элемент запроса к нейросети наиболее важен для получения качественного результата?</text>
+    </questiontext>
+    <idnumber>Q-003-2</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Точное указание темы урока и возраста обучающихся</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Запрос на генерацию плана без указания темы</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Только указание желаемой продолжительности урока</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Запрос на генерацию плана для всех возрастов</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-3</text>
+    </name>
+    <questiontext format="html">
+      <text>Какой из перечисленных рисков является наиболее существенным при использовании генеративных нейросетей в обучении детей младшего школьного возраста?</text>
+    </questiontext>
+    <idnumber>Q-001-3</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Высокая стоимость подписки на сервис нейросети</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Возможность генерации недостоверной или предвзятой информации</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Сложность освоения интерфейса нейросети для учителя</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Необходимость постоянного обновления оборудования в классе</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Снижение мотивации учащихся к самостоятельному поиску информации</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Ограниченность количества доступных языков в нейросети</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Зависимость от интернет-соединения для работы сервиса</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Сложность интеграции с электронным журналом</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-3</text>
+    </name>
+    <questiontext format="html">
+      <text>Выберите правило безопасного применения генеративных нейросетей при работе с детьми, рекомендованное для педагогов в России.</text>
+    </questiontext>
+    <idnumber>Q-002-3</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Разрешать детям самостоятельно вводить любые запросы без предварительного контроля учителя</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Использовать нейросети только для генерации развлекательного контента</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Всегда проверять и модерировать результаты работы нейросети перед их использованием в образовательном процессе</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Делиться с учащимися персональными данными для улучшения работы ИИ-сервисов</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Использовать только зарубежные нейросети, так как они более продвинутые</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Применять нейросети только для автоматической оценки контрольных работ без участия педагога</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Отказаться от использования ИИ в образовательном процессе из-за возможных рисков</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Предоставлять детям полный доступ к настройкам нейросети для самостоятельного обучения</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-3</text>
+    </name>
+    <questiontext format="html">
+      <text>В каком случае использование генеративной нейросети в работе с детьми младшего школьного возраста НЕ требует дополнительных мер безопасности?</text>
+    </questiontext>
+    <idnumber>Q-003-3</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>При генерации творческих заданий для урока изобразительного искусства</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>При создании математических задач с возрастающей сложностью</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>При использовании нейросети для автоматической оценки знаний без участия учителя</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>При формировании списка литературы для внеклассного чтения</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>При генерации плана урока по природоведению</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>При создании интерактивных тестов по истории</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>При разработке материалов для родительского собрания</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>При подготовке презентаций для классного часа</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-4</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое правило безопасности при использовании генеративных нейросетей должно быть обязательно соблюдено педагогом при работе с детьми?</text>
+    </questiontext>
+    <idnumber>Q-001-4</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Использовать нейросети для создания контента, не требующего контроля учителя.</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Проверять сгенерированные материалы на наличие ошибок и соответствие возрастным особенностям учащихся.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Делиться с учащимися доступами к нейросети для самостоятельной работы без ограничений.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Использовать только зарубежные нейросети для повышения качества материалов.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-4</text>
+    </name>
+    <questiontext format="html">
+      <text>Выберите наиболее подходящий запрос к нейросети для генерации плана урока для 4 класса:</text>
+    </questiontext>
+    <idnumber>Q-002-4</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Составь план урока по математике для 4 класса на тему «Дроби» с учётом возрастных особенностей.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Напиши сложную контрольную работу по математике для 4 класса без пояснений.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Создай тест по физике для 10 класса на тему «Механика».</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Сделай презентацию по истории для 11 класса без указания темы.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-4</text>
+    </name>
+    <questiontext format="html">
+      <text>Что из перечисленного НЕ является примером применения генеративной нейросети в работе учителя?</text>
+    </questiontext>
+    <idnumber>Q-003-4</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Генерация плана урока с учётом возрастных особенностей.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Создание индивидуальных заданий для учащихся с разным уровнем подготовки.</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Автоматическая проверка домашних заданий с выставлением оценок без участия учителя.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Разработка проверочной работы по пройденной теме.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+</quiz>

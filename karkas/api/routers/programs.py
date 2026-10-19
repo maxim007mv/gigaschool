@@ -21,6 +21,7 @@ from karkas.infra.db import get_session
 from karkas.infra.repos import framework as framework_repo
 from karkas.infra.repos import jobs as jobs_repo
 from karkas.infra.repos import programs as programs_repo
+from karkas.infra.sql_dialect import isoformat_value, uses_sqlite
 
 router = APIRouter(prefix="/programs", tags=["programs"], dependencies=[Depends(enforce_rate_limit)])
 
@@ -88,10 +89,13 @@ async def create_program(
     # одновременные повторы с одним ключом; ключ задачи уникален на попытку
     # (program_id в ключе), поэтому просроченный (TTL) ключ не «прилипает».
     if idempotency_key:
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
-            {"k": f"http-idem:{org_id}:{idempotency_key}"},
-        )
+        if not uses_sqlite():
+            # Advisory-lock сериализует одновременные повторы с одним ключом.
+            # В SQLite такой функции нет; там достаточно уникального индекса job.
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+                {"k": f"http-idem:{org_id}:{idempotency_key}"},
+            )
         existing = await jobs_repo.find_by_idempotency(session, f"http:{idempotency_key}", org_id=org_id)
         if existing is not None and existing.get("program_id"):
             response.headers["Location"] = f"/api/v1/jobs/{existing['id']}"
@@ -175,7 +179,7 @@ async def list_programs(
             kind=r["kind"],
             total_hours=r["total_hours"],
             status=r["status"],
-            updated_at=r["updated_at"].isoformat(),
+            updated_at=isoformat_value(r["updated_at"]),
         )
         for r in rows
     ]
@@ -311,7 +315,7 @@ async def list_versions(
             schemas.VersionItemOut(
                 version=r["version"],
                 reason=r["reason"],
-                created_at=r["created_at"].isoformat(),
+                created_at=isoformat_value(r["created_at"]) or "",
                 created_by=str(r["created_by"]) if r["created_by"] else None,
             ).model_dump()
             for r in rows

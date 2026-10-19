@@ -477,6 +477,36 @@ async def test_latency_is_measured() -> None:
     assert time.monotonic() > 0
 
 
+def test_read_error_is_transient() -> None:
+    """Обрыв соединения (httpx.ReadError) должен ретраиться, а не падать сразу."""
+    import httpx
+
+    from karkas.agent.llm_gateway import _is_transient
+
+    assert _is_transient(httpx.ReadError("connection reset"))
+
+
+class BudgetMeter(FakeMeter):
+    """Meter с общим счётчиком расходов за сутки (как PgMeter)."""
+
+    def __init__(self, spent: Decimal) -> None:
+        super().__init__()
+        self.spent = spent
+
+    async def spent_today_rub(self) -> Decimal:
+        return self.spent
+
+
+async def test_daily_budget_uses_shared_meter_counter() -> None:
+    """Лимит проверяется по общему счётчику БД, а не только по памяти gateway."""
+    client = FakeClient(['{"name": "a", "n": 1}'])
+    meter = BudgetMeter(Decimal("101.0"))
+    gateway = make_gateway(client, meter, daily_budget_rub=Decimal("100.0"))
+    with pytest.raises(DailyBudgetExceededError, match="Превышен дневной бюджет"):
+        await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)
+    assert client.calls == []
+
+
 async def test_daily_budget_limit_blocks_excessive_calls() -> None:
     """Превышение дневного бюджета блокирует дальнейшие вызовы."""
     client = FakeClient(['{"name": "a", "n": 1}'])

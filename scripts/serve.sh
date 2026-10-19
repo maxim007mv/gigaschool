@@ -34,7 +34,8 @@ echo "Миграции…"
 .venv/bin/python -m migrations.runner --demo
 
 echo "Запуск воркера очереди job…"
-.venv/bin/python -m karkas.worker --concurrency 2 &
+# Один job за раз: внутри job семафор шлюза даёт не более 2 LLM-запросов.
+.venv/bin/python -m karkas.worker --concurrency 1 &
 WORKER_PID=$!
 trap 'kill "$WORKER_PID" 2>/dev/null || true' EXIT
 

@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-19 — ревизия после прогона: живые examples, lite, embeddings, покрытие
+
+### Проблема
+Examples были фикстурами с «Вопрос Q-001» и «Слайд не сформирован»; lite-режим падал на первом экране; embeddings всегда отправляли Matryoshka-параметр и получали 400; S06 допускал одинаковые LO у разных компетенций; ДПП не получал ПС до Human Gate; V-CNT считал «9» пустым вариантом; полная V-* не входила в run_eval; бюджет/лимиты не были общими для процессов.
+
+### Фикс
+- Перегенерированы `examples/tk1` и `examples/tk2` вживую (GigaChat-3-Pro, Cloud.ru FM); добавлены `metrics.json`, Moodle XML, `scripts/export_kit_artifacts.py`; README с измеренными метриками.
+- Lite: JSON-поля из SQLite (`profile`, `content.body`, оценки), даты, `now()`, `Idempotency-Key`, таблицы `source_usage`/`program_file`, `topic.locked`; demo-программа приводится к `full_time`; добавлен `scripts/lite_smoke.py` и интеграционный тест.
+- Embeddings: убран `dimensions` (Giga-Embeddings не поддерживает Matryoshka), исправлены батчи и учёт токенов; тест на 20 текстов.
+- Покрытие: глобальная уникальность LO в S06, `total_hours` в framework-входе, детерминированное переиспользование заданий для V-COV-02, ПС/ТФ до Human Gate, тема этики/ПДн для TK2-4.
+- V-CNT принимает односимвольные варианты; V-LNG пропускает идентификаторы/выражения; отчёт kit прикрепляется к kit (а не отчёт каркаса); `run_eval --validate` и `--live` проверяют полный V-*.
+- Лимиты: `MODEL_ALLOWLIST` только сужает allowlist; extra_body не переопределяет model/max_tokens; дневной бюджет считается по `llm_call` организации; circuit 10/5 с; worker/API по одному процессу; prod JWT ≥32 без placeholder.
+- `run_eval --validate` добавлен в `scripts/check.sh` и CI; `.env.example` по умолчанию lite с корректными моделями.
+
+### Проверка
+`pytest tests/unit tests/eval tests/integration`; `ruff check/format`; `mypy`; `bash scripts/test_migrations.sh`; `scripts/lite_smoke.py`; `run_eval --kit examples/tk1 --case tk1 --validate` (6/6, 0 ошибок) и tk2 (7/7, 0 ошибок); web `tsc`, `vitest` (28/28), `eslint`; live TK1 331 с / 40 вызовов / 92 408 токенов / 9.14 ₽; live TK2 260 с / 31 вызов / 75 053 токена / 7.47 ₽.
+
+### Статус деплоя
+Готово к коммиту и пушу.
+
+---
+
 ## 2026-10-19 — ТЗ 19.10: примеры УМК, httpx Cloud.ru, лимиты, BLE, lifespan и UX
 
 ### Проблема

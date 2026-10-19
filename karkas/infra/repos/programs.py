@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from karkas.infra.sql_dialect import json_param, uses_sqlite, uuid_param
+from karkas.infra.sql_dialect import isoformat_value, json_param, now_expr, uses_sqlite, uuid_param
 
 STATUS_GATE = ("framework_approved", "kit_generating", "kit_review", "kit_updating")
 
@@ -143,7 +143,7 @@ async def list_programs(
 
 
 def make_cursor(row: dict[str, Any]) -> str:
-    return f"{row['updated_at'].isoformat()}|{row['id']}"
+    return f"{isoformat_value(row['updated_at'])}|{row['id']}"
 
 
 async def update_program(
@@ -178,13 +178,13 @@ async def update_program(
             raise ValueError(f"Поле {key} нельзя обновлять через update_program")
         param = f"v_{key}"  # уникальное имя параметра на каждое поле
         if key in ("profile", "constraints"):
-            sets.append(f"{key} = CAST(:{param} AS jsonb)")
+            sets.append(f"{key} = {json_param(param)}")
             params[param] = json.dumps(value, ensure_ascii=False)
         elif key == "kind":
-            sets.append(f"{key} = CAST(:{param} AS program_kind)")
+            sets.append(f"{key} = :{param}" if uses_sqlite() else f"{key} = CAST(:{param} AS program_kind)")
             params[param] = value
         elif key == "form":
-            sets.append(f"{key} = CAST(:{param} AS program_form)")
+            sets.append(f"{key} = :{param}" if uses_sqlite() else f"{key} = CAST(:{param} AS program_form)")
             params[param] = value
         else:
             sets.append(f"{key} = :{param}")
@@ -215,11 +215,13 @@ async def set_status(
 
     ``expected_lock_version`` — атомарный CAS для approve (If-Match).
     """
-    sql = """
+    status_expr = ":status" if uses_sqlite() else "CAST(:status AS program_status)"
+    approved_by_expr = uuid_param("approved_by")
+    sql = f"""
         UPDATE program
-        SET status = CAST(:status AS program_status),
-            approved_by = CASE WHEN :status = 'framework_approved' THEN CAST(:approved_by AS uuid) ELSE approved_by END,
-            approved_at = CASE WHEN :status = 'framework_approved' THEN now() ELSE approved_at END
+        SET status = {status_expr},
+            approved_by = CASE WHEN :status = 'framework_approved' THEN {approved_by_expr} ELSE approved_by END,
+            approved_at = CASE WHEN :status = 'framework_approved' THEN {now_expr()} ELSE approved_at END
         WHERE id = :pid
     """
     params: dict[str, Any] = {"pid": program_id, "status": status, "approved_by": approved_by}
@@ -392,16 +394,18 @@ async def save_answers(
     answered_by: str | None = None,
 ) -> None:
     """Записать ответы: {вопрос_id: значение}. use_default → is_default=true."""
+    answered_by_expr = uuid_param("answered_by")
+    qid_expr = uuid_param("qid")
     for question_id, value in answers.items():
         await session.execute(
             text(
-                """
+                f"""
                 UPDATE clarification
                 SET answer = :answer,
                     is_default = :is_default,
-                    answered_by = CAST(:answered_by AS uuid),
-                    answered_at = now()
-                WHERE id = CAST(:qid AS uuid) AND program_id = :pid
+                    answered_by = {answered_by_expr},
+                    answered_at = {now_expr()}
+                WHERE id = {qid_expr} AND program_id = :pid
                 """
             ),
             {
@@ -562,11 +566,13 @@ async def save_version(
             )
         ).scalar_one()
     )
+    snapshot_expr = json_param("snapshot")
+    created_by_expr = uuid_param("created_by")
     await session.execute(
         text(
-            """
+            f"""
             INSERT INTO program_version (program_id, version, reason, snapshot, snapshot_hash, created_by)
-            VALUES (:pid, :version, :reason, CAST(:snapshot AS jsonb), :hash, CAST(:created_by AS uuid))
+            VALUES (:pid, :version, :reason, {snapshot_expr}, :hash, {created_by_expr})
             """
         ),
         {
@@ -632,11 +638,14 @@ async def audit(
     program_id: str | None = None,
     details: dict[str, Any] | None = None,
 ) -> None:
+    actor_expr = uuid_param("actor_id")
+    program_expr = uuid_param("program_id")
+    details_expr = json_param("details")
     await session.execute(
         text(
-            """
+            f"""
             INSERT INTO audit_log (org_id, actor_id, program_id, action, details)
-            VALUES (:org_id, CAST(:actor_id AS uuid), CAST(:program_id AS uuid), :action, CAST(:details AS jsonb))
+            VALUES (:org_id, {actor_expr}, {program_expr}, :action, {details_expr})
             """
         ),
         {

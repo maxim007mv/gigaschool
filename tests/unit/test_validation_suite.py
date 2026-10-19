@@ -279,6 +279,18 @@ def test_lng_01_code_and_commands_exempt():
     assert "V-LNG-01" not in codes(run(kit))
 
 
+def test_lng_01_code_options_and_expressions_exempt():
+    """Варианты-код в тестах не должны считаться нерусским текстом."""
+    kit = build_clean_kit()
+    kit.content.assessments[0].options = [
+        AssessmentOption(id="a", text="print()"),
+        AssessmentOption(id="b", text="my_var"),
+        AssessmentOption(id="c", text="x > 5 and x < 10"),
+        AssessmentOption(id="d", text="fruits = {'fruit1': 'apple'}; print(fruits['fruit1'])"),
+    ]
+    assert "V-LNG-01" not in codes(run(kit))
+
+
 # ---------------------------------------------------------------------------
 # V-PLG-01: заимствования из референсов
 # ---------------------------------------------------------------------------

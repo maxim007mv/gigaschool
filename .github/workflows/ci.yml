@@ -41,6 +41,10 @@ jobs:
           PGUSER: postgres
           KARKAS_TEST_DATABASE_URL: postgresql+asyncpg://postgres@127.0.0.1:5432/postgres
         run: .venv/bin/pytest tests --ignore=tests/payments_audit -q
+      - name: Eval examples (full validation)
+        run: |
+          .venv/bin/python scripts/run_eval.py --kit examples/tk1/kit_tk1.json --case tk1 --validate
+          .venv/bin/python scripts/run_eval.py --kit examples/tk2/kit_tk2.json --case tk2 --validate
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

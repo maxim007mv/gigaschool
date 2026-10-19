@@ -37,6 +37,7 @@ from karkas.infra.repos import framework as framework_repo
 from karkas.infra.repos import jobs as jobs_repo
 from karkas.infra.repos import programs as programs_repo
 from karkas.infra.repos.framework import LockVersionConflict
+from karkas.infra.sql_dialect import isoformat_value, uses_sqlite
 
 router = APIRouter(prefix="/programs", tags=["framework"], dependencies=[Depends(enforce_rate_limit)])
 
@@ -280,9 +281,10 @@ async def approve_framework(
             snapshot=kit.model_dump(mode="json"),
             created_by=principal.user_id,
         )
+    pid_sql = ":pid" if uses_sqlite() else "CAST(:pid AS uuid)"
     approved_at = (
         await session.execute(
-            text("SELECT approved_at FROM program WHERE id = CAST(:pid AS uuid)"),
+            text(f"SELECT approved_at FROM program WHERE id = {pid_sql}"),
             {"pid": program_id},
         )
     ).scalar_one_or_none()
@@ -299,7 +301,7 @@ async def approve_framework(
         status="framework_approved",
         version=version,
         approved_by=principal.user_id,
-        approved_at=approved_at.isoformat() if approved_at else None,
+        approved_at=isoformat_value(approved_at),
     )
 
 

@@ -30,6 +30,11 @@ APPROVED_GATEWAY_HOSTS: frozenset[str] = frozenset(
     }
 )
 
+#: Ключи extra_body, которые нельзя переопределять: они уже заданы шлюзом.
+RESERVED_EXTRA_BODY_KEYS: frozenset[str] = frozenset(
+    {"model", "messages", "max_tokens", "response_format", "temperature", "stream", "input"}
+)
+
 #: Белый список разрешённых моделей Cloud.ru FM (GigaChat-3-Pro, Reasoning, Giga-Embeddings)
 APPROVED_MODELS: frozenset[str] = frozenset(
     {
@@ -107,14 +112,19 @@ class Settings(BaseSettings):
             raise ValueError(f"LLM_EXTRA_BODY_JSON: невалидный JSON ({exc.msg})") from exc
         if not isinstance(parsed, dict):
             raise ValueError('LLM_EXTRA_BODY_JSON: ожидается JSON-объект, например {"reasoning":{"enabled":false}}')
+        reserved = sorted(set(parsed) & RESERVED_EXTRA_BODY_KEYS)
+        if reserved:
+            raise ValueError(
+                f"LLM_EXTRA_BODY_JSON: нельзя переопределять служебные поля {', '.join(reserved)} — они задаются шлюзом"
+            )
         return value
 
     llm_max_output_tokens: int = Field(default=4096, ge=0, le=4096)  # хаб: max_tokens ≤ 4096
     llm_max_repairs: int = Field(default=2, ge=0)  # «ремонт» JSON до 2 раз
     llm_backoff_base_s: float = 1.0  # 1 → 2 → 4 с + джиттер
-    llm_circuit_failures: int = 5  # 5 ошибок за окно → размыкание
-    llm_circuit_window_s: int = 30
-    llm_circuit_cooldown_s: int = 20
+    llm_circuit_failures: int = 10  # 10 ошибок за окно → размыкание (сеть шлюза бывает нестабильной)
+    llm_circuit_window_s: int = 60
+    llm_circuit_cooldown_s: int = 5  # успевает сработать ретрай навыка (3 попытки)
 
     # --- Бюджеты и правила домена ----------------------------------------
     framework_slo_s: int = 180
@@ -192,22 +202,32 @@ class Settings(BaseSettings):
     def _apply_lite_and_prod(self) -> Settings:
         if self.karkas_lite and not self.database_url.startswith("sqlite"):
             self.database_url = "sqlite+aiosqlite:///./var/karkas.db"
-        if self.environment == "prod" and self.jwt_secret in ("", "change-me"):
-            raise ValueError("JWT_SECRET обязателен в проде (environment=prod)")
+        if self.environment == "prod" and (
+            self.jwt_secret in ("", "change-me", "change-me-in-prod") or len(self.jwt_secret) < 32
+        ):
+            raise ValueError("JWT_SECRET обязателен в проде: не менее 32 символов, без placeholder-значений")
         if self.environment != "test":
             explicit_allowlist = tuple(m.strip() for m in self.model_allowlist.split(",") if m.strip())
-            for model_name in (self.model_struct, self.model_bulk):
-                if model_name and model_name not in APPROVED_MODELS and model_name not in explicit_allowlist:
+            unknown_allowlist = sorted(set(explicit_allowlist) - APPROVED_MODELS)
+            if unknown_allowlist:
+                raise ValueError(
+                    "MODEL_ALLOWLIST может только сужать белый список Cloud.ru FM; "
+                    f"неизвестные модели: {', '.join(unknown_allowlist)}"
+                )
+            allowed = APPROVED_MODELS | set(explicit_allowlist)
+            for label, model_name in (
+                ("MODEL_STRUCT", self.model_struct),
+                ("MODEL_BULK", self.model_bulk),
+                ("MODEL_EMBED", self.model_embed),
+                ("MODEL_RERANK", self.model_rerank),
+                ("MODEL_STRUCT_BACKUP", self.model_struct_backup),
+                ("MODEL_BULK_BACKUP", self.model_bulk_backup),
+            ):
+                if model_name and model_name not in allowed:
                     raise ValueError(
-                        f"Модель {model_name!r} не входит в белый список разрешённых моделей Cloud.ru FM: "
+                        f"{label}={model_name!r} не входит в белый список разрешённых моделей Cloud.ru FM: "
                         f"{', '.join(sorted(APPROVED_MODELS))}"
                     )
-            embed_allowed = APPROVED_MODELS | set(explicit_allowlist)
-            if self.model_embed and self.model_embed not in embed_allowed:
-                raise ValueError(
-                    f"Модель эмбеддингов {self.model_embed!r} не входит в белый список моделей Cloud.ru FM: "
-                    f"{', '.join(sorted(APPROVED_MODELS))}"
-                )
         return self
 
 

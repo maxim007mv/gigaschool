@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+from typing import Any
+
 from karkas.settings import settings
 
 
@@ -48,3 +51,16 @@ def cache_hit_pct_expr() -> str:
     if uses_sqlite():
         return "round(100.0 * avg(cache_hit), 1)"
     return "round(100.0 * avg(cache_hit::int), 1)"
+
+
+def isoformat_value(value: Any) -> str | None:
+    """Дата/время → ISO-строка.
+
+    PostgreSQL возвращает ``datetime``, SQLite — уже строку. Раньше роутеры
+    вызывали ``.isoformat()`` напрямую и падали в lite-режиме (500).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return str(value)

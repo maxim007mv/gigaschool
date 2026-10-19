@@ -51,3 +51,26 @@ def test_strict_concurrency_and_token_limits() -> None:
         Settings(llm_concurrency=4)
     with pytest.raises(ValueError):
         Settings(llm_max_output_tokens=8192)
+
+
+def test_allowlist_cannot_expand_approved_models() -> None:
+    """MODEL_ALLOWLIST — только сужение, а не обход белого списка."""
+    with pytest.raises(ValueError, match="неизвестные модели"):
+        Settings(model_allowlist="gpt-4", model_struct="gpt-4")
+
+
+def test_real_reasoning_model_is_accepted() -> None:
+    """Точный id рассуждающей модели из хаба входит в белый список."""
+    s = Settings(model_struct="ai-sage/GigaChat3.5-432B-A28B-Reasoning")
+    assert s.model_struct == "ai-sage/GigaChat3.5-432B-A28B-Reasoning"
+
+
+def test_extra_body_cannot_override_service_fields() -> None:
+    """LLM_EXTRA_BODY_JSON не должен переопределять model/max_tokens/response_format."""
+    with pytest.raises(ValueError, match="служебные поля"):
+        Settings(llm_extra_body_json='{"model":"gpt-4"}')
+
+
+def test_prod_rejects_placeholder_jwt_secret() -> None:
+    with pytest.raises(ValueError, match="JWT_SECRET"):
+        Settings(environment="prod", jwt_secret="change-me-in-prod")

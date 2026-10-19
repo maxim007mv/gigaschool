@@ -16,7 +16,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 SQLITE_DIR = Path(__file__).resolve().parent / "sqlite"
-LITE_SQL = SQLITE_DIR / "001_lite.sql"
+
+
+def _lite_files() -> list[Path]:
+    """Все lite-миграции по порядку номеров (001, 002, …)."""
+    return sorted(SQLITE_DIR.glob("*.sql"))
+
 
 ORG_ID = "00000000-0000-0000-0000-0000000000a1"
 USER_ID = "00000000-0000-0000-0000-0000000000a2"
@@ -36,7 +41,6 @@ async def apply_lite(database_url: str, *, include_demo: bool = False) -> list[s
         database_url,
         connect_args={"check_same_thread": False} if database_url.startswith("sqlite") else {},
     )
-    digest = hashlib.sha256(LITE_SQL.read_bytes()).digest()
     async with engine.begin() as conn:
         await conn.execute(text("PRAGMA foreign_keys=ON"))
         await conn.execute(
@@ -50,23 +54,26 @@ async def apply_lite(database_url: str, *, include_demo: bool = False) -> list[s
                 """
             )
         )
-        row = (
-            await conn.execute(
-                text("SELECT sha256 FROM schema_migrations WHERE filename = :f"),
-                {"f": LITE_SQL.name},
-            )
-        ).first()
-        if row is None:
-            script = LITE_SQL.read_text(encoding="utf-8")
+        for path in _lite_files():
+            digest = hashlib.sha256(path.read_bytes()).digest()
+            row = (
+                await conn.execute(
+                    text("SELECT sha256 FROM schema_migrations WHERE filename = :f"),
+                    {"f": path.name},
+                )
+            ).first()
+            if row is not None:
+                continue
+            script = path.read_text(encoding="utf-8")
             for chunk in script.split(";"):
                 stmt = chunk.strip()
                 if stmt and not stmt.startswith("PRAGMA"):
                     await conn.execute(text(stmt))
             await conn.execute(
                 text("INSERT INTO schema_migrations (filename, sha256) VALUES (:f, :d)"),
-                {"f": LITE_SQL.name, "d": digest},
+                {"f": path.name, "d": digest},
             )
-            applied.append(LITE_SQL.name)
+            applied.append(path.name)
         await _seed_core(conn)
         applied.append("seed_core")
         if include_demo:
@@ -253,6 +260,13 @@ async def _seed_core(conn) -> None:  # type: ignore[no-untyped-def]
 async def _seed_demo_program(conn) -> None:  # type: ignore[no-untyped-def]
     exists = (await conn.execute(text("SELECT 1 FROM program WHERE id = :id"), {"id": DEMO_PROGRAM_ID})).first()
     if exists:
+        # Демо-каркас был создан в режиме distance без часов ДОТ и не мог
+        # пройти Human Gate. Это демонстрационные данные, а не пользовательские,
+        # поэтому приводим их к согласованному виду.
+        await conn.execute(
+            text("UPDATE program SET form = 'full_time' WHERE id = :id AND form = 'distance'"),
+            {"id": DEMO_PROGRAM_ID},
+        )
         return
     profile = json.dumps(
         {"audience": "Специалисты, начинающие работу в ИТ", "entry_level": "начальный", "demo": True},
@@ -263,7 +277,7 @@ async def _seed_demo_program(conn) -> None:  # type: ignore[no-untyped-def]
             """
             INSERT INTO program (id, org_id, owner_id, title, kind, form, total_hours, final_att_hours,
                                  final_att_form, status, profile, constraints, goal)
-            VALUES (:id, :org, :owner, :title, 'dpp_pk', 'distance', 16, 2,
+            VALUES (:id, :org, :owner, :title, 'dpp_pk', 'full_time', 16, 2,
                     'Защита мини-проекта', 'framework_review', :profile, '{}',
                     'Демо: каркас для проверки часов в UI')
             """

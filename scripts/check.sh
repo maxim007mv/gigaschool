@@ -20,6 +20,11 @@ fi
 
 .venv/bin/pytest tests --ignore=tests/payments_audit -q
 
+if [[ -f examples/tk1/kit_tk1.json && -f examples/tk2/kit_tk2.json ]]; then
+  .venv/bin/python scripts/run_eval.py --kit examples/tk1/kit_tk1.json --case tk1 --validate
+  .venv/bin/python scripts/run_eval.py --kit examples/tk2/kit_tk2.json --case tk2 --validate
+fi
+
 if [[ -d web/node_modules ]]; then
   (cd web && npm run typecheck)
 else

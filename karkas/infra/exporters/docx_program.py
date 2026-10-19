@@ -820,7 +820,10 @@ def _add_dop_part_1(document: DocxDocument, kit: KitV1) -> None:
     calendar = kit.framework.calendar
 
     document.add_heading("1.1. Актуальность Программы", level=2)
-    _para(document, _template_section_text(kit, "актуальность") or ANNOTATION_MISSING_TEXT)
+    _para(
+        document,
+        _template_section_text(kit, "актуальность") or _annotation_for_export(kit) or ANNOTATION_MISSING_TEXT,
+    )
 
     document.add_heading("1.2. Категории обучающихся", level=2)
     _para(

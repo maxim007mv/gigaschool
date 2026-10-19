@@ -43,6 +43,9 @@ _CODE_SNIPPET_RE = re.compile(
     re.IGNORECASE,
 )
 
+_SINGLE_TOKEN_CODE_RE = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_.]*\s*\(.*\)|[A-Za-z0-9_]+)$")
+_EXPRESSION_CODE_RE = re.compile(r"[=<>{};\[\]]")
+
 _COMMAND_SNIPPET_RE = re.compile(
     r"^\s*(?:[$#>]|\w+@\w+[:~].*[$#])\s*\S+|"  # prompt markers like "$ git commit", "# apt update"
     r"^\s*(?:git\s+(?:clone|commit|checkout|pull|push|add|status|branch|merge|init|rebase|log)|docker\s+|docker-compose\s+|podman\s+|kubectl\s+|helm\s+|minikube\s+)|"
@@ -63,6 +66,12 @@ def _looks_like_code_snippet(text: str) -> bool:
     if not stripped:
         return False
     if stripped.startswith("```") or stripped.startswith("`"):
+        return True
+    # Отдельные идентификаторы/вызовы (print(), my_var, 1stValue) и выражения
+    # (fruits = {...}, x > 5 and x < 10) — код, а не текст программы.
+    if cyrillic_letters(stripped) == 0 and "\n" not in stripped and _SINGLE_TOKEN_CODE_RE.match(stripped):
+        return True
+    if cyrillic_letters(stripped) == 0 and _EXPRESSION_CODE_RE.search(stripped):
         return True
     lines = [line.strip() for line in stripped.splitlines() if line.strip()]
     if not lines:

@@ -19,6 +19,7 @@ from karkas.api.errors import Forbidden, NotFound
 from karkas.infra.db import get_session
 from karkas.infra.repos import files as files_repo
 from karkas.infra.repos import jobs as jobs_repo
+from karkas.infra.sql_dialect import isoformat_value, uses_sqlite
 
 router = APIRouter(prefix="/kb", tags=["kb"], dependencies=[Depends(enforce_rate_limit)])
 
@@ -39,6 +40,8 @@ async def add_document(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict:
     """Добавить документ в базу знаний организации и запустить разбор на фрагменты."""
+    if uses_sqlite():
+        raise Forbidden("База знаний доступна только при подключённом PostgreSQL (не в lite-режиме)")
     if principal.is_service or not principal.org_id:
         raise Forbidden("База знаний доступна пользователю организации")
     file_row = await files_repo.get_file(session, payload.file_id, principal.org_id)
@@ -79,6 +82,8 @@ async def list_documents(
     principal: CurrentPrincipal,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict:
+    if uses_sqlite():
+        raise Forbidden("База знаний доступна только при подключённом PostgreSQL (не в lite-режиме)")
     if principal.is_service or not principal.org_id:
         raise Forbidden("База знаний доступна пользователю организации")
     rows = (
@@ -111,7 +116,7 @@ async def list_documents(
                 "filename": r["filename"],
                 "size_bytes": r["size_bytes"],
                 "chunks": r["chunks"],
-                "created_at": r["created_at"].isoformat(),
+                "created_at": isoformat_value(r["created_at"]) or "",
             }
             for r in rows
         ]
@@ -125,6 +130,8 @@ async def delete_document(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     """Удалить документ базы знаний (только администратор организации)."""
+    if uses_sqlite():
+        raise Forbidden("База знаний доступна только при подключённом PostgreSQL (не в lite-режиме)")
     if principal.is_service or not principal.org_id:
         raise Forbidden("База знаний доступна администратору организации")
     file_id = (

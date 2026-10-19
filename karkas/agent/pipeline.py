@@ -142,6 +142,18 @@ class PgMeter:
         self.program_id = program_id
         self.job_id = job_id
 
+    async def spent_today_rub(self) -> Decimal:
+        """Сумма расходов организации за сутки — общий лимит для всех процессов."""
+        from karkas.infra.repos import usage as usage_repo
+
+        factory = get_session_factory()
+        try:
+            async with factory() as session:
+                return await usage_repo.org_spent_today(session, self.org_id)
+        except (SQLAlchemyError, OSError, ConnectionError, TimeoutError) as exc:
+            logger.warning("llm.budget_query_failed", error=str(exc))
+            return Decimal("0")
+
     async def record(
         self,
         skill: str,
@@ -929,6 +941,7 @@ async def framework_core(
         "references": references,
         "reference_texts": [ref["text"] for ref in references if (ref.get("text") or "").strip()],
         "kind": program.get("kind") or answers.get("kind"),
+        "total_hours": program.get("total_hours") or constraints.get("total"),
         "profile": program.get("profile") or {},
         "constraints": constraints,
         "registries": registries,
@@ -959,6 +972,12 @@ async def framework_core(
     s09 = await ctx.checkpoint.load(f"{prefix}S09") or {}
 
     kit = _assemble_kit(program, answers, s01, s02, s04, s05, s06, s07, s08, s09)
+    # Для ДПП перечень компетенций обязан содержать ПС/ТФ уже на Human Gate,
+    # иначе V-TPL-01 блокирует утверждение ещё до генерации комплекта.
+    from karkas.domain.kit_fixup import ensure_competency_prof
+
+    competencies = ensure_competency_prof(kit, list(kit.framework.competencies))
+    kit = kit.model_copy(update={"framework": kit.framework.model_copy(update={"competencies": competencies})})
     legal_basis = build_program_legal_basis(
         str(s02.get("kind") or program.get("kind") or "dop"),
         registries.get("normative_acts") or [],
@@ -1328,6 +1347,10 @@ async def kit_core(
         created_by=program.get("owner_id"),
     )
     if report is not None:
+        # В ответе API и в примерах нужен отчёт именно этапа «kit», а не
+        # последний отчёт каркаса, загруженный в начале kit_core.
+        report = report.model_copy(update={"version": new_version})
+        kit = kit.model_copy(update={"report": report})
         await framework_repo.save_report(session, program_id, new_version, report)
     await programs_repo.set_status(session, program_id=program_id, status="kit_review")
     await _publish(
@@ -1667,6 +1690,7 @@ async def edit_core(
     report = Report.model_validate(s19["report"]) if s19.get("report") else None
     if report is not None:
         await framework_repo.save_report(session, program_id, version, report)
+        patched_kit = patched_kit.model_copy(update={"report": report})
     await session.execute(
         text(
             """
@@ -1764,6 +1788,7 @@ async def kit_regenerate_core(
     report = Report.model_validate(s19["report"]) if s19.get("report") else None
     if report is not None:
         await framework_repo.save_report(session, program_id, version, report)
+        kit = kit.model_copy(update={"report": report})
     await programs_repo.set_status(session, program_id=program_id, status="kit_review")
     await _publish(
         program_id, "kit_regenerated", {"target_ref": target_ref, "version": version, "parts": list(part_set)}

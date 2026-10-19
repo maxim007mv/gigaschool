@@ -1,0 +1,541 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="multichoice">
+    <name>
+      <text>Q-001</text>
+    </name>
+    <questiontext format="html">
+      <text>Что будет выведено на экран после выполнения следующего кода на Python?
+
+x = 10
+if x &gt; 5:
+    print('Больше 5')
+else:
+    print('Меньше или равно 5')</text>
+    </questiontext>
+    <idnumber>Q-001</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Больше 5</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Меньше или равно 5</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Ошибка: переменная x не определена</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Больше 10</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое значение будет у переменной total после выполнения этого кода?
+
+numbers = [1, 2, 3, 4]
+for n in numbers:
+    total = total + n
+print(total)</text>
+    </questiontext>
+    <idnumber>Q-002</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>10</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Ошибка: переменная total не определена</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>1</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>4</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое значение вернёт функция calculate(7) при выполнении следующего кода?
+
+def calculate(x):
+    if x &gt; 0:
+        return x * 2
+    else:
+        return x + 1
+print(calculate(7))</text>
+    </questiontext>
+    <idnumber>Q-003</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>14</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>8</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>15</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>7</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-2</text>
+    </name>
+    <questiontext format="html">
+      <text>Что из перечисленного является примером алгоритмической конструкции ветвления на Python?</text>
+    </questiontext>
+    <idnumber>Q-001-2</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>x = 5</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>if x &gt; 0: print('Положительное')</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>for i in range(10): print(i)</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>print('Привет')</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO2.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-2</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое действие выполнит следующий фрагмент кода при x = 0? 
+
+if x &lt; 0:
+    print('Отрицательное')
+elif x == 0:
+    print('Ноль')
+else:
+    print('Положительное')</text>
+    </questiontext>
+    <idnumber>Q-002-2</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Ноль</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Отрицательное</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Положительное</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Программа не выполнит ни одного print</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO2.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-2</text>
+    </name>
+    <questiontext format="html">
+      <text>Какая из приведённых последовательностей действий реализует цикл while для вывода чисел от 1 до 5 с шагом 1?</text>
+    </questiontext>
+    <idnumber>Q-003-2</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>i = 1; while i &lt;= 5: print(i); i += 1</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>i = 1; while i &lt; 5: print(i); i += 1</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>i = 5; while i &gt;= 1: print(i); i -= 1</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>i = 1; while i &lt; 5: print(i); i += 2</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO2.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-3</text>
+    </name>
+    <questiontext format="html">
+      <text>Какое действие выполняет следующий фрагмент кода Python? 
+
+result = 0
+for x in [2, 4, 6]:
+    result += x
+print(result)</text>
+    </questiontext>
+    <idnumber>Q-003-3</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Выводит сумму всех элементов списка [2,4,6]</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Выводит произведение элементов списка</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Выводит количество элементов в списке</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Выводит последний элемент списка</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.2</text>
+      </tag>
+      <tag>
+        <text>LO2.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-3</text>
+    </name>
+    <questiontext format="html">
+      <text>Что из перечисленного НЕ входит в базовые принципы тестирования программ?</text>
+    </questiontext>
+    <idnumber>Q-001-3</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Ввод тестовых данных и анализ результатов</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Поиск и исправление ошибок в коде</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Оптимизация производительности программы</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Проверка соответствия программы исходным требованиям</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-3</text>
+    </name>
+    <questiontext format="html">
+      <text>Какой шаг является первым при тестировании программы?</text>
+    </questiontext>
+    <idnumber>Q-002-3</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Исправление найденных ошибок</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Запуск программы с тестовыми данными</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Анализ результатов выполнения</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Составление тестовых данных</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-4</text>
+    </name>
+    <questiontext format="html">
+      <text>Какой из перечисленных навыков НЕ требуется для базовой отладки программ на Python?</text>
+    </questiontext>
+    <idnumber>Q-003-4</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Умение анализировать сообщения об ошибках</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Знание синтаксиса Python</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Использование отладчика (debugger) для пошагового выполнения кода</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Умение писать сложные алгоритмы машинного обучения</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-5</text>
+    </name>
+    <questiontext format="html">
+      <text>В программе на Python возникает ошибка IndentationError. Какой инструмент отладки наиболее эффективен для её быстрого поиска?</text>
+    </questiontext>
+    <idnumber>Q-003-5</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Пошаговое выполнение кода в pdb.</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Использование линтера (например, pylint или flake8).</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Автоматическое исправление кода с помощью AI.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Тестирование с разными входными данными.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-4</text>
+    </name>
+    <questiontext format="html">
+      <text>Выберите наиболее подходящую идею для первого учебного проекта на Python из предложенных вариантов, учитывая, что проект должен быть реализуем за 8–10 учебных часов и не требовать сторонних библиотек.</text>
+    </questiontext>
+    <idnumber>Q-001-4</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Разработка текстовой версии игры 'Города', где нужно по очереди называть города на последнюю букву предыдущего.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Создание многопользовательской 3D-игры с поддержкой сетевого взаимодействия.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Разработка чат-бота для Telegram с использованием сложных API и машинного обучения.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Написание программы для визуализации статистических данных с использованием библиотек Matplotlib и Pandas.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.3</text>
+      </tag>
+      <tag>
+        <text>LO2.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-4</text>
+    </name>
+    <questiontext format="html">
+      <text>Какой этап планирования проекта на Python является обязательным для успешного выполнения учебной задачи?</text>
+    </questiontext>
+    <idnumber>Q-002-4</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>Выбор и детализация идеи, определение основных функций и интерфейса.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Публикация проекта в открытом доступе до завершения разработки.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Покупка доменного имени и хостинга для размещения проекта.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Сравнение производительности различных версий Python.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.3</text>
+      </tag>
+      <tag>
+        <text>LO2.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-6</text>
+    </name>
+    <questiontext format="html">
+      <text>При планировании учебного проекта на Python (например, игры или чат-бота) важно учитывать возможность поэтапной реализации. Какое утверждение верно?</text>
+    </questiontext>
+    <idnumber>Q-003-6</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Проект должен быть реализован полностью за один раз без промежуточных проверок.</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Этапное планирование позволяет проверять работоспособность отдельных частей программы и вносить корректировки.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Лучше сразу писать весь код, а тестировать только в самом конце.</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Планирование не требуется, если проект небольшой.</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.1</text>
+      </tag>
+      <tag>
+        <text>LO3.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-001-5</text>
+    </name>
+    <questiontext format="html">
+      <text>Какая из перечисленных задач входит в базовый этап тестирования программы на Python?</text>
+    </questiontext>
+    <idnumber>Q-001-5</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Составление алгоритма решения задачи</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Ввод тестовых данных и анализ результатов выполнения программы</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Проектирование интерфейса пользователя</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Оптимизация производительности готового кода</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.1</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-002-5</text>
+    </name>
+    <questiontext format="html">
+      <text>Что необходимо сделать, если при выполнении программы на Python получен вывод, отличный от ожидаемого?</text>
+    </questiontext>
+    <idnumber>Q-002-5</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Перейти к написанию новой программы</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Выполнить базовую отладку: проверить вводимые данные, логику кода и найти ошибку</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Удалить программу и начать изучение другого языка программирования</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Увеличить сложность программы, чтобы скрыть ошибку</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO3.2</text>
+      </tag>
+    </tags>
+  </question>
+  <question type="multichoice">
+    <name>
+      <text>Q-003-7</text>
+    </name>
+    <questiontext format="html">
+      <text>Какой этап является завершающим при разработке и тестировании небольшого проекта на Python (например, игры или чат-бота)?</text>
+    </questiontext>
+    <idnumber>Q-003-7</idnumber>
+    <single>true</single>
+    <shuffleanswers>1</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="0" format="html">
+      <text>Написание первой версии кода</text>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>Подготовка к защите и демонстрация работы программы</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Выбор темы проекта</text>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>Поиск дополнительных библиотек для проекта</text>
+    </answer>
+    <tags>
+      <tag>
+        <text>LO1.3</text>
+      </tag>
+      <tag>
+        <text>LO3.3</text>
+      </tag>
+    </tags>
+  </question>
+</quiz>

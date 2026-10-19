@@ -44,10 +44,29 @@ class _Client:
 
 class _Meter:
     def __init__(self) -> None:
-        self.records: list[tuple[Any, ...]] = []
+        self.records: list[dict[str, Any]] = []
 
-    async def record(self, *args: Any) -> None:
-        self.records.append(args)
+    async def record(
+        self,
+        skill: str,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        latency_ms: float,
+        ok: bool,
+        cache_hit: bool,
+    ) -> None:
+        self.records.append(
+            {
+                "skill": skill,
+                "model": model,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "latency_ms": latency_ms,
+                "ok": ok,
+                "cache_hit": cache_hit,
+            }
+        )
 
 
 @pytest.fixture
@@ -82,4 +101,4 @@ async def test_embeddings_process_all_batches_and_omit_dimensions(
         [f"text-{i}" for i in range(16, 20)],
     ]
     assert len(meter.records) == 2
-    assert sum(record[2] for record in meter.records) == 20
+    assert sum(record["prompt_tokens"] for record in meter.records) == 20

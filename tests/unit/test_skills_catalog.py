@@ -338,6 +338,29 @@ async def test_s06_filters_incomplete_competencies_and_foreign_lf() -> None:
     assert any("V-SRC-03" in gap for gap in result["gaps"])
 
 
+async def test_s06_outcome_refs_are_unique_across_competencies() -> None:
+    """Модель может повторить LO1.2 у C1 и C2 — БД требует глобальной уникальности."""
+    module = skill_module("S06")
+    outcomes = [
+        {"ref": "LO1.1", "type": "knowledge", "text": "Знает"},
+        {"ref": "LO1.2", "type": "skill", "text": "Умеет"},
+        {"ref": "LO1.3", "type": "experience", "text": "Владеет"},
+    ]
+    gateway = StubGateway(
+        {
+            "competencies": [
+                {"ref": "C1", "title": "Первая", "outcomes": outcomes},
+                {"ref": "C2", "title": "Вторая", "outcomes": outcomes},
+            ]
+        }
+    )
+    result = await module.run({"kind": "dop"}, make_ctx(gateway))
+    refs = [outcome["ref"] for comp in result["competencies"] for outcome in comp["outcomes"]]
+    assert len(refs) == len(set(refs))
+    assert refs[:3] == ["LO1.1", "LO1.2", "LO1.3"]
+    assert all(ref.startswith("LO2.") for ref in refs[3:])
+
+
 async def test_s06_dop_has_no_labor_functions() -> None:
     module = skill_module("S06")
     gateway = StubGateway(

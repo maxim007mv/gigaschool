@@ -13,8 +13,10 @@ from typing import Any
 
 import httpx
 
+import karkas.infra.exporters.bootstrap  # noqa: F401 — V-ACR-01 в run_validation
 from karkas.domain.brief_extract import slots_from_brief
 from karkas.domain.kit import KitV1
+from karkas.domain.validators import ValidationContext, run_validation
 from karkas.eval.checklists import format_report, run_checklist
 from karkas.eval.defense_metrics import estimate_gigachat3_pro_cost
 from karkas.eval.official_cases import OFFICIAL_CASES
@@ -34,6 +36,10 @@ class LiveRunReport:
     checklist_passed: int = 0
     checklist_total: int = 0
     checklist_failed: list[str] = field(default_factory=list)
+    validation_ok: bool = True
+    validation_errors: int = 0
+    validation_warnings: int = 0
+    validation_messages: list[str] = field(default_factory=list)
     detail: str | None = None
     kit_path: str | None = None
 
@@ -54,8 +60,15 @@ class LiveRunReport:
         if self.cost_rub:
             lines.append(f"- **Оценка ₽ (GigaChat-3-Pro):** {self.cost_rub}")
         lines.append(f"- **Чек-лист:** {self.checklist_passed}/{self.checklist_total}")
+        lines.append(
+            f"- **Полная самопроверка:** "
+            f"{'OK' if self.validation_ok else 'ЕСТЬ ОШИБКИ'} "
+            f"({self.validation_errors} ошибок, {self.validation_warnings} предупреждений)"
+        )
         if self.checklist_failed:
             lines.append("- **Провалы:** " + ", ".join(self.checklist_failed))
+        if self.validation_messages:
+            lines.append("- **Ошибки V-*:** " + "; ".join(self.validation_messages[:8]))
         if self.detail:
             lines.append(f"- **Детали:** {self.detail}")
         if self.kit_path:
@@ -239,6 +252,12 @@ def run_live_case(
         report.checklist_passed = sum(1 for r in results if r.passed)
         report.checklist_failed = [f"{r.item_id}: {r.detail}" for r in results if not r.passed]
         checklist_md = format_report(results)
+        full = run_validation(ValidationContext(kit=kit, stage="kit"))
+        errors = [i for i in full.issues if i.severity == "error"]
+        report.validation_errors = len(errors)
+        report.validation_warnings = sum(1 for i in full.issues if i.severity == "warning")
+        report.validation_ok = not errors
+        report.validation_messages = [f"{i.rule_code}: {i.message}" for i in errors]
         if out_dir:
             kit_path = out_dir / f"{case.case_id}_live_kit.json"
             kit_path.write_text(

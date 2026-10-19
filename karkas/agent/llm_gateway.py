@@ -68,10 +68,13 @@ _TRANSIENT_NAMES: frozenset[str] = frozenset(
         "ServiceUnavailableError",
         "ConnectError",
         "ConnectTimeout",
+        "ReadError",
         "ReadTimeout",
+        "WriteError",
         "WriteTimeout",
         "PoolTimeout",
         "RemoteProtocolError",
+        "ProtocolError",
     }
 )
 
@@ -219,8 +222,8 @@ def _extract_usage(response: Any) -> tuple[int, int]:
 
 
 def _is_transient(exc: BaseException) -> bool:
-    """Классификация ошибки: повторяемая (429/5xx/timeout) или нет."""
-    if isinstance(exc, (TransientError, TimeoutError)):
+    """Классификация ошибки: повторяемая (429/5xx/timeout/сеть) или нет."""
+    if isinstance(exc, (TransientError, TimeoutError, httpx.TransportError)):
         return True
     status = getattr(exc, "status_code", None)
     if isinstance(status, int) and (status == 429 or status >= 500):
@@ -294,13 +297,14 @@ class CloudRuFMClient:
                     "Content-Type": "application/json",
                 }
                 extra_body = kwargs.pop("extra_body", None)
-                payload: dict[str, Any] = dict(kwargs)
-                if extra_body and isinstance(extra_body, dict):
-                    payload.update(extra_body)
+                # Служебные поля (model/messages/max_tokens/response_format)
+                # должны побеждать extra_body, иначе конфиг обходит лимиты.
+                payload: dict[str, Any] = dict(extra_body) if isinstance(extra_body, dict) else {}
+                payload.update(kwargs)
                 async with httpx.AsyncClient(timeout=float(self._client.timeout)) as http_client:
                     response = await http_client.post(url, json=payload, headers=headers)
                     if response.status_code != 200:
-                        raise CloudRuHttpError(response.status_code, response.text)
+                        raise CloudRuHttpError(response.status_code, response.text or "<пустой ответ шлюза>")
                     return response.json()
 
 
@@ -368,11 +372,6 @@ class LlmGateway:
         валидация с «ремонтом» → кэш и учёт. Все ошибки типизированы:
         ``TransientError`` — можно повторить выше, ``LlmBadOutput`` — нельзя.
         """
-        if self._total_spent_rub >= self._settings.daily_budget_rub:
-            raise DailyBudgetExceededError(
-                f"Превышен дневной бюджет на LLM ({self._settings.daily_budget_rub} ₽): "
-                f"уже израсходовано {self._total_spent_rub:.2f} ₽"
-            )
         if model_class not in TEMPERATURE:
             raise ValueError(f"{skill}: неизвестный класс задачи {model_class!r}")
         temp = self._temperature(model_class, temperature)
@@ -388,6 +387,13 @@ class LlmGateway:
             if obj is not None:
                 await self._record(skill, model, 0, 0, 0.0, ok=True, cache_hit=True)
                 return obj
+
+        # Кэш отдаём даже после исчерпания бюджета: он не тратит токены.
+        spent = await self._spent_today_rub()
+        if spent >= self._settings.daily_budget_rub:
+            raise DailyBudgetExceededError(
+                f"Превышен дневной бюджет на LLM ({self._settings.daily_budget_rub} ₽): уже израсходовано {spent:.2f} ₽"
+            )
 
         attempt_messages = list(messages)
         repairs_done = 0
@@ -541,6 +547,25 @@ class LlmGateway:
         base = float(self._settings.llm_backoff_base_s) * (2**attempt)
         return base * random.uniform(*JITTER_RANGE)
 
+    async def _spent_today_rub(self) -> Decimal:
+        """Расход за сутки: максимум из локального счётчика и общего в БД.
+
+        ``PgMeter`` знает org_id и суммирует llm_call по всем процессам/задачам;
+        для тестов и NullMeter остаётся локальный счётчик.
+        """
+        spent = self._total_spent_rub
+        query = getattr(self._meter, "spent_today_rub", None)
+        if not callable(query):
+            return spent
+        try:
+            db_spent = await maybe_await(query())
+            if db_spent is None:
+                return spent
+            return max(spent, Decimal(str(db_spent)))
+        except Exception as exc:  # noqa: BLE001 — недоступность учёта не должна блокировать вызов
+            logger.warning("llm.budget_query_failed", error=str(exc))
+            return spent
+
     async def _record(
         self,
         skill: str,
@@ -613,6 +638,14 @@ class LlmGateway:
                         # переводить модель в режим «JSON только промптом».
                         self._json_mode[model] = False
                         continue
+                    logger.warning(
+                        "llm.request_failed",
+                        skill=skill,
+                        model=model,
+                        status=getattr(exc, "status_code", None),
+                        error_type=type(exc).__name__,
+                        error=str(exc)[:1000],
+                    )
                     raise LlmRequestError(f"{skill}: ошибка модели {model}: {exc}") from exc
                 self._register_failure(model)
                 last_error = exc
