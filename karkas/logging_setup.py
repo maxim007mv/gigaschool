@@ -35,7 +35,7 @@ class RedactSecretsFilter(logging.Filter):
                 }
             if isinstance(record.msg, str):
                 record.msg = self._redact(record.msg)
-        except Exception:
+        except (TypeError, ValueError, AttributeError, KeyError):
             pass  # логирование не должно падать из-за маскирования
         return True
 

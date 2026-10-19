@@ -24,7 +24,9 @@ from decimal import Decimal
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from karkas.agent.skill_runner import SkillRunner
@@ -170,8 +172,8 @@ class PgMeter:
                     cache_hit=bool(cache_hit),
                 )
                 await session.commit()
-        except Exception:  # учёт не должен ломать генерацию
-            logger.warning("llm.meter_failed", skill=skill, model=model)
+        except (SQLAlchemyError, OSError, ConnectionError, TimeoutError) as exc:  # учёт не должен ломать генерацию
+            logger.warning("llm.meter_failed", skill=skill, model=model, error=str(exc))
 
 
 class PgCache:
@@ -192,7 +194,8 @@ class PgCache:
                 value = await usage_repo.cache_get(session, self._digest(key))
                 await session.commit()
                 return value
-        except Exception:
+        except (SQLAlchemyError, OSError, ConnectionError, TimeoutError) as exc:
+            logger.debug("llm.cache_get_failed", error=str(exc))
             return None
 
     async def put(self, key: str, value: dict[str, Any], ttl_s: float | None = None) -> None:
@@ -206,8 +209,8 @@ class PgCache:
                     session, key=self._digest(key), model="cache", response=value, ttl_hours=ttl_hours
                 )
                 await session.commit()
-        except Exception:
-            logger.warning("llm.cache_put_failed")
+        except (SQLAlchemyError, OSError, ConnectionError, TimeoutError) as exc:
+            logger.warning("llm.cache_put_failed", error=str(exc))
 
 
 def make_gateway(program_id: str | None = None, org_id: str | None = None) -> Any:
@@ -1056,7 +1059,8 @@ def _assessment_from(item: dict[str, Any]) -> Assessment | None:
             outcome_refs=[str(r) for r in item.get("outcome_refs") or []],
             difficulty=item.get("difficulty"),
         )
-    except Exception:
+    except (ValidationError, KeyError, ValueError, TypeError) as exc:
+        logger.debug("pipeline.assessment_parse_failed", error=str(exc))
         return None
 
 
@@ -2239,7 +2243,7 @@ def _url_host(url: str) -> str:
     """
     try:
         host = httpx.URL(url).host
-    except Exception:
+    except (httpx.InvalidURL, ValueError, TypeError):
         return ""
     return (host or "").lower()
 
@@ -2528,8 +2532,9 @@ async def execute_run(run_id: str) -> None:
     dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
     try:
         lock_conn = await asyncpg.connect(dsn)
-    except Exception:
+    except (asyncpg.PostgresError, OSError, ConnectionError, TimeoutError) as exc:
         # БД недоступна — выполнение всё равно упадёт ниже с понятной ошибкой.
+        logger.warning("pipeline.lock_connect_failed", error=str(exc))
         await _execute_run_body(run_id)
         return
     lock_key = f"agent_run:{run_id}"

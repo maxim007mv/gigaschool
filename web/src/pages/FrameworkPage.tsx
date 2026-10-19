@@ -22,6 +22,7 @@ import {
   useApproveFramework,
   useFramework,
   useRebalanceFramework,
+  useRestoreVersion,
   useSaveFramework,
 } from "../shared/api/queries";
 import { T } from "../shared/i18n/ru";
@@ -55,6 +56,7 @@ export function FrameworkPage() {
   const saveFramework = useSaveFramework(id);
   const rebalance = useRebalanceFramework(id);
   const approve = useApproveFramework(id);
+  const restoreVersion = useRestoreVersion(id);
 
   const [draft, setDraft] = useState<LivePlan | null>(null);
   const [changes, setChanges] = useState<Map<CellKey, number>>(new Map());
@@ -64,6 +66,19 @@ export function FrameworkPage() {
   const [tab, setTab] = useState("plan");
 
   const version = frameworkQuery.data?.version;
+  const canRollback = Boolean(version && version > 1);
+
+  const rollbackToPrevious = async () => {
+    if (!version || version <= 1) return;
+    const target = version - 1;
+    try {
+      await restoreVersion.mutateAsync(target);
+      toast.show("success", `Выполнен откат к версии ${target}`);
+      void frameworkQuery.refetch();
+    } catch (err) {
+      toast.show("error", err instanceof Error ? err.message : T.app.error);
+    }
+  };
 
   // Новая версия каркаса — черновик перечитывается с сервера.
   useEffect(() => {
@@ -243,6 +258,23 @@ export function FrameworkPage() {
             <Link to="/" className="text-base text-primary underline underline-offset-2">
               ← К списку
             </Link>
+            <Link
+              to="/programs/$programId/versions"
+              params={{ programId: id }}
+              className="text-base text-primary underline underline-offset-2"
+            >
+              История версий ({data.version})
+            </Link>
+            {canRollback ? (
+              <Button
+                variant="secondary"
+                busy={restoreVersion.isPending}
+                onClick={rollbackToPrevious}
+                title={`Откатить к версии ${(version ?? 2) - 1}`}
+              >
+                Откатить к в.{(version ?? 2) - 1}
+              </Button>
+            ) : null}
             {approved ? (
               <Link
                 to="/programs/$programId/kit"

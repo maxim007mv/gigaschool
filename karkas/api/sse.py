@@ -82,7 +82,7 @@ class PgNotifyBridge:
 
             self._conn = await asyncpg.connect(self._dsn())
             await self._conn.add_listener(self.CHANNEL, self._handle)
-        except Exception:
+        except (asyncpg.PostgresError, OSError, ConnectionError, TimeoutError, RuntimeError):
             self._conn = None
             self._last_failure = time.monotonic()
 
@@ -103,6 +103,8 @@ class PgNotifyBridge:
         await self.ensure_started()
         if self._conn is None:
             return
+        import asyncpg
+
         try:
             # Соединение живёт в своём loop; страховочный таймаут не даёт
             # подвесить publish при кросс-loop вызове или мёртвом сокете.
@@ -114,11 +116,11 @@ class PgNotifyBridge:
                 ),
                 timeout=5.0,
             )
-        except Exception:
+        except (asyncpg.PostgresError, OSError, ConnectionError, TimeoutError, RuntimeError):
             conn = self._conn
             self._conn = None
             if conn is not None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(asyncpg.PostgresError, OSError, RuntimeError):
                     conn.terminate()  # sync, безопасно из любого потока
             self._last_failure = time.monotonic()
 

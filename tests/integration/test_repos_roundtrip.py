@@ -57,7 +57,7 @@ def _postgres_ready() -> bool:
     try:
         result = _psql("-c", "SELECT 1")
         return result.returncode == 0
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 

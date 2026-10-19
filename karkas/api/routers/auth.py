@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 from typing import Annotated
 
+import jwt
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -73,14 +74,12 @@ class MeOut(BaseModel):
 
 def _hash_verify(password: str, password_hash: str) -> bool:
     from argon2 import PasswordHasher
-    from argon2.exceptions import VerifyMismatchError
+    from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
     ph = PasswordHasher()
     try:
         return ph.verify(password_hash, password)
-    except VerifyMismatchError:
-        return False
-    except Exception:
+    except (VerifyMismatchError, InvalidHashError, VerificationError, ValueError):
         return False
 
 
@@ -174,7 +173,7 @@ async def logout(payload: LogoutIn | None = None) -> None:
             jti = str(claims.get("jti") or "")
             if jti:
                 _revoke(jti, float(claims.get("exp") or 0))
-        except Exception:
+        except (jwt.PyJWTError, ValueError, TypeError):
             pass  # logout идемпотентен: невалидный токен просто не отзывается
     return None
 

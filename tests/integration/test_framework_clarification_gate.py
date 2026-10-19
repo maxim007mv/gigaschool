@@ -19,7 +19,7 @@ def _postgres_ready() -> bool:
             ).returncode
             == 0
         )
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 

@@ -261,6 +261,24 @@ def test_lng_01_adult_audience_does_not_require_glossary():
     assert "V-LNG-01" not in codes(run(kit))
 
 
+def test_lng_01_code_and_commands_exempt():
+    kit = build_clean_kit()
+    from karkas.domain.kit import ContentBlock
+
+    kit.content.sections.append(
+        ContentBlock(
+            ref="SEC-CODE",
+            kind="annotation",
+            body={
+                "code": "docker run -d -p 8080:80 --name web nginx:latest",
+                "commands": "$ git clone https://github.com/repo && cd repo && make build",
+                "python_code": "import os\ndef get_path():\n    return os.environ.get('PATH')",
+            },
+        )
+    )
+    assert "V-LNG-01" not in codes(run(kit))
+
+
 # ---------------------------------------------------------------------------
 # V-PLG-01: заимствования из референсов
 # ---------------------------------------------------------------------------

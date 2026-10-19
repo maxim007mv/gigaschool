@@ -26,7 +26,7 @@ def _psql(*args: str) -> subprocess.CompletedProcess:
 def _postgres_ready() -> bool:
     try:
         return _psql("-c", "SELECT 1").returncode == 0
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 

@@ -90,16 +90,17 @@ def extract_docx(data: bytes) -> tuple[str, dict[str, Any]]:
 def extract_pdf(data: bytes) -> tuple[str, dict[str, Any]]:
     """Текст .pdf через pypdf. Скан без текстового слоя → meta.ocr_required."""
     from pypdf import PdfReader
+    from pypdf.errors import PyPdfError
 
     reader = PdfReader(io.BytesIO(data))
     pages: list[str] = []
     for page_number, page in enumerate(reader.pages, start=1):
         try:
             pages.append(_clean(page.extract_text() or ""))
-        except Exception:
+        except (PyPdfError, ValueError, KeyError, TypeError, IndexError) as exc:
             # Ошибка извлечения страницы не должна ронять загрузку файла,
             # но и молчать нельзя — фиксируем в лог для разбора.
-            logger.warning("ingest.pdf_page_failed", page=page_number)
+            logger.warning("ingest.pdf_page_failed", page=page_number, error=str(exc))
             pages.append("")
     text = "\n\n".join(pages)
     meta = {

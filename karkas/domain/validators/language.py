@@ -32,22 +32,58 @@ _MAX_TEXT_SHOWN = 60
 _MIN_CYRILLIC_LETTERS = 3
 _LAYOUT_IDS = frozenset({"title_and_content", "title", "title_only", "content"})
 _CODE_SNIPPET_RE = re.compile(
-    r"\b(if|elif|else)\b|"
-    r"\bfor\s+\w+\s+in\s+|"
-    r"\bwhile\s+\w+|"
+    r"\b(if|elif|else)\s*:\s*$|"
+    r"\bfor\s+\w+\s+in\s+.*:\s*$|"
+    r"\bwhile\s+.*:\s*$|"
     r"\bdef\s+\w+\s*\(|"
-    r"[=<>!]=|[+\-*/%]=|\w+\s*\([^)]*\)",
+    r"\bclass\s+\w+.*:\s*$|"
+    r"^\s*(?:import\s+[\w.]+|from\s+[\w.]+\s+import\b)|"
+    r"^\s*return\b|"
+    r"[=<>!]=|[+\-*/%]=",
+    re.IGNORECASE,
+)
+
+_COMMAND_SNIPPET_RE = re.compile(
+    r"^\s*(?:[$#>]|\w+@\w+[:~].*[$#])\s*\S+|"  # prompt markers like "$ git commit", "# apt update"
+    r"^\s*(?:git\s+(?:clone|commit|checkout|pull|push|add|status|branch|merge|init|rebase|log)|docker\s+|docker-compose\s+|podman\s+|kubectl\s+|helm\s+|minikube\s+)|"
+    r"^\s*(?:pip|pip3|npm|npx|yarn|pnpm|uv|poetry|cargo)\s+(?:install|run|build|add|remove|update|init|check)|"
+    r"^\s*(?:apt|apt-get|yum|dnf|apk|pacman|brew)\s+(?:install|update|upgrade)|"
+    r"^\s*(?:terraform|terragrunt|ansible|ansible-playbook)\s+|"
+    r"^\s*(?:systemctl|journalctl|service)\s+|"
+    r"^\s*(?:curl|wget|ssh|scp|rsync)\s+|"
+    r"^\s*(?:chmod|chown)\s+[0-9a-zA-Z+-]+|"
+    r"^\s*(?:cd\s+\S+|export\s+\w+=|source\s+\S+)|"
+    r"^\s*(?:python3?|bash|sh)\s+(?:-[a-zA-Z0-9_-]+|\S+\.(?:py|sh|bash)|[./]\S+)",
     re.IGNORECASE,
 )
 
 
 def _looks_like_code_snippet(text: str) -> bool:
     stripped = text.strip()
-    if not stripped or len(stripped) > 200:
+    if not stripped:
         return False
-    if _CODE_SNIPPET_RE.search(stripped):
+    if stripped.startswith("```") or stripped.startswith("`"):
         return True
-    return bool(":" in stripped and re.search(r"\b(for|while|def|class)\b", stripped, re.I))
+    lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    if not lines:
+        return False
+    code_lines = 0
+    for line in lines:
+        if (
+            _COMMAND_SNIPPET_RE.search(line)
+            or _CODE_SNIPPET_RE.search(line)
+            or bool(":" in line and re.search(r"\b(for|while|def|class)\b", line, re.I))
+            or line.startswith(("/", "./", "../", "http://", "https://"))
+        ):
+            code_lines += 1
+    if code_lines > 0 and code_lines >= len(lines) / 2:
+        return True
+    if len(stripped) <= 200:
+        if _COMMAND_SNIPPET_RE.search(stripped) or _CODE_SNIPPET_RE.search(stripped):
+            return True
+        if ":" in stripped and re.search(r"\b(for|while|def|class)\b", stripped, re.I):
+            return True
+    return False
 
 
 def _language_issues(ctx: ValidationContext) -> list:

@@ -61,11 +61,13 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 async def ping() -> bool:
     """Проверка соединения с БД (для /readyz)."""
+    from sqlalchemy.exc import SQLAlchemyError
+
     try:
         async with get_engine().connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True
-    except Exception:
+    except (SQLAlchemyError, OSError, ConnectionError, TimeoutError):
         return False
 
 

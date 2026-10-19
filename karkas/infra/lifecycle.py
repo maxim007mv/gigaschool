@@ -21,5 +21,5 @@ async def run_shutdown_hooks() -> None:
     for hook in list(_hooks):
         try:
             await hook()
-        except Exception:
+        except (OSError, RuntimeError, TimeoutError, ConnectionError, ValueError, TypeError):
             continue

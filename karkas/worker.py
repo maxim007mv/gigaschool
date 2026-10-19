@@ -16,6 +16,7 @@ from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация export_program_docx для V-ACR в воркере
 from karkas.api.sse import bus
@@ -189,8 +190,8 @@ async def _update_queue_metrics() -> None:
         async with factory() as session:
             depth = await jobs_repo.queue_depth(session)
         queue_depth_gauge.set(depth)
-    except Exception:
-        pass  # метрика не должна ломать цикл
+    except (SQLAlchemyError, OSError, ConnectionError, TimeoutError) as exc:
+        logger.debug("worker.queue_metrics_failed", error=str(exc))
 
 
 async def maintenance_once() -> None:

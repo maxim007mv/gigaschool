@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -29,11 +31,20 @@ from karkas.api.routers import (
 from karkas.logging_setup import configure_logging
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Управление жизненным циклом приложения: запуск и корректное закрытие ресурсов."""
+    configure_logging()
+    yield
+    from karkas.infra.db import dispose_engine
+
+    await dispose_engine()
+
+
 def create_app() -> FastAPI:
     """Фабрика приложения (используется тестами и uvicorn)."""
     import karkas.infra.exporters.bootstrap  # noqa: F401 — регистрация export_program_docx
 
-    configure_logging()
     app = FastAPI(
         title="КАРКАС API",
         description="ИИ-агент проектирования образовательных программ: каркас → Human Gate → комплект",
@@ -41,6 +52,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/v1/openapi.json",
         docs_url="/api/v1/docs",
         redoc_url=None,
+        lifespan=lifespan,
     )
 
     register_error_handlers(app)

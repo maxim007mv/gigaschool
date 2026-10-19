@@ -49,7 +49,7 @@ line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "BLE"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E501"]

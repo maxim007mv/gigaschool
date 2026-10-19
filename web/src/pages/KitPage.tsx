@@ -397,6 +397,25 @@ function KitTree({
         );
       })}
 
+      {kit.content.sections.length > 0 ? (
+        <section aria-label={T.kit.items.section} className="flex flex-col gap-xs border-t border-line pt-sm">
+          <h3 className="px-sm text-base font-semibold text-ink">{T.kit.items.section}</h3>
+          {kit.content.sections.map((section) => {
+            const title = String(section.body.title || section.body.section_code || section.ref);
+            return (
+              <TreeItem
+                key={section.ref}
+                active={selection?.kind === "block" && selection.block.ref === section.ref}
+                onClick={() => onSelect({ kind: "block", block: section })}
+                label={`${section.ref} · ${title}`}
+                stale={section.stale}
+                itemClass={itemClass}
+              />
+            );
+          })}
+        </section>
+      ) : null}
+
       <section aria-label={T.kit.items.sources} className="flex flex-col gap-xs border-t border-line pt-sm">
         <TreeItem
           active={selection?.kind === "sources"}
@@ -463,6 +482,8 @@ function blockTitle(block: ContentBlock): string {
       return `${T.kit.items.slides}${block.topic_ref ? ` · ${block.topic_ref}` : ""}`;
     case "annotation":
       return T.kit.items.annotations;
+    case "template_section":
+      return `${T.kit.items.section} ${block.body.section_code ? `(${block.body.section_code})` : block.ref}`;
     default:
       return block.ref;
   }

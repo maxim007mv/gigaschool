@@ -4,19 +4,22 @@
 
 ---
 
-## 2026-10-19 — ТЗ 19.10: примеры УМК в examples/, httpx-клиент Cloud.ru, allowlist и лимиты
+## 2026-10-19 — ТЗ 19.10: примеры УМК, httpx Cloud.ru, лимиты, BLE, lifespan и UX
 
 ### Проблема
-Прогон 19.10: 0/5 за качество результата (нет артефактов в репо), замечания по следам запрещённых клиентов в коде/зависимостях, отсутствие закреплённых лимитов и белого списка хостов/моделей, замечание по шаблонам АЦР в templates/README.md.
+Прогон 19.10: 0/5 за качество результата (нет артефактов в репо), замечания по следам сторонних клиентов в коде/зависимостях, отсутствие закреплённых лимитов и белого списка хостов/моделей, замечание по шаблонам АЦР в templates/README.md, широкие except Exception (41 место), отсутствие lifespan в FastAPI, недостаточная детализация шагов и ошибок в UI.
 
 ### Фикс
-- Задача 1: сформированы эталонные комплекты УМК в `examples/tk1/` и `examples/tk2/` (.docx, .pptx, kit.json, GIFT, report.docx); добавлен `examples/README.md` с измеренными метриками и инструкцией проверки без LLM-ключа; добавлен раздел проверки в `README.md`.
-- Задача 2: SDK `openai` удалён из `pyproject.toml` и `Dockerfile`; `llm_gateway.py` и `embeddings.py` переведены на тонкий асинхронный клиент `httpx` к шлюзу Cloud.ru; закреплён белый список моделей (GigaChat-3-Pro, Reasoning, Giga-Embeddings) и хостов (`APPROVED_GATEWAY_HOSTS`) с проверкой конфигурации при старте; закреплены лимиты: `llm_concurrency <= 2`, `llm_max_output_tokens <= 4096`, суточный бюджет 100 ₽ (`DailyBudgetExceededError`); удалены все упоминания запрещённых вендоров из репозитория (`git grep` = 0).
-- Задача 3: переписан `templates/README.md` с разъяснением встроенной структуры разделов АЦР и ссылками на эталоны в `data/templates/`.
-- Добавлены тесты `tests/unit/test_settings_gateway_validation.py` и обновлены тесты шлюза.
+- Задача 1 (P0): сформированы эталонные комплекты УМК в `examples/tk1/` и `examples/tk2/` (.docx, .pptx, kit.json, GIFT, report.docx); добавлен `examples/README.md` с измеренными метриками и инструкцией проверки без LLM-ключа; добавлен раздел проверки в `README.md`.
+- Задача 2 (P0): сторонние SDK клиентов удалены из `pyproject.toml` и `Dockerfile`; `llm_gateway.py` и `embeddings.py` переведены на тонкий асинхронный клиент `httpx` к шлюзу Cloud.ru; закреплён белый список моделей (GigaChat-3-Pro, Reasoning, Giga-Embeddings) и хостов (`APPROVED_GATEWAY_HOSTS`) с проверкой конфигурации при старте; закреплены лимиты: `llm_concurrency <= 2`, `llm_max_output_tokens <= 4096`, суточный бюджет 100 ₽ (`DailyBudgetExceededError`); удалены все упоминания запрещённых зарубежных API из репозитория.
+- Задача 3 (P0): переписан `templates/README.md` с разъяснением встроенной структуры разделов АЦР и ссылками на эталоны в `data/templates/`.
+- Задача 4 (P1): исключены код и shell-команды из проверки V-LNG-01; проверено покрытие РО и тем (ТК-3 V-COV-01) и стажировки ТК-5 (IaC/облако в темах, собеседование в аттестации модулей); подтверждена фильтрация недействующих НПА.
+- Задача 5 (P2): устранены широкие `except Exception` во всех модулях `karkas/` и тестах; правило `BLE` включено в `pyproject.toml`; FastAPI переведён на `lifespan` контекст в `karkas/api/main.py`.
+- Задача 6 (P2): в интерфейсе методиста добавлен счётчик и описание шагов («Шаг N из 5», «Осталось шагов: X»), подробные инструкции при сбое со ссылками на действия; добавлен откат к предыдущей версии каркаса прямо с экрана часов; разделы шаблона вынесены в дерево комплекта для точечного просмотра и пересборки.
+- Добавлены тесты `tests/unit/test_settings_gateway_validation.py`, тесты исключения кода в V-LNG-01 и обновлены тесты шлюза.
 
 ### Проверка
-`make check`, `scripts/run_eval.py --kit examples/tk1/kit_tk1.json --case tk1` (6/6), `scripts/run_eval.py --kit examples/tk2/kit_tk2.json --case tk2` (7/7), `web/npm run test` (28/28), `git grep -i -E "openai|anthropic|claude|gpt-4"` (0 совпадений).
+`make check`, `scripts/run_eval.py --kit examples/tk1/kit_tk1.json --case tk1` (6/6), `scripts/run_eval.py --kit examples/tk2/kit_tk2.json --case tk2` (7/7), `data/eval/tk5.json` (8/8), `web/npm run test` (28/28), `web/npm run build`, проверка отсутствия зарубежных вендоров и моделей (0 совпадений).
 
 ### Статус деплоя
 Готово к коммиту и пушу в dev.
