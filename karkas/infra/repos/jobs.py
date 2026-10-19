@@ -135,10 +135,23 @@ async def find_by_idempotency(
     return dict(row) if row else None
 
 
+def _parse_json_fields(row: Any) -> dict[str, Any]:
+    """SQLite отдаёт payload/progress/error строками, PostgreSQL — объектами."""
+    data = dict(row)
+    for key in ("payload", "progress", "error"):
+        value = data.get(key)
+        if isinstance(value, str):
+            try:
+                data[key] = json.loads(value or "{}")
+            except ValueError:
+                data[key] = {}
+    return data
+
+
 async def claim(session: AsyncSession, worker_id: str) -> dict[str, Any] | None:
     """Конкурентно-безопасный захват следующей задачи."""
     row = (await session.execute(text(_claim_sql()), {"worker_id": worker_id})).mappings().first()
-    return dict(row) if row else None
+    return _parse_json_fields(row) if row else None
 
 
 async def get_job(session: AsyncSession, job_id: str) -> dict[str, Any] | None:
@@ -159,7 +172,7 @@ async def get_job(session: AsyncSession, job_id: str) -> dict[str, Any] | None:
         .mappings()
         .first()
     )
-    return dict(row) if row else None
+    return _parse_json_fields(row) if row else None
 
 
 async def set_progress(session: AsyncSession, job_id: str, progress: dict[str, Any]) -> None:

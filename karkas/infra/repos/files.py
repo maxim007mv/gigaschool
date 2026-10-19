@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 from sqlalchemy import text
@@ -30,15 +31,16 @@ async def create_file(
         await session.execute(
             text(
                 """
-                INSERT INTO file_object (org_id, uploaded_by, filename, mime_type, size_bytes,
+                INSERT INTO file_object (id, org_id, uploaded_by, filename, mime_type, size_bytes,
                                          sha256, s3_key, extracted_text, extract_meta)
-                VALUES (:org_id, CAST(:uploaded_by AS uuid), :filename, :mime, :size, :sha,
+                VALUES (:fid, :org_id, CAST(:uploaded_by AS uuid), :filename, :mime, :size, :sha,
                         :s3_key, :text, CAST(:meta AS jsonb))
                 ON CONFLICT (org_id, sha256) DO NOTHING
                 RETURNING id
                 """
             ),
             {
+                "fid": str(uuid.uuid4()),
                 "org_id": org_id,
                 "uploaded_by": uploaded_by,
                 "filename": filename,

@@ -85,6 +85,23 @@ async def _run(db_url: str) -> int:
         print(f"{'OK' if ok else 'FAIL'} {label}: {response.status_code} (ожидался {expected})")
         if not ok:
             print(response.text[:500], file=sys.stderr)
+
+    # Реестры в lite: та же ветка, что использует framework_core перед генерацией.
+    # Ловит несовместимый с SQLite SQL и даты-строки (см. migrations/sqlite/003_lite_registry_columns.sql).
+    registry_ok = True
+    try:
+        from karkas.agent.pipeline import _registries_for_inputs
+        from karkas.infra.db import get_session_factory
+
+        async with get_session_factory()() as session:
+            registries = await _registries_for_inputs(session)
+        acts = registries["normative_acts"]
+        registry_ok = bool(acts) and all(act["signed_on"] is None or isinstance(act["signed_on"], str) for act in acts)
+    except Exception as exc:  # noqa: BLE001 — диагностика lite-ветки
+        print(f"FAIL реестры в lite: {exc!r}", file=sys.stderr)
+        registry_ok = False
+    failed |= not registry_ok
+    print(f"{'OK' if registry_ok else 'FAIL'} реестры в lite (framework_core)")
     return 1 if failed else 0
 
 

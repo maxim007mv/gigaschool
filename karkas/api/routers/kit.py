@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Response
@@ -54,7 +55,7 @@ async def generate_kit(
         },
         # Ключ меняется вместе с lock_version: повтор после сбоя — новая задача,
         # двойной клик — дедупликация (плюс проверка has_active выше).
-        idempotency_key=f"kit:{program_id}:{program['lock_version']}",
+        idempotency_key=f"kit:{program_id}:{program['lock_version']}:{uuid.uuid4().hex}",
     )
     await programs_repo.set_status(session, program_id=program_id, status="kit_generating")
     await programs_repo.audit(
@@ -204,7 +205,10 @@ async def regenerate_kit_part(
         program_id=program_id,
         priority=4,
         payload={"target_ref": payload.target_ref, "parts": payload.parts},
-        idempotency_key=f"kit_regen:{program_id}:{payload.target_ref}:{':'.join(payload.parts)}:{program['lock_version']}",
+        idempotency_key=(
+            f"kit_regen:{program_id}:{payload.target_ref}:{':'.join(payload.parts)}:"
+            f"{program['lock_version']}:{uuid.uuid4().hex}"
+        ),
     )
     if program["status"] == "kit_review":
         await programs_repo.set_status(session, program_id=program_id, status="kit_updating")

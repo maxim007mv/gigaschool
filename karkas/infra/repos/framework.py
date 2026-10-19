@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from typing import Any
 
 from sqlalchemy import text
@@ -728,12 +729,13 @@ async def save_kit(
             await session.execute(
                 text(
                     """
-                    INSERT INTO competency (program_id, ref, title, activity_kind, labor_function_id, ord)
-                    VALUES (:pid, :ref, :title, :activity_kind, :lf_id, :ord)
+                    INSERT INTO competency (id, program_id, ref, title, activity_kind, labor_function_id, ord)
+                    VALUES (:cid, :pid, :ref, :title, :activity_kind, :lf_id, :ord)
                     RETURNING id
                     """
                 ),
                 {
+                    "cid": str(uuid.uuid4()),
                     "pid": program_id,
                     "ref": comp.ref,
                     "title": comp.title,
@@ -748,12 +750,13 @@ async def save_kit(
                 await session.execute(
                     text(
                         """
-                        INSERT INTO learning_outcome (program_id, competency_id, ref, type, text, bloom_level, ord)
-                        VALUES (:pid, :cid, :ref, CAST(:type AS outcome_type), :text, :bloom, :ord)
+                        INSERT INTO learning_outcome (id, program_id, competency_id, ref, type, text, bloom_level, ord)
+                        VALUES (:oid, :pid, :cid, :ref, CAST(:type AS outcome_type), :text, :bloom, :ord)
                         RETURNING id
                         """
                     ),
                     {
+                        "oid": str(uuid.uuid4()),
                         "pid": program_id,
                         "cid": comp_id,
                         "ref": outcome.ref,
@@ -773,12 +776,13 @@ async def save_kit(
             await session.execute(
                 text(
                     """
-                    INSERT INTO module (program_id, ref, number, title, weight, att_form)
-                    VALUES (:pid, :ref, :number, :title, :weight, :att_form)
+                    INSERT INTO module (id, program_id, ref, number, title, weight, att_form)
+                    VALUES (:mid, :pid, :ref, :number, :title, :weight, :att_form)
                     RETURNING id
                     """
                 ),
                 {
+                    "mid": str(uuid.uuid4()),
                     "pid": program_id,
                     "ref": module.ref,
                     "number": module.number,
@@ -790,11 +794,12 @@ async def save_kit(
         ).scalar_one()
         for t_number, topic in enumerate(module.topics, start=1):
             topic_sql = """
-                INSERT INTO topic (program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form)
-                VALUES (:pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form)
+                INSERT INTO topic (id, program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form)
+                VALUES (:tid, :pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form)
                 RETURNING id
             """
             topic_params: dict[str, Any] = {
+                "tid": str(uuid.uuid4()),
                 "pid": program_id,
                 "mid": module_id,
                 "ref": topic.ref,
@@ -808,8 +813,8 @@ async def save_kit(
             }
             if not uses_sqlite():
                 topic_sql = """
-                    INSERT INTO topic (program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form, locked)
-                    VALUES (:pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form, :locked)
+                    INSERT INTO topic (id, program_id, module_id, ref, number, title, summary, weight, practicality, complexity, control_form, locked)
+                    VALUES (:tid, :pid, :mid, :ref, :number, :title, :summary, :weight, :practicality, :complexity, :control_form, :locked)
                     RETURNING id
                 """
                 topic_params["locked"] = list(topic.locked)
@@ -840,11 +845,12 @@ async def save_kit(
             await session.execute(
                 text(
                     """
-                    INSERT INTO calendar_session (program_id, seq, week_no, day_no, topic_id, activity, mode, hours)
-                    VALUES (:pid, :seq, :week, :day, :topic_id, :activity, CAST(:mode AS delivery_mode), :hours)
+                    INSERT INTO calendar_session (id, program_id, seq, week_no, day_no, topic_id, activity, mode, hours)
+                    VALUES (:sid, :pid, :seq, :week, :day, :topic_id, :activity, CAST(:mode AS delivery_mode), :hours)
                     """
                 ),
                 {
+                    "sid": str(uuid.uuid4()),
                     "pid": program_id,
                     "seq": session_row.seq,
                     "week": session_row.week,
@@ -861,11 +867,12 @@ async def save_kit(
         await session.execute(
             text(
                 """
-                INSERT INTO content_block (program_id, ref, kind, module_id, topic_id, body, stale, generated_by)
-                VALUES (:pid, :ref, :kind, :module_id, :topic_id, CAST(:body AS jsonb), :stale, :generated_by)
+                INSERT INTO content_block (id, program_id, ref, kind, module_id, topic_id, body, stale, generated_by)
+                VALUES (:bid, :pid, :ref, :kind, :module_id, :topic_id, CAST(:body AS jsonb), :stale, :generated_by)
                 """
             ),
             {
+                "bid": str(uuid.uuid4()),
                 "pid": program_id,
                 "ref": block.ref,
                 "kind": block.kind,
@@ -897,15 +904,16 @@ async def save_kit(
                 text(
                     """
                     INSERT INTO assessment_item
-                        (program_id, ref, kind, topic_id, module_id, stem, qtype, options, answer_key, rubric, difficulty, content_hash)
+                        (id, program_id, ref, kind, topic_id, module_id, stem, qtype, options, answer_key, rubric, difficulty, content_hash)
                     VALUES
-                        (:pid, :ref, CAST(:kind AS assessment_kind), :topic_id,
+                        (:aid, :pid, :ref, CAST(:kind AS assessment_kind), :topic_id,
                          (SELECT id FROM module WHERE program_id = :pid AND ref = :mref),
                          :stem, :qtype, CAST(:options AS jsonb), CAST(:answer_key AS jsonb), CAST(:rubric AS jsonb), :difficulty, :hash)
                     RETURNING id
                     """
                 ),
                 {
+                    "aid": str(uuid.uuid4()),
                     "pid": program_id,
                     "ref": item.ref,
                     "kind": item.kind,
@@ -946,13 +954,14 @@ async def save_kit(
             await session.execute(
                 text(
                     """
-                    INSERT INTO source (program_id, ref, section, citation, url, isbn, normative_act_id, status, evidence)
-                    VALUES (:pid, :ref, :section, :citation, :url, :isbn, :act_id,
+                    INSERT INTO source (id, program_id, ref, section, citation, url, isbn, normative_act_id, status, evidence)
+                    VALUES (:srcid, :pid, :ref, :section, :citation, :url, :isbn, :act_id,
                             CAST(:status AS verify_status), CAST(:evidence AS jsonb))
                     RETURNING id
                     """
                 ),
                 {
+                    "srcid": str(uuid.uuid4()),
                     "pid": program_id,
                     "ref": src.ref,
                     "section": src.section,
@@ -985,12 +994,13 @@ async def save_report(session: AsyncSession, program_id: str, version: int, repo
         await session.execute(
             text(
                 """
-                INSERT INTO validation_run (program_id, version, scope, passed, summary, duration_ms)
-                VALUES (:pid, :version, :scope, :passed, CAST(:summary AS jsonb), :duration)
+                INSERT INTO validation_run (id, program_id, version, scope, passed, summary, duration_ms)
+                VALUES (:runid, :pid, :version, :scope, :passed, CAST(:summary AS jsonb), :duration)
                 RETURNING id
                 """
             ),
             {
+                "runid": str(uuid.uuid4()),
                 "pid": program_id,
                 "version": version,
                 "scope": "kit" if report.summary.get("scope") == "kit" else "framework",

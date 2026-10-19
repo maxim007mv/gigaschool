@@ -18,6 +18,7 @@ import binascii
 import json
 import re
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -75,6 +76,7 @@ from karkas.infra.kb_retrieval import format_kb_snippets, retrieve_kb_snippets
 from karkas.infra.repos import framework as framework_repo
 from karkas.infra.repos import programs as programs_repo
 from karkas.infra.repos import usage as usage_repo
+from karkas.infra.sql_dialect import isoformat_value, now_expr, uuid_param
 from karkas.logging_setup import get_logger
 from karkas.settings import settings
 
@@ -416,9 +418,9 @@ async def _registries_for_inputs(session: AsyncSession) -> dict[str, Any]:
             {
                 "issuer": r["issuer"],
                 "number": r["number"],
-                "signed_on": r["signed_on"].isoformat() if r.get("signed_on") else None,
-                "valid_from": r["valid_from"].isoformat() if r.get("valid_from") else None,
-                "valid_to": r["valid_to"].isoformat() if r.get("valid_to") else None,
+                "signed_on": isoformat_value(r.get("signed_on")),
+                "valid_from": isoformat_value(r.get("valid_from")),
+                "valid_to": isoformat_value(r.get("valid_to")),
                 "kind": r["kind"],
                 "title": r["title"],
             }
@@ -1824,18 +1826,19 @@ async def _save_artifacts(
         )
         await session.execute(
             text(
-                """
-                INSERT INTO artifact (program_id, version, kind, s3_key, size_bytes, sha256, export_id)
-                VALUES (CAST(:pid AS uuid), :version, CAST(:kind AS artifact_kind), :key, :size, :hash,
-                        CAST(:export_id AS uuid))
+                f"""
+                INSERT INTO artifact (id, program_id, version, kind, s3_key, size_bytes, sha256, export_id)
+                VALUES (:aid, {uuid_param("pid")}, :version, CAST(:kind AS artifact_kind), :key, :size, :hash,
+                        {uuid_param("export_id")})
                 ON CONFLICT (program_id, version, kind, s3_key) DO UPDATE
                 SET size_bytes = EXCLUDED.size_bytes,
                     sha256 = EXCLUDED.sha256,
                     export_id = EXCLUDED.export_id,
-                    created_at = now()
+                    created_at = {now_expr()}
                 """
             ),
             {
+                "aid": str(uuid.uuid4()),
                 "pid": program_id,
                 "version": version,
                 "kind": artifact_kind,
@@ -2027,9 +2030,11 @@ async def maintenance_core(
     progress_cb: ProgressCallback = None,
 ) -> dict[str, Any]:
     """Обслуживание: секции на 3 месяца вперёд, очистка кэша, чанки базы знаний."""
+    from karkas.infra.sql_dialect import uses_sqlite
+
     created: list[str] = []
     now = datetime.now(UTC)
-    for month_offset in range(0, 3):
+    for month_offset in range(0, 3) if not uses_sqlite() else ():
         month = (now.month - 1 + month_offset) % 12 + 1
         year = now.year + (now.month - 1 + month_offset) // 12
         start = f"{year:04d}-{month:02d}-01"

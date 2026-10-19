@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-10-19 — lite-реестр: `official_url` и ILIKE ломали генерацию каркаса
+
+### Проблема
+В lite-режиме задача `framework` падала на обращении к реестру НПА: `registry.normative_acts` выбирает колонку `official_url`, которой не было в SQLite-схеме (`OperationalError: no such column: official_url`), а `registry.search_services` использовал `ILIKE`, который SQLite не поддерживает (`near "ilike": syntax error`). После починки реестра падал следующий шаг: `pipeline._registries_for_inputs` вызывал `.isoformat()` у дат НПА, которые SQLite отдаёт строками (`AttributeError: 'str' object has no attribute 'isoformat'`). Из-за этих падений `framework:generate` не доводил программу до готового каркаса, клиент получал 404 и уходил в цикл «генерация → опрос → 404». Регрессию не ловили тесты: `test_registry_search_finds_seeded_standard` идёт по PostgreSQL и на lite не выполняется, а lite-smoke читает уже готовый каркас и генерацию не запускает.
+
+### Фикс
+- `migrations/sqlite/003_lite_registry_columns.sql`: `ALTER TABLE normative_act ADD COLUMN official_url TEXT` — паритет с `migrations/sql/001_init.sql` (для новых и уже созданных lite-баз; по образцу `002_lite_core_tables.sql`).
+- `karkas/infra/repos/registry.py`: `search_services` выбирает `LIKE` в lite и `ILIKE` в PostgreSQL через `uses_sqlite()`.
+- `karkas/agent/pipeline.py`: даты НПА в payload реестров приводятся через `isoformat_value` (SQLite отдаёт строки, PostgreSQL — `date`).
+
+### Проверка
+`pytest tests -q` и `tests/integration/test_lite_smoke.py`; ruff/format/mypy по изменённым файлам; прогон `migrations.lite` на чистой базе (шаг `003` применяется, колонка появляется); в lite-режиме напрямую вызваны `registry.normative_acts`, `registry.search_services` и `pipeline._registries_for_inputs` — без ошибок, даты сериализуются, `official_url` в строке.
+
+### Статус деплоя
+Готово к коммиту.
+
+---
+
 ## 2026-10-19 — ревизия после прогона: живые examples, lite, embeddings, покрытие
 
 ### Проблема

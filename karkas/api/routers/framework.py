@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Response
@@ -78,7 +79,9 @@ async def generate_framework(
         program_id=program_id,
         priority=1,
         payload={"prev_status": program["status"]},
-        idempotency_key=f"framework:{program_id}:{program['lock_version']}",
+        # Уникальный ключ на попытку: повтор после fail не должен возвращать
+        # уже упавшую задачу. Двойной клик отсекает has_active() выше.
+        idempotency_key=f"framework:{program_id}:{program['lock_version']}:{uuid.uuid4().hex}",
     )
     await programs_repo.set_status(session, program_id=program_id, status="framework_generating")
     await programs_repo.audit(
