@@ -56,7 +56,7 @@ def test_strict_concurrency_and_token_limits() -> None:
 def test_allowlist_cannot_expand_approved_models() -> None:
     """MODEL_ALLOWLIST — только сужение, а не обход белого списка."""
     with pytest.raises(ValueError, match="неизвестные модели"):
-        Settings(model_allowlist="gpt-4", model_struct="gpt-4")
+        Settings(model_allowlist="foreign-model", model_struct="foreign-model")
 
 
 def test_real_reasoning_model_is_accepted() -> None:
@@ -68,7 +68,7 @@ def test_real_reasoning_model_is_accepted() -> None:
 def test_extra_body_cannot_override_service_fields() -> None:
     """LLM_EXTRA_BODY_JSON не должен переопределять model/max_tokens/response_format."""
     with pytest.raises(ValueError, match="служебные поля"):
-        Settings(llm_extra_body_json='{"model":"gpt-4"}')
+        Settings(llm_extra_body_json='{"model":"foreign-model"}')
 
 
 def test_prod_rejects_placeholder_jwt_secret() -> None:
