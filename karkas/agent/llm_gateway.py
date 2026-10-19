@@ -14,7 +14,7 @@
 - учёт каждого вызова через ``meter`` (таблица llm_call) и семафор параллелизма
   ``LLM_CONCURRENCY``.
 
-Запросы идут ТОЛЬКО на ``FM_BASE_URL`` (Cloud.ru). Модели OpenAI/Anthropic/Google
+Запросы идут ТОЛЬКО на ``FM_BASE_URL`` (Cloud.ru). Модели зарубежных провайдеров
 не допускаются даже при доступности в каталоге провайдера.
 """
 
@@ -27,9 +27,10 @@ import random
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Literal
 
-from openai import AsyncOpenAI
+import httpx
 from pydantic import BaseModel, ValidationError
 
 from karkas.agent.skills._base import (
@@ -39,6 +40,7 @@ from karkas.agent.skills._base import (
     NullMeter,
     maybe_await,
 )
+from karkas.eval.defense_metrics import estimate_gigachat3_pro_cost
 from karkas.logging_setup import get_logger
 from karkas.settings import Settings, get_settings
 
@@ -102,6 +104,10 @@ class CircuitOpenError(TransientError):
     """Предохранитель модели разомкнут: вызов не делается до конца cooldown."""
 
 
+class DailyBudgetExceededError(LlmBadOutput):
+    """Превышен суточный лимит расходов на LLM (100 ₽ в день)."""
+
+
 @dataclass
 class _ModelCircuit:
     """Состояние предохранителя одной модели."""
@@ -111,7 +117,7 @@ class _ModelCircuit:
 
 
 # ---------------------------------------------------------------------------
-# Помощники разбора ответа (совместимы с объектами openai и с моками-словарями)
+# Помощники разбора ответа (совместимы со словарями JSON и объектами-моками)
 # ---------------------------------------------------------------------------
 
 
@@ -251,15 +257,61 @@ def _repair_message(exc: BaseException) -> str:
     return f"Исправь JSON по схеме. Ошибки: {detail}"[:2000]
 
 
+class CloudRuHttpError(Exception):
+    """Ошибка HTTP-шлюза Cloud.ru FM со статусом ответа."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(f"HTTP {status_code}: {message}")
+        self.status_code = status_code
+
+
+class CloudRuFMClient:
+    """Тонкий асинхронный HTTP-клиент к шлюзу Cloud.ru Foundation Models на httpx."""
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        timeout: float = 120.0,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout = timeout
+        self.chat = self.Chat(self)
+
+    class Chat:
+        def __init__(self, client: CloudRuFMClient) -> None:
+            self.completions = self.Completions(client)
+
+        class Completions:
+            def __init__(self, client: CloudRuFMClient) -> None:
+                self._client = client
+
+            async def create(self, **kwargs: Any) -> dict[str, Any]:
+                url = f"{self._client.base_url}/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {self._client.api_key}",
+                    "Content-Type": "application/json",
+                }
+                extra_body = kwargs.pop("extra_body", None)
+                payload: dict[str, Any] = dict(kwargs)
+                if extra_body and isinstance(extra_body, dict):
+                    payload.update(extra_body)
+                async with httpx.AsyncClient(timeout=float(self._client.timeout)) as http_client:
+                    response = await http_client.post(url, json=payload, headers=headers)
+                    if response.status_code != 200:
+                        raise CloudRuHttpError(response.status_code, response.text)
+                    return response.json()
+
+
 def _build_default_client(settings: Settings) -> Any | None:
     """Клиент Cloud.ru FM по умолчанию; без ключа — None (ошибка на вызове)."""
     if not settings.fm_api_key:
         return None
-    return AsyncOpenAI(
+    return CloudRuFMClient(
         base_url=settings.fm_base_url,
         api_key=settings.fm_api_key,
-        timeout=settings.llm_timeout_s,
-        max_retries=0,
+        timeout=float(settings.llm_timeout_s),
     )
 
 
@@ -291,6 +343,7 @@ class LlmGateway:
         self._semaphore = semaphore
         self._circuits: dict[str, _ModelCircuit] = {}
         self._clients: dict[str, Any] = {}
+        self._total_spent_rub: Decimal = Decimal("0.0")
         #: Модели, у которых выяснилось, что response_format не поддерживается (JSON в промпте).
         self._json_mode: dict[str, bool] = {}
         if self._client is not None:
@@ -315,6 +368,11 @@ class LlmGateway:
         валидация с «ремонтом» → кэш и учёт. Все ошибки типизированы:
         ``TransientError`` — можно повторить выше, ``LlmBadOutput`` — нельзя.
         """
+        if self._total_spent_rub >= self._settings.daily_budget_rub:
+            raise DailyBudgetExceededError(
+                f"Превышен дневной бюджет на LLM ({self._settings.daily_budget_rub} ₽): "
+                f"уже израсходовано {self._total_spent_rub:.2f} ₽"
+            )
         if model_class not in TEMPERATURE:
             raise ValueError(f"{skill}: неизвестный класс задачи {model_class!r}")
         temp = self._temperature(model_class, temperature)
@@ -498,12 +556,16 @@ class LlmGateway:
             self._meter.record(skill, model, prompt_tokens, completion_tokens, float(latency_ms), ok, cache_hit)
         )
         if ok and not cache_hit and (prompt_tokens or completion_tokens):
+            cost_info = estimate_gigachat3_pro_cost(prompt_tokens, completion_tokens)
+            self._total_spent_rub += cost_info.cost_rub
             logger.info(
                 "llm.usage",
                 skill=skill,
                 model=model,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                cost_rub=float(cost_info.cost_rub),
+                total_spent_rub=float(self._total_spent_rub),
                 latency_ms=round(float(latency_ms), 1),
             )
 
@@ -570,6 +632,9 @@ class LlmGateway:
 
 __all__ = [
     "CircuitOpenError",
+    "CloudRuFMClient",
+    "CloudRuHttpError",
+    "DailyBudgetExceededError",
     "LlmBadOutput",
     "LlmError",
     "LlmGateway",

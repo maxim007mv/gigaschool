@@ -1,0 +1,53 @@
+"""Тесты валидации шлюза Cloud.ru Foundation Models и ограничений (ЗАД-13)."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+import pytest
+
+from karkas.settings import Settings
+
+
+def test_fm_env_configuration(monkeypatch) -> None:
+    monkeypatch.setenv("FM_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    monkeypatch.setenv("FM_API_KEY", "fm-test-key")
+    s = Settings()
+    assert s.fm_base_url == "https://foundation-models.api.cloud.ru/v1"
+    assert s.fm_api_key == "fm-test-key"
+
+
+def test_unknown_gateway_host_raises_error(monkeypatch) -> None:
+    """Незнакомый хост шлюза даёт ошибку конфигурации."""
+    monkeypatch.setenv("FM_BASE_URL", "https://api.unauthorized-provider.com/v1")
+    with pytest.raises(ValueError, match="Недопустимый хост шлюза"):
+        Settings()
+
+
+def test_unknown_model_raises_error(monkeypatch) -> None:
+    """Незнакомая модель вне белого списка даёт ошибку конфигурации."""
+    monkeypatch.setenv("FM_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    with pytest.raises(ValueError, match="не входит в белый список разрешённых моделей"):
+        Settings(model_struct="unauthorized-foreign-model")
+
+
+def test_approved_models_and_hosts_accepted() -> None:
+    """Разрешённые модели GigaChat-3-Pro и Giga-Embeddings принимаются."""
+    s = Settings(
+        fm_base_url="https://hub.gigaschool.ru/api/v1/llm/v1",
+        model_struct="GigaChat/GigaChat-3-Pro",
+        model_bulk="GigaChat/GigaChat-3-Pro",
+        model_embed="ai-sage/Giga-Embeddings-instruct-3B",
+    )
+    assert s.model_struct == "GigaChat/GigaChat-3-Pro"
+    assert s.llm_concurrency <= 2
+    assert s.llm_max_output_tokens <= 4096
+    assert s.daily_budget_rub == Decimal("100.0")
+
+
+def test_strict_concurrency_and_token_limits() -> None:
+    """Попытка задать concurrency > 2 или max_tokens > 4096 отклоняется валидатором."""
+    with pytest.raises(ValueError):
+        Settings(llm_concurrency=4)
+    with pytest.raises(ValueError):
+        Settings(llm_max_output_tokens=8192)

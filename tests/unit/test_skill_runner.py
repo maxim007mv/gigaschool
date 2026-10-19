@@ -15,7 +15,7 @@ from karkas.settings import Settings
 
 
 def make_settings(**overrides) -> Settings:
-    base = dict(environment="test", llm_concurrency=4, llm_backoff_base_s=0.01)
+    base = dict(environment="test", llm_concurrency=2, llm_backoff_base_s=0.01)
     base.update(overrides)
     return Settings(**base)
 

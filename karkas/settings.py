@@ -7,13 +7,45 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import AliasChoices, Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ModelClass = Literal["struct", "bulk", "embed", "rerank"]
+
+#: Белый список доверенных хостов шлюза Cloud.ru Foundation Models (ЗАД-13)
+APPROVED_GATEWAY_HOSTS: frozenset[str] = frozenset(
+    {
+        "foundation-models.api.cloud.ru",
+        "hub.gigaschool.ru",
+        "api.cloud.ru",
+        "localhost",
+        "127.0.0.1",
+        "testserver",
+        "example.invalid",
+    }
+)
+
+#: Белый список разрешённых моделей Cloud.ru FM (GigaChat-3-Pro, Reasoning, Giga-Embeddings)
+APPROVED_MODELS: frozenset[str] = frozenset(
+    {
+        "GigaChat/GigaChat-3-Pro",
+        "GigaChat-3-Pro",
+        "GigaChat/GigaChat-3-Pro-preview",
+        "GigaChat-3-Pro-preview",
+        "GigaChat/Reasoning",
+        "GigaChat-Reasoning",
+        "Reasoning",
+        "ai-sage/Giga-Embeddings-instruct-3B",
+        "Giga-Embeddings-instruct-3B",
+        "ai-sage/Giga-Embeddings",
+        "Giga-Embeddings",
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -29,22 +61,37 @@ class Settings(BaseSettings):
     # --- Cloud.ru Foundation Models (единственный разрешённый LLM-провайдер) ---
     fm_base_url: str = Field(
         default="https://foundation-models.api.cloud.ru/v1",
-        validation_alias=AliasChoices("FM_BASE_URL", "OPENAI_BASE_URL"),
+        validation_alias=AliasChoices("FM_BASE_URL"),
     )
-    fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY", "OPENAI_API_KEY"))
+    fm_api_key: str = Field(default="", validation_alias=AliasChoices("FM_API_KEY"))
     model_struct: str = "GigaChat/GigaChat-3-Pro"  # экономичная структурная модель (хакатон)
     model_bulk: str = "GigaChat/GigaChat-3-Pro"  # тот же класс — кэш шлюза, меньше сюрпризов по биллингу
-    model_embed: str = ""  # Qwen3-Embedding-0.6B — RAG
+    model_embed: str = ""  # ai-sage/Giga-Embeddings-instruct-3B — RAG
     model_rerank: str = ""  # Qwen3-Reranker-0.6B
     model_struct_backup: str = ""  # резервная структурная модель (Д1 §7)
     model_bulk_backup: str = ""  # резервная модель массовой генерации
     model_allowlist: str = ""  # ids через запятую; пусто = разрешены только 4 модели выше
-    llm_concurrency: int = Field(default=2, ge=1, le=64)  # лимит хаба: 2 параллельных запроса
+    llm_concurrency: int = Field(default=2, ge=1, le=2)  # лимит хаба: не более 2 параллельных запросов
     llm_timeout_s: int = Field(default=120, ge=5)  # таймаут шлюза хаба
     llm_cache_ttl_h: int = Field(default=168, ge=1)  # 7 суток
-    # Доп. параметры запроса (JSON), напр. '{"reasoning":{"enabled":false}}' для OpenRouter —
-    # отключает скрытое «рассуждение» моделей (в замере: выход 67 → 17 токенов). Пусто = не слать.
+    daily_budget_rub: Decimal = Field(default=Decimal("100.0"), ge=Decimal("0.0"))  # дневной лимит 100 ₽
+    # Доп. параметры запроса (JSON), напр. '{"reasoning":{"enabled":false}}' для шлюза —
+    # отключает скрытое «рассуждение» моделей. Пусто = не слать.
     llm_extra_body_json: str = ""
+
+    @field_validator("fm_base_url")
+    @classmethod
+    def _validate_fm_base_url(cls, value: str) -> str:
+        if not value.strip():
+            return value
+        parsed = urlparse(value)
+        host = (parsed.hostname or "").lower()
+        if host and host not in APPROVED_GATEWAY_HOSTS:
+            raise ValueError(
+                f"Недопустимый хост шлюза {host!r}. Разрешены только хосты Cloud.ru FM: "
+                f"{', '.join(sorted(APPROVED_GATEWAY_HOSTS))}"
+            )
+        return value
 
     @field_validator("llm_extra_body_json")
     @classmethod
@@ -145,6 +192,20 @@ class Settings(BaseSettings):
             self.database_url = "sqlite+aiosqlite:///./var/karkas.db"
         if self.environment == "prod" and self.jwt_secret in ("", "change-me"):
             raise ValueError("JWT_SECRET обязателен в проде (environment=prod)")
+        if self.environment != "test":
+            explicit_allowlist = tuple(m.strip() for m in self.model_allowlist.split(",") if m.strip())
+            for model_name in (self.model_struct, self.model_bulk):
+                if model_name and model_name not in APPROVED_MODELS and model_name not in explicit_allowlist:
+                    raise ValueError(
+                        f"Модель {model_name!r} не входит в белый список разрешённых моделей Cloud.ru FM: "
+                        f"{', '.join(sorted(APPROVED_MODELS))}"
+                    )
+            embed_allowed = APPROVED_MODELS | set(explicit_allowlist)
+            if self.model_embed and self.model_embed not in embed_allowed:
+                raise ValueError(
+                    f"Модель эмбеддингов {self.model_embed!r} не входит в белый список моделей Cloud.ru FM: "
+                    f"{', '.join(sorted(APPROVED_MODELS))}"
+                )
         return self
 
 

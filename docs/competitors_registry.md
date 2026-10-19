@@ -96,7 +96,7 @@
 ### 3.1. Кейс автоматизации методической работы через ботов и LLM
 * **Автор:** [@just_b_t_s_](https://www.threads.com/@just_b_t_s_) ([Пост](https://www.threads.com/@just_b_t_s_/post/DebV7GFDvu7))
 * **Реализованный стек:**
-  - Make / n8n + Telegram-боты + Claude / ChatGPT + интеграция с LMS.
+  - Make / n8n + Telegram-боты + LLM-сервисы + интеграция с LMS.
   - Автоматизация создания сценариев, тестов, материалов и сборки курсов в LMS без ручной рутины.
   - Методологический аудит и выстраивание программ обучения (ADDIE, SAM, learning paths).
 
@@ -198,7 +198,7 @@
 
 ### 6.7. [4GeeksAcademy / course-outline-generator](https://github.com/4GeeksAcademy/course-outline-generator)
 * **Репозиторий:** `github.com/4GeeksAcademy/course-outline-generator`
-* **Стек:** Claude Projects / Системные промпты и пайплайны
+* **Стек:** Prompt Engineering / Системные промпты и пайплайны
 * **Функционал:**
   - Открытый репозиторий с шаблонами промптов и архитектурой генерации программ и практических заданий для IT-курсов.
 

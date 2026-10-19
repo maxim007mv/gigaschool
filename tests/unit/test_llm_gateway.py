@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import time
+from decimal import Decimal
 
 import pytest
 from pydantic import BaseModel
 
 from karkas.agent.llm_gateway import (
     CircuitOpenError,
+    DailyBudgetExceededError,
     LlmBadOutput,
     LlmGateway,
     LlmRequestError,
@@ -27,7 +29,7 @@ class Out(BaseModel):
 
 
 class ApiError(Exception):
-    """Ошибка провайдера с HTTP-статусом (эмулирует openai.APIStatusError)."""
+    """Ошибка провайдера с HTTP-статусом (эмулирует CloudRuHttpError)."""
 
     def __init__(self, status: int, message: str | None = None) -> None:
         super().__init__(message or f"HTTP {status}")
@@ -79,7 +81,7 @@ class _FakeChat:
 
 
 class FakeClient:
-    """AsyncOpenAI-совместимый клиент, отвечающий по сценарию.
+    """HTTP-клиент Cloud.ru FM, отвечающий по сценарию.
 
     Элемент сценария: строка (content), (content, finish_reason),
     Exception (будет брошено) или async-функция (model, messages, temperature).
@@ -177,7 +179,8 @@ def make_settings(**overrides) -> Settings:
         fm_api_key="test-key",
         model_struct="model-struct",
         model_bulk="model-bulk",
-        llm_concurrency=4,
+        model_allowlist="model-struct,model-bulk,model-backup",
+        llm_concurrency=2,
         llm_timeout_s=5,
         llm_cache_ttl_h=1,
         llm_max_repairs=2,
@@ -448,14 +451,14 @@ async def test_parallelism_limited_by_semaphore() -> None:
     gateway = LlmGateway(
         client=client,
         cache=NoCache(),
-        settings=make_settings(llm_concurrency=3),
+        settings=make_settings(llm_concurrency=2),
         sleep=noop_sleep,
     )
     await asyncio.gather(
         *(gateway.complete_json("S01", "struct", [{"role": "user", "content": f"q{i}"}], Out) for i in range(10))
     )
-    assert client.max_active <= 3
-    assert client.max_active >= 2
+    assert client.max_active <= 2
+    assert client.max_active >= 1
 
 
 async def test_missing_client_raises_unavailable() -> None:
@@ -472,3 +475,16 @@ async def test_latency_is_measured() -> None:
     await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)
     assert meter.records[-1]["latency_ms"] >= 0.0
     assert time.monotonic() > 0
+
+
+async def test_daily_budget_limit_blocks_excessive_calls() -> None:
+    """Превышение дневного бюджета блокирует дальнейшие вызовы."""
+    client = FakeClient(['{"name": "a", "n": 1}'])
+    gateway = LlmGateway(
+        client=client,
+        cache=NoCache(),
+        settings=make_settings(daily_budget_rub=Decimal("0.0")),
+        sleep=noop_sleep,
+    )
+    with pytest.raises(DailyBudgetExceededError, match="Превышен дневной бюджет"):
+        await gateway.complete_json("S01", "struct", [{"role": "user", "content": "x"}], Out)

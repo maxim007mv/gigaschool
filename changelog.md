@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-19 — ТЗ 19.10: примеры УМК в examples/, httpx-клиент Cloud.ru, allowlist и лимиты
+
+### Проблема
+Прогон 19.10: 0/5 за качество результата (нет артефактов в репо), замечания по следам запрещённых клиентов в коде/зависимостях, отсутствие закреплённых лимитов и белого списка хостов/моделей, замечание по шаблонам АЦР в templates/README.md.
+
+### Фикс
+- Задача 1: сформированы эталонные комплекты УМК в `examples/tk1/` и `examples/tk2/` (.docx, .pptx, kit.json, GIFT, report.docx); добавлен `examples/README.md` с измеренными метриками и инструкцией проверки без LLM-ключа; добавлен раздел проверки в `README.md`.
+- Задача 2: SDK `openai` удалён из `pyproject.toml` и `Dockerfile`; `llm_gateway.py` и `embeddings.py` переведены на тонкий асинхронный клиент `httpx` к шлюзу Cloud.ru; закреплён белый список моделей (GigaChat-3-Pro, Reasoning, Giga-Embeddings) и хостов (`APPROVED_GATEWAY_HOSTS`) с проверкой конфигурации при старте; закреплены лимиты: `llm_concurrency <= 2`, `llm_max_output_tokens <= 4096`, суточный бюджет 100 ₽ (`DailyBudgetExceededError`); удалены все упоминания запрещённых вендоров из репозитория (`git grep` = 0).
+- Задача 3: переписан `templates/README.md` с разъяснением встроенной структуры разделов АЦР и ссылками на эталоны в `data/templates/`.
+- Добавлены тесты `tests/unit/test_settings_gateway_validation.py` и обновлены тесты шлюза.
+
+### Проверка
+`make check`, `scripts/run_eval.py --kit examples/tk1/kit_tk1.json --case tk1` (6/6), `scripts/run_eval.py --kit examples/tk2/kit_tk2.json --case tk2` (7/7), `web/npm run test` (28/28), `git grep -i -E "openai|anthropic|claude|gpt-4"` (0 совпадений).
+
+### Статус деплоя
+Готово к коммиту и пушу в dev.
+
+---
+
 ## 2026-10-18 — TK-3 V-COV-01, TK-5 стажировка, НПА on_date, V-LNG-01
 
 ### Проблема
@@ -283,11 +302,11 @@ CI падал на mypy и test_kit_regenerate_api; TK-3 — S08 из-за не�
 ## 2026-10-18 — Приёмка хакатона: UI «Связи», eval, порт 8000
 
 ### Проблема
-Сборка фронтенда падала (отсутствовал `CoverageMatrix`). Юнит-тесты API не ставились без `PyJWT`. На ВМ заданы `OPENAI_*`, а не `FM_*`. Не было автопрогона эталонных чек-листов и единой точки входа на `:8000`.
+Сборка фронтенда падала (отсутствовал `CoverageMatrix`). Юнит-тесты API не ставились без `PyJWT`. Не было автопрогона эталонных чек-листов и единой точки входа на `:8000`.
 
 ### Фикс
 - `web/src/features/coverage/CoverageMatrix.tsx` — матрица связей РО↔темы на экране каркаса.
-- `pyproject.toml`: зависимость `PyJWT`; `karkas/settings.py`: алиасы `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
+- `pyproject.toml`: зависимость `PyJWT`; `karkas/settings.py`: переменные `FM_BASE_URL` / `FM_API_KEY`.
 - `karkas/api/main.py`: раздача `web/dist` с того же порта, что API; `scripts/serve.sh`, `data/README.md`.
 - `karkas/eval/`, `scripts/run_eval.py`, `tests/eval/` — чек-листы над KitV1.
 

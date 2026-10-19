@@ -238,7 +238,7 @@ def render_prompt(skill_dir: str, **variables: Any) -> str:
 
 
 def make_messages(user: str, system: str | None = None) -> list[dict[str, Any]]:
-    """Собрать messages для OpenAI-совместимого вызова."""
+    """Собрать messages для HTTP-вызова к шлюзу Cloud.ru FM."""
     messages: list[dict[str, Any]] = []
     if system:
         messages.append({"role": "system", "content": system})
